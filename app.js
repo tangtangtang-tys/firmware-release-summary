@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const STORAGE_KEY = "firmware-release-replica-v1";
+  const STORAGE_KEY = "firmware-release-replica-v3-visual-audit";
   const routes = {
     firmware: { title: "固件列表", group: "device" },
     modules: { title: "模组型号", group: "device" },
@@ -13,7 +13,7 @@
 
   const productLines = ["IPC", "车载", "NVR", "AI玩具", "婴儿看护", "4G模组", "BK系列"];
   const permissionRows = [
-    { menu: "固件管理", page: "固件列表", actions: ["查看固件标识列表", "编辑固件标识", "新增固件标识", "发布固件版本", "回滚固件版本", "维护APP更新说明", "管理DING配置", "查看发布记录", "查看DING记录", "重试DING", "补发DING", "删除固件标识", "查看版本列表", "新增固件版本", "编辑固件版本", "删除固件版本", "删除差分文件", "新建差分任务"] },
+    { menu: "固件管理", page: "固件列表", actions: ["查看固件标识列表", "编辑固件标识", "新增固件标识", "发布固件版本", "回滚固件版本", "维护APP更新说明", "管理DING配置", "查看发布记录", "查看DING记录", "重试DING", "补发DING", "删除固件标识", "查看版本列表", "新增固件版本", "编辑固件版本", "删除固件版本", "查看在线差分", "新建差分任务", "查看差分包", "下载差分包", "删除差分文件"] },
     { menu: "模组型号", page: "", actions: [] },
     { menu: "日志管理", page: "操作日志", actions: ["查看操作日志"] },
     { menu: "审批日志", page: "", actions: [] },
@@ -112,12 +112,89 @@
     { version: "23.110.211.1", url: "http://doraemon.camera666.com/firmware_23.110.211.1_1764261542.bin", size: "7.20", models: "-", features: 0, creator: "管理员", note: "1", updated: "2025-11-28 00:39:06", latest: false, reminder: "不提醒" }
   ];
 
+  function differentialDemoIdentifier() {
+    const versionSuffixes = ["234", "2421", "242", "241", "2337", "2336", "2335", "2334", "2333", "2332", "233", "2321", "232", "231"];
+    const versions = versionSuffixes.map((suffix, index) => ({
+      version: `25.922.219.${suffix}`,
+      url: `http://doraemon.camera666.com/firmware_25.922.219.${suffix}.bin`,
+      size: (4.92 + (index % 5) * 0.02).toFixed(2),
+      models: "SY278SAEC", features: 2, creator: "管理员",
+      note: index === 0 ? "4G 模组稳定版本" : "4G 模组历史版本",
+      updated: index === 0 ? "2026-05-28 18:35:20" : `2026-05-${String(Math.max(1, 27 - index)).padStart(2, "0")} 14:13:53`,
+      latest: index === 0, reminder: "不提醒"
+    }));
+    const taskRows = [
+      ["T234", "234", ["2421"], "2026-05-28 18:42:37", "2026-05-28 18:41:34"],
+      ["T242", "242", ["2421"], "2026-05-25 14:14:53"],
+      ["T2421", "2421", ["242"], "2026-05-25 14:13:53"],
+      ["T241", "241", ["242"], "2026-05-23 15:01:53"],
+      ["T242", "242", ["234", "241"], "2026-05-23 15:01:09"],
+      ["234T241", "241", ["234"], "2026-05-22 17:17:52"],
+      ["241T234", "234", ["241"], "2026-05-22 17:16:53"],
+      ["234T2337", "2337", ["234"], "2026-05-21 19:16:52"],
+      ["2337T234", "234", ["2337"], "2026-05-21 19:14:54"],
+      ["231232TO2337", "2337", ["232", "231"], "2026-05-19 18:43:09"],
+      ["2337TO2336", "2336", ["2337"], "2026-05-19 14:05:52"],
+      ["2336TO2337", "2337", ["2336"], "2026-05-19 14:04:52"],
+      ["2335TO2334", "2335", ["2334"], "2026-05-19 11:22:52"],
+      ["2334TO2335", "2334", ["2335"], "2026-05-19 11:21:52"],
+      ["233TT2334", "2334", ["233"], "2026-05-18 18:53:52"],
+      ["2334TT233", "233", ["2334"], "2026-05-18 18:52:52"],
+      ["233TT2333", "233", ["2333"], "2026-05-18 18:19:52"],
+      ["2333TT233", "2333", ["233"], "2026-05-18 18:18:52"],
+      ["2332TT233", "233", ["2332"], "2026-05-18 17:32:52"],
+      ["233TT2332", "2332", ["233"], "2026-05-18 17:31:52"],
+      ["2321TO233", "233", ["2321"], "2026-05-17 20:18:52"],
+      ["233TO2321", "2321", ["233"], "2026-05-17 20:17:52"],
+      ["232TO2321", "2321", ["232"], "2026-05-16 16:21:52"],
+      ["2321TO232", "232", ["2321"], "2026-05-16 16:20:52"],
+      ["231TO232", "232", ["231"], "2026-05-15 19:56:53"],
+      ["232TO231", "231", ["232"], "2026-04-29 19:28:50"],
+      ["2337TO232", "232", ["2337"], "2026-05-15 18:38:52"],
+      ["2337TO2321", "2321", ["2337"], "2026-05-15 18:37:52"],
+      ["2336TO2335", "2335", ["2336"], "2026-05-14 17:12:52"],
+      ["2335TO2336", "2336", ["2335"], "2026-05-14 17:11:52"],
+      ["2334TO2333", "2333", ["2334"], "2026-05-13 16:42:52"],
+      ["2333TO2334", "2334", ["2333"], "2026-05-13 16:41:52"],
+      ["2332TO2333", "2333", ["2332"], "2026-05-12 15:32:52"],
+      ["233TO2331", "233", ["231"], "2026-05-11 14:22:52"],
+      ["231TO233", "233", ["231"], "2026-05-10 13:12:52"]
+    ];
+    const differentialTasks = taskRows.map(([name, target, sources, completedAt, createdAt], index) => {
+      const targetVersion = `25.922.219.${target}`;
+      const sourceVersions = sources.map(source => `25.922.219.${source}`);
+      const id = `DIFF-TASK-${index + 1}`;
+      const items = sourceVersions.map((sourceVersion, itemIndex) => ({ id: `${id}-${itemIndex + 1}`, sourceVersion, targetVersion, moduleModel: "SY278SAEC", status: "已完成", failureReason: "-", packageName: `diff_${sourceVersion}_to_${targetVersion}_${1779000000 + index * 10 + itemIndex}.par` }));
+      return { id, name, targetVersion, sourceVersions, moduleModel: "SY278SAEC", status: "已完成", successRate: "100.0%", packageCount: items.length, createdAt: createdAt || completedAt.replace(/:\d\d$/, ":34"), completedAt, items };
+    });
+    const packageRows = [
+      ["2421", "2026-05-25 14:13:53", ["242"]],
+      ["242", "2026-05-25 14:14:53", ["2421", "234", "241"]],
+      ["241", "2026-05-23 15:01:53", ["242", "234"]],
+      ["234", "2026-05-28 18:42:37", ["242", "241", "2337"]],
+      ["2336", "2026-05-19 14:05:52", ["2337"]],
+      ["2337", "2026-05-21 19:16:52", ["234", "232", "231", "2336"]],
+      ["2321", "2026-05-15 19:57:52", ["2337"]],
+      ["231", "2026-04-29 19:28:50", ["232"]],
+      ["232", "2026-05-15 19:56:53", ["231", "2337"]]
+    ];
+    const differentialPackages = packageRows.map(([target, updatedAt, sources], groupIndex) => ({
+      targetVersion: `25.922.219.${target}`, updatedAt,
+      items: sources.map((source, itemIndex) => ({ id: `DIFF-PACKAGE-${target}-${itemIndex + 1}`, sourceVersion: `25.922.219.${source}`, sizeKb: (5 + itemIndex / 10).toFixed(1), name: `diff_25.922.219.${source}_to_25.922.219.${target}_${1779689617 + groupIndex * 100 + itemIndex}.par`, createdAt: updatedAt }))
+    }));
+    return {
+      id: "25.922.219", product: "4G模组", created: "2026-04-21 18:36:18", models: "SY278SAEC", network: "仅4G", power: "常电", architecture: "新架构", versions, differentialTasks, differentialPackages
+    };
+  }
+
   const seed = {
     identifiers: [
       { id: "23.110.211", product: "IPC", created: "2025-11-28 00:37:53", models: "QD20-DK", network: "仅4G", power: "常电", architecture: "新架构", versions: baseVersions },
+      { id: "25.921.219", product: "4G模组", created: "2026-04-21 18:20:12", models: "SY278SAEC", network: "仅4G", power: "常电", architecture: "新架构", versions: [] },
+      differentialDemoIdentifier(),
       ...["23.100.111", "23.210.211", "23.120.211", "23.322.219", "23.220.211", "23.110.315", "23.120.304", "23.202.111", "23.203.111", "22.211.109", "23.303.111", "23.312.211", "22.111.109", "23.100.105", "20.190.350", "23.212.211", "23.422.209", "10.187.123", "23.412.219", "23.200.105", "23.403.119", "23.421.209", "23.320.239", "23.130.113", "26.221.201", "23.110.213", "23.230.111", "20.129.257", "20.322.109"].map((id, index) => ({
         id,
-        product: index % 5 === 0 ? "4G模组" : "IPC",
+        product: "IPC",
         created: `2026-0${(index % 6) + 1}-${String((index % 25) + 1).padStart(2, "0")} 10:20:00`,
         models: index % 3 === 0 ? "QD20" : "A9-Pro",
         network: index % 4 === 0 ? "WiFi" : "仅4G",
@@ -196,8 +273,35 @@
 
   const clone = value => JSON.parse(JSON.stringify(value));
 
+  function initialLifecycleEvents(identifier, legacyCurrent, legacyRollbackTarget, identifierIndex) {
+    if (identifier.id === "23.110.211") {
+      return [
+        { id: "EVT-1313-01", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "preparation", title: "固件版本创建完成", time: "2026-07-13 16:30:59", operator: "刘林胶", operatorType: "用户", result: "success", summary: "固件包解析成功，版本配置与中英文 APP 更新说明校验通过" },
+        { id: "EVT-1313-02", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "approval", title: "提交发布审批", time: "2026-07-14 18:16:22", operator: "刘林胶", operatorType: "用户", result: "success", summary: "审批快照已锁定，当前发布版本继续生效" },
+        { id: "EVT-1313-03", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "approval", title: "发布审批通过", time: "2026-07-14 18:41:18", operator: "彭冬柏", operatorType: "钉钉审批", result: "success", summary: "审批回调校验通过，进入固件发布事务" },
+        { id: "EVT-1313-04", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "release", title: "当前发布版本切换", time: "2026-07-14 18:41:21", operator: "发布服务", operatorType: "系统", result: "success", summary: "23.110.211.12 -> 23.110.211.13，生成 REL-INIT-1" },
+        { id: "EVT-1313-05", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "notification", title: "发布 DING 部分失败", time: "2026-07-14 18:41:27", operator: "DING 任务", operatorType: "系统", result: "partial", summary: "实际接收 14 人，12 人成功，2 人等待重试" },
+        { id: "EVT-1313-06", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "distribution", title: "APP 分发开始", time: "2026-07-14 18:41:29", operator: "升级检查服务", operatorType: "系统", result: "success", summary: "升级检查缓存已失效，新 releaseId 开始生效" },
+        { id: "EVT-1313-07", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "device", title: "设备执行结果汇总", time: "2026-07-15 10:30:00", operator: "设备结果服务", operatorType: "系统", result: "partial", summary: "成功 328 台，失败 12 台，待执行 47 台" },
+        { id: "EVT-1212-01", flowId: "FLOW-PUB-20260523-1212", flowType: "publish", flowStatus: "superseded", fromVersion: "23.110.211.10", toVersion: "23.110.211.12", stage: "preparation", title: "固件版本创建完成", time: "2026-05-23 14:02:40", operator: "管理员", operatorType: "用户", result: "success", summary: "版本资料校验完成并保存为未发布版本" },
+        { id: "EVT-1212-02", flowId: "FLOW-PUB-20260523-1212", flowType: "publish", flowStatus: "superseded", fromVersion: "23.110.211.10", toVersion: "23.110.211.12", stage: "approval", title: "发布审批通过", time: "2026-05-23 15:20:11", operator: "IPC 产品线负责人", operatorType: "钉钉审批", result: "success", summary: "审批通过并触发发布事务" },
+        { id: "EVT-1212-03", flowId: "FLOW-PUB-20260523-1212", flowType: "publish", flowStatus: "superseded", fromVersion: "23.110.211.10", toVersion: "23.110.211.12", stage: "release", title: "版本发布成功", time: "2026-05-23 15:20:16", operator: "发布服务", operatorType: "系统", result: "success", summary: "当前发布版本切换成功，后续已被 23.110.211.13 替代" },
+        { id: "EVT-0099-01", flowId: "FLOW-PUB-20260701-0099", flowType: "publish", flowStatus: "rejected", fromVersion: "23.110.211.12", toVersion: "23.110.211.99", stage: "preparation", title: "固件版本创建完成", time: "2026-07-01 11:33:34", operator: "张元/Alice", operatorType: "用户", result: "success", summary: "版本资料已保存" },
+        { id: "EVT-0099-02", flowId: "FLOW-PUB-20260701-0099", flowType: "publish", flowStatus: "rejected", fromVersion: "23.110.211.12", toVersion: "23.110.211.99", stage: "approval", title: "发布审批驳回", time: "2026-07-01 14:06:50", operator: "彭冬柏", operatorType: "钉钉审批", result: "rejected", summary: "适用机型范围与本次发布计划不一致，版本未生效" }
+      ];
+    }
+    const flowId = `FLOW-PUB-INIT-${identifierIndex + 1}`;
+    return legacyCurrent ? [
+      { id: `${flowId}-01`, flowId, flowType: "publish", flowStatus: "active", fromVersion: legacyRollbackTarget?.version || null, toVersion: legacyCurrent.version, stage: "preparation", title: "固件版本创建完成", time: legacyCurrent.created || legacyCurrent.updated, operator: legacyCurrent.creator || "管理员", operatorType: "用户", result: "success", summary: "固件包与版本配置校验通过" },
+      { id: `${flowId}-02`, flowId, flowType: "publish", flowStatus: "active", fromVersion: legacyRollbackTarget?.version || null, toVersion: legacyCurrent.version, stage: "release", title: "版本发布成功", time: legacyCurrent.published || legacyCurrent.updated, operator: "发布服务", operatorType: "系统", result: "success", summary: `当前发布版本已切换为 ${legacyCurrent.version}` }
+    ] : [
+      { id: `EVT-ID-${identifierIndex + 1}`, flowId: `FLOW-ID-${identifierIndex + 1}`, flowType: "identifier", flowStatus: "completed", fromVersion: null, toVersion: null, stage: "identifier", title: "固件标识创建完成", time: identifier.created, operator: "管理员", operatorType: "用户", result: "success", summary: `固件标识 ${identifier.id} 已创建，尚未发布版本` }
+    ];
+  }
+
   function normalizeDatabase(data) {
     if (!Array.isArray(data.dingNotices)) data.dingNotices = [];
+    if (!data.identifiers.some(identifier => identifier.id === "25.922.219")) data.identifiers.push(differentialDemoIdentifier());
     const identifierIds = new Set(data.identifiers.map(identifier => identifier.id));
     data.identifiers.forEach((identifier, identifierIndex) => {
       const legacyCurrent = identifier.versions.find(version => version.version === identifier.currentVersion) || identifier.versions.find(version => version.latest) || identifier.versions[0] || null;
@@ -252,6 +356,9 @@
       }
       if (identifier.activeApproval === undefined) identifier.activeApproval = null;
       if (!identifier.dingDefaults) identifier.dingDefaults = { enabled: true, scopes: ["dept-firmware", "user-line-owner"], source: "product" };
+      if (!Array.isArray(identifier.lifecycleEvents)) identifier.lifecycleEvents = initialLifecycleEvents(identifier, legacyCurrent, legacyRollbackTarget, identifierIndex);
+      if (!Array.isArray(identifier.differentialTasks)) identifier.differentialTasks = [];
+      if (!Array.isArray(identifier.differentialPackages)) identifier.differentialPackages = [];
       identifier.versions.forEach(version => {
         if (version.version === identifier.currentVersion) { version.status = "current"; version.latest = true; }
         else if (version.status === "current") { version.status = "historical"; version.latest = false; }
@@ -323,6 +430,11 @@
     selectedIdentifier: db.identifiers[0]?.id || "",
     selectedRole: db.roles[0]?.name || "",
     roleTab: "permissions",
+    firmwareTab: "firmware",
+    lifecycleView: "timeline",
+    lifecycleStage: "",
+    lifecycleResult: "",
+    expandedLifecycleFlows: ["FLOW-PUB-20260714-1313"],
     roleEditing: false,
     profileOpen: false,
     loggedOut: false,
@@ -331,17 +443,20 @@
     popover: null,
     density: "default",
     firmwarePage: 1,
+    differentialTaskPage: 1,
+    differentialPackagePage: 1,
     modulePage: 1,
     operationPage: 1,
     approvalPage: 1,
     userPage: 1,
-    pageSizes: { firmware: 20, modules: 20, operations: 20, approvals: 20, users: 20 },
+    pageSizes: { firmware: 20, differentialTasks: 20, differentialPackages: 20, modules: 20, operations: 20, approvals: 20, users: 20 },
     columns: { url: true, size: true, models: true, features: true, creator: true, note: true, updated: true },
-    filters: { firmware: "", product: "IPC", module: "", operation: "", approval: "", user: "", userLines: [], roleUserLines: [], operationStart: "2026-07-08", operationEnd: "2026-07-15", approvalStart: "2026-07-08", approvalEnd: "2026-07-15" },
+    filters: { firmware: "", product: "IPC", lifecycleQuery: "", differentialTask: "", differentialTaskStatus: "", differentialPackage: "", module: "", operation: "", approval: "", user: "", userLines: [], roleUserLines: [], operationStart: "2026-07-08", operationEnd: "2026-07-15", approvalStart: "2026-07-08", approvalEnd: "2026-07-15" },
     draftFilters: {},
     upload: null,
     errors: {},
-    tempPermissions: null
+    tempPermissions: null,
+    expandedDifferentialPackages: []
   };
 
   const app = document.getElementById("app");
@@ -397,8 +512,12 @@
   function syncSelectedIdentifierToFilters() {
     const identifiers = filteredIdentifiers();
     if (identifiers.length && !identifiers.some(item => item.id === state.selectedIdentifier)) {
-      state.selectedIdentifier = identifiers[0].id;
+      state.selectedIdentifier = (state.filters.product === "4G模组" ? identifiers.find(item => item.id === "25.922.219") : null)?.id || identifiers[0].id;
+      state.firmwareTab = "firmware";
       state.firmwarePage = 1;
+      state.differentialTaskPage = 1;
+      state.differentialPackagePage = 1;
+      state.expandedDifferentialPackages = [];
     }
   }
 
@@ -491,6 +610,11 @@
     db.operations.unshift({ time: now(), user, module, action, resource, description: `${action}${module}: [${resource}]` });
   }
 
+  function addLifecycleEvent(identifier, event) {
+    if (!Array.isArray(identifier.lifecycleEvents)) identifier.lifecycleEvents = [];
+    identifier.lifecycleEvents.unshift({ id: releaseId("EVT"), operatorType: "用户", result: "success", time: now(), ...event });
+  }
+
   function emptyPermissions() {
     const keys = permissionRows.flatMap(row => [
       `menu-${row.menu}`,
@@ -577,6 +701,13 @@
     return `<div class="page-header"><h1 class="page-title">${title}</h1>${tools ? `<div class="page-tools">${tools}</div>` : ""}</div>`;
   }
 
+  function renderIdentifierMeta(identifier) {
+    if (identifier.product === "4G模组") {
+      return `<div class="meta-grid four-g-meta"><span>所属产品线：<strong>${esc(identifier.product)}</strong></span><span>创建时间：<strong>${esc(identifier.created)}</strong></span><span>模组型号：<strong>${esc(identifier.models)}</strong></span></div>`;
+    }
+    return `<div class="meta-grid"><span>所属产品线：<strong>${esc(identifier.product)}</strong></span><span>创建时间：<strong>${esc(identifier.created)}</strong></span><span>关联机型：<strong>${esc(identifier.models)}</strong></span><span>网络类型：<strong>${esc(identifier.network)}</strong></span><span>电量类型：<strong>${esc(identifier.power)}</strong></span><span>架构类型：<strong>${esc(identifier.architecture)}</strong></span><span>DING 默认：<strong>${identifier.dingDefaults.enabled ? `开启 · ${identifier.dingDefaults.scopes.length} 个范围` : "关闭"}</strong></span></div>`;
+  }
+
   function renderFirmware() {
     const identifiers = filteredIdentifiers();
     const selected = identifiers.find(item => item.id === state.selectedIdentifier) || identifiers[0] || null;
@@ -588,17 +719,121 @@
     const pendingApproval = selected.activeApproval ? approvalById(selected.activeApproval.approvalId) : null;
     return `<section class="page tint-page">
       ${header}
-      <div class="firmware-layout">
+      <div class="firmware-layout ${selected.product === "4G模组" && state.firmwareTab !== "firmware" ? "differential-layout" : ""}">
         <aside class="identifier-panel"><h2 class="panel-heading">固件管理</h2><button class="btn panel-action" data-action="add-identifier">⊕ 新增标识</button><div class="identifier-list">${identifiers.map(item => `<button class="identifier-item ${item.id === selected.id ? "active" : ""}" data-action="select-identifier" data-id="${esc(item.id)}">${esc(item.id)}</button>`).join("") || `<div class="muted" style="padding:16px">无匹配标识</div>`}</div></aside>
-        <div class="firmware-main">
-          <div class="summary-band"><div class="summary-head"><h2>${esc(selected.id)}</h2><div class="summary-actions"><button class="btn small" data-action="refresh">↻ 刷新</button><div class="popover-wrap"><button class="btn small" data-action="identifier-actions" aria-expanded="${state.popover === "identifier"}">••• 更多</button>${state.popover === "identifier" ? `<div class="action-popover compact-popover"><button data-action="edit-identifier">编辑</button><button data-action="ding-defaults">DING 默认配置</button><button class="danger-item" data-action="delete-identifier">删除</button></div>` : ""}</div></div></div><div class="meta-grid"><span>所属产品线：<strong>${esc(selected.product)}</strong></span><span>创建时间：<strong>${esc(selected.created)}</strong></span><span>关联机型：<strong>${esc(selected.models)}</strong></span><span>网络类型：<strong>${esc(selected.network)}</strong></span><span>电量类型：<strong>${esc(selected.power)}</strong></span><span>架构类型：<strong>${esc(selected.architecture)}</strong></span><span>DING 默认：<strong>${selected.dingDefaults.enabled ? `开启 · ${selected.dingDefaults.scopes.length} 个范围` : "关闭"}</strong></span></div></div>
+        <div class="firmware-main ${selected.product === "4G模组" && state.firmwareTab !== "firmware" ? "differential-main" : ""}">
+          <div class="summary-band ${selected.product === "4G模组" ? "four-g-summary" : ""}"><div class="summary-head"><h2>${esc(selected.id)}</h2><div class="summary-actions"><button class="btn small" data-action="refresh">↻ 刷新</button><div class="popover-wrap"><button class="btn small" data-action="identifier-actions" aria-expanded="${state.popover === "identifier"}">••• 更多</button>${state.popover === "identifier" ? `<div class="action-popover compact-popover"><button data-action="edit-identifier">编辑</button><button data-action="ding-defaults">DING 默认配置</button><button class="danger-item" data-action="delete-identifier">删除</button></div>` : ""}</div></div></div>${renderIdentifierMeta(selected)}</div>
           ${pendingApproval ? `<div class="approval-banner"><div><strong>${pendingApproval.event === "撤销并回滚固件版本" ? "回滚审批中" : "发布审批中"}</strong><span>${esc(pendingApproval.version)} · 提交人 ${esc(pendingApproval.submitter)} · ${esc(pendingApproval.submitTime)}</span></div><button class="btn small primary" data-action="view-active-approval">查看审批</button></div>` : ""}
-          <div class="tab-strip"><button class="tab active">固件列表</button></div>
-          ${latest ? `<section class="section-block"><h3 class="section-heading">当前发布版本</h3>${renderLatest(selected, latest)}</section>` : ""}
-          <section class="section-block"><div class="section-bar"><h3>固件版本列表</h3><div class="section-actions"><div class="popover-wrap"><button class="btn icon-btn" title="行高：${state.density === "default" ? "默认" : state.density === "comfortable" ? "宽松" : "紧凑"}" aria-label="行高：${state.density === "default" ? "默认" : state.density === "comfortable" ? "宽松" : "紧凑"}" data-action="density-menu">☷</button>${state.popover === "density" ? `<div class="action-popover density-popover">${[["default", "默认"], ["comfortable", "宽松"], ["compact", "紧凑"]].map(([value, label]) => `<button class="${state.density === value ? "selected" : ""}" data-action="set-density" data-density="${value}">${label}<span>${state.density === value ? "✓" : ""}</span></button>`).join("")}</div>` : ""}</div><div class="popover-wrap"><button class="btn icon-btn" title="列设置" aria-label="列设置" data-action="column-settings">⚙</button>${state.popover === "columns" ? renderColumnPopover() : ""}</div><button class="btn primary" data-action="add-version">＋ 新增版本</button></div></div>${renderFirmwareTable(selected)}${pagination(selected.versions.length, state.firmwarePage, "firmware-page", "firmware")}</section>
+          <div class="tab-strip firmware-tabs"><button class="tab ${state.firmwareTab === "firmware" ? "active" : ""}" data-action="firmware-subtab" data-tab="firmware">固件列表</button><button class="tab ${state.firmwareTab === "lifecycle" ? "active" : ""}" data-action="firmware-subtab" data-tab="lifecycle">生命周期</button>${selected.product === "4G模组" ? `<button class="tab ${state.firmwareTab === "onlineDifferential" ? "active" : ""}" data-action="firmware-subtab" data-tab="onlineDifferential">在线差分</button><button class="tab ${state.firmwareTab === "differentialPackages" ? "active" : ""}" data-action="firmware-subtab" data-tab="differentialPackages">差分包列表</button>` : ""}</div>
+          ${renderFirmwareTabContent(selected, latest)}
         </div>
       </div>
     </section>`;
+  }
+
+  function renderFirmwareTabContent(identifier, latest) {
+    if (state.firmwareTab === "lifecycle") return renderLifecycle(identifier);
+    if (identifier.product !== "4G模组" || state.firmwareTab === "firmware") {
+      return `${latest ? `<section class="section-block"><h3 class="section-heading">当前发布版本</h3>${renderLatest(identifier, latest)}</section>` : ""}<section class="section-block"><div class="section-bar"><h3>固件版本列表</h3><div class="section-actions"><div class="popover-wrap"><button class="btn icon-btn" title="行高：${state.density === "default" ? "默认" : state.density === "comfortable" ? "宽松" : "紧凑"}" aria-label="行高：${state.density === "default" ? "默认" : state.density === "comfortable" ? "宽松" : "紧凑"}" data-action="density-menu">☷</button>${state.popover === "density" ? `<div class="action-popover density-popover">${[["default", "默认"], ["comfortable", "宽松"], ["compact", "紧凑"]].map(([value, label]) => `<button class="${state.density === value ? "selected" : ""}" data-action="set-density" data-density="${value}">${label}<span>${state.density === value ? "✓" : ""}</span></button>`).join("")}</div>` : ""}</div><div class="popover-wrap"><button class="btn icon-btn" title="列设置" aria-label="列设置" data-action="column-settings">⚙</button>${state.popover === "columns" ? renderColumnPopover() : ""}</div><button class="btn primary" data-action="add-version">＋ 新增版本</button></div></div>${renderFirmwareTable(identifier)}${pagination(identifier.versions.length, state.firmwarePage, "firmware-page", "firmware")}</section>`;
+    }
+    if (state.firmwareTab === "onlineDifferential") return renderOnlineDifferential(identifier);
+    return renderDifferentialPackages(identifier);
+  }
+
+  function lifecycleStageLabel(stage) {
+    return ({ identifier: "标识管理", preparation: "版本准备", approval: "发布审批", release: "发布生效", notification: "DING 通知", distribution: "APP 分发", device: "设备执行", rollback: "回滚处置" })[stage] || stage;
+  }
+
+  function lifecycleResultLabel(result) {
+    return ({ success: "成功", active: "当前生效", partial: "部分成功", failed: "失败", rejected: "已驳回", skipped: "已跳过" })[result] || result;
+  }
+
+  function lifecycleResultClass(result) {
+    return result === "success" || result === "active" ? "success" : result === "failed" || result === "rejected" ? "danger" : "warning";
+  }
+
+  function lifecycleFlowLabel(flow) {
+    if (flow.flowType === "rollback") return "版本回滚";
+    if (flow.flowType === "identifier") return "标识管理";
+    return "版本发布";
+  }
+
+  function lifecycleFlowStatusLabel(status) {
+    return ({ active: "当前生效", superseded: "历史发布", rejected: "审批驳回", failed: "发布失败", rolled_back: "已回滚", completed: "已完成" })[status] || status;
+  }
+
+  function lifecycleFlowStatusClass(status) {
+    return status === "active" || status === "completed" ? "success" : status === "rejected" || status === "failed" || status === "rolled_back" ? "danger" : "blue";
+  }
+
+  function lifecycleFilteredEvents(identifier) {
+    const query = state.filters.lifecycleQuery.trim().toLowerCase();
+    return [...(identifier.lifecycleEvents || [])].filter(event => {
+      const haystack = [event.flowId, event.fromVersion, event.toVersion, event.title, event.summary, event.operator].join(" ").toLowerCase();
+      return (!query || haystack.includes(query)) && (!state.lifecycleStage || event.stage === state.lifecycleStage) && (!state.lifecycleResult || event.result === state.lifecycleResult);
+    }).sort((left, right) => right.time.localeCompare(left.time));
+  }
+
+  function lifecycleFlows(events) {
+    const flows = new Map();
+    events.forEach(event => {
+      if (!flows.has(event.flowId)) flows.set(event.flowId, { flowId: event.flowId, flowType: event.flowType, flowStatus: event.flowStatus, fromVersion: event.fromVersion, toVersion: event.toVersion, events: [] });
+      flows.get(event.flowId).events.push(event);
+    });
+    return [...flows.values()].map(flow => ({ ...flow, startTime: flow.events[flow.events.length - 1]?.time, endTime: flow.events[0]?.time })).sort((left, right) => right.endTime.localeCompare(left.endTime));
+  }
+
+  function renderLifecycle(identifier) {
+    const allEvents = identifier.lifecycleEvents || [];
+    const events = lifecycleFilteredEvents(identifier);
+    const flows = lifecycleFlows(events);
+    const releaseCount = new Set(allEvents.filter(event => event.flowType === "publish" && ["active", "superseded", "rolled_back"].includes(event.flowStatus)).map(event => event.flowId)).size;
+    const rollbackCount = new Set(allEvents.filter(event => event.flowType === "rollback").map(event => event.flowId)).size;
+    const exceptionCount = allEvents.filter(event => ["partial", "failed", "rejected"].includes(event.result)).length;
+    const current = currentVersion(identifier);
+    const stageOptions = [["", "全部阶段"], ["preparation", "版本准备"], ["approval", "发布审批"], ["release", "发布生效"], ["notification", "DING 通知"], ["distribution", "APP 分发"], ["device", "设备执行"], ["rollback", "回滚处置"]];
+    const resultOptions = [["", "全部结果"], ["success", "成功"], ["partial", "部分成功"], ["failed", "失败"], ["rejected", "已驳回"]];
+    const filtersActive = Boolean(state.filters.lifecycleQuery || state.lifecycleStage || state.lifecycleResult);
+    return `<section class="lifecycle-section"><div class="lifecycle-overview"><div class="lifecycle-overview-copy"><span class="lifecycle-kicker">标识全链路</span><h3>${esc(identifier.id)} 生命周期</h3><p>按发布批次聚合版本准备、审批、生效、通知、APP 分发与设备结果。</p></div><div class="lifecycle-stats"><div><span>当前发布</span><strong>${esc(current?.version || "-")}</strong></div><div><span>历史发布</span><strong>${releaseCount} 次</strong></div><div><span>历史回滚</span><strong>${rollbackCount} 次</strong></div><div class="${exceptionCount ? "has-exception" : ""}"><span>异常事件</span><strong>${exceptionCount} 条</strong></div></div></div><div class="lifecycle-toolbar"><div class="lifecycle-filters"><input class="field lifecycle-search" data-filter="lifecycleQuery" value="${esc(state.filters.lifecycleQuery)}" placeholder="搜索版本号、链路编号或操作人" aria-label="搜索生命周期"><select class="select" data-change="lifecycle-stage" aria-label="生命周期阶段">${stageOptions.map(([value, label]) => `<option value="${value}" ${state.lifecycleStage === value ? "selected" : ""}>${label}</option>`).join("")}</select><select class="select" data-change="lifecycle-result" aria-label="执行结果">${resultOptions.map(([value, label]) => `<option value="${value}" ${state.lifecycleResult === value ? "selected" : ""}>${label}</option>`).join("")}</select><button class="btn" data-action="apply-lifecycle-filter">查询</button>${filtersActive ? `<button class="btn" data-action="reset-lifecycle-filter">重置</button>` : ""}</div><div class="segmented-control" role="group" aria-label="生命周期视图"><button class="${state.lifecycleView === "timeline" ? "active" : ""}" data-action="lifecycle-view" data-view="timeline">时间线</button><button class="${state.lifecycleView === "detail" ? "active" : ""}" data-action="lifecycle-view" data-view="detail">明细</button></div></div>${events.length ? state.lifecycleView === "detail" ? renderLifecycleDetail(events) : renderLifecycleTimeline(flows) : `<div class="empty-state lifecycle-empty"><div><div class="empty-illustration">▤</div>没有符合条件的生命周期记录</div></div>`}</section>`;
+  }
+
+  function renderLifecycleTimeline(flows) {
+    return `<div class="lifecycle-timeline">${flows.map(flow => {
+      const expanded = state.expandedLifecycleFlows.includes(flow.flowId);
+      const stages = [...new Set(flow.events.map(event => event.stage))];
+      const issueCount = flow.events.filter(event => ["partial", "failed", "rejected"].includes(event.result)).length;
+      const transition = flow.toVersion ? `${flow.fromVersion || "首次发布"} -> ${flow.toVersion}` : "标识初始化";
+      return `<article class="lifecycle-flow ${flow.flowStatus}"><button class="lifecycle-flow-head" data-action="toggle-lifecycle-flow" data-flow-id="${esc(flow.flowId)}" aria-expanded="${expanded}"><span class="lifecycle-flow-icon ${flow.flowType}">${flow.flowType === "rollback" ? "回" : flow.flowType === "identifier" ? "标" : "发"}</span><span class="lifecycle-flow-title"><span><strong>${lifecycleFlowLabel(flow)} · ${esc(transition)}</strong><span class="tag ${lifecycleFlowStatusClass(flow.flowStatus)}">${lifecycleFlowStatusLabel(flow.flowStatus)}</span></span><small>${esc(flow.flowId)} · ${esc(flow.startTime)} 至 ${esc(flow.endTime)}</small></span><span class="lifecycle-flow-summary"><strong>${flow.events.length}</strong><small>链路事件</small></span><span class="lifecycle-flow-summary ${issueCount ? "danger-text" : ""}"><strong>${issueCount}</strong><small>异常</small></span><span class="flow-chevron">${expanded ? "⌃" : "⌄"}</span></button><div class="lifecycle-stage-rail">${stages.map(stage => `<span>${lifecycleStageLabel(stage)}</span>`).join("")}</div>${expanded ? `<div class="lifecycle-event-list">${flow.events.map(event => `<div class="lifecycle-event-row"><span class="event-dot ${lifecycleResultClass(event.result)}"></span><time>${esc(event.time)}</time><div><strong>${esc(event.title)}</strong><p>${esc(event.summary)}</p><small>${esc(event.operator)} · ${esc(event.operatorType)}</small></div><span class="tag ${lifecycleResultClass(event.result)}">${lifecycleResultLabel(event.result)}</span></div>`).join("")}<div class="lifecycle-flow-actions"><button class="btn small" data-action="lifecycle-flow-detail" data-flow-id="${esc(flow.flowId)}">查看完整链路</button></div></div>` : ""}</article>`;
+    }).join("")}</div>`;
+  }
+
+  function renderLifecycleDetail(events) {
+    return `<div class="table-wrap lifecycle-detail-wrap"><table class="data-table lifecycle-detail-table"><thead><tr><th>发生时间</th><th>链路编号</th><th>阶段</th><th>事件</th><th>操作主体</th><th>执行结果</th><th>事件摘要</th><th>操作</th></tr></thead><tbody>${events.map(event => `<tr><td>${esc(event.time)}</td><td><button class="link-btn flow-id-link" data-action="lifecycle-flow-detail" data-flow-id="${esc(event.flowId)}">${esc(event.flowId)}</button></td><td>${lifecycleStageLabel(event.stage)}</td><td>${esc(event.title)}</td><td>${esc(event.operator)}<small class="table-subline">${esc(event.operatorType)}</small></td><td><span class="tag ${lifecycleResultClass(event.result)}">${lifecycleResultLabel(event.result)}</span></td><td class="cell-truncate" title="${esc(event.summary)}">${esc(event.summary)}</td><td><button class="link-btn" data-action="lifecycle-flow-detail" data-flow-id="${esc(event.flowId)}">详情</button></td></tr>`).join("")}</tbody></table></div>`;
+  }
+
+  function renderOnlineDifferential(identifier) {
+    const query = state.filters.differentialTask.trim().toLowerCase();
+    const status = state.filters.differentialTaskStatus;
+    const filtered = identifier.differentialTasks.filter(task => (!query || task.name.toLowerCase().includes(query)) && (!status || task.status === status));
+    const pageSize = state.pageSizes.differentialTasks;
+    state.differentialTaskPage = clampPage(filtered.length, pageSize, state.differentialTaskPage);
+    const rows = filtered.slice((state.differentialTaskPage - 1) * pageSize, state.differentialTaskPage * pageSize);
+    const statuses = ["差分中", "已完成", "差分失败"];
+    const statusPopover = state.popover === "differentialStatus" ? `<div class="action-popover differential-status-popover">${statuses.map(item => `<button class="${status === item ? "selected" : ""}" data-action="set-differential-status" data-status="${item}"><span>${esc(item)}</span><span>${status === item ? "✓" : ""}</span></button>`).join("")}<button data-action="set-differential-status" data-status=""><span>全部状态</span><span>${status ? "" : "✓"}</span></button></div>` : "";
+    return `<section class="section-block differential-section"><div class="differential-toolbar"><input class="field search-field differential-search" data-filter="differentialTask" value="${esc(state.filters.differentialTask)}" placeholder="请输入差分任务名称" aria-label="差分任务名称"><button class="btn primary" data-action="add-differential-task">＋ 差分任务</button></div><div class="table-wrap differential-task-table-wrap"><table class="data-table differential-task-table"><thead><tr><th>差分任务名称</th><th>目标版本</th><th>源版本</th><th>状态 <span class="popover-wrap"><button class="table-filter-btn ${status ? "active" : ""}" data-action="differential-status-filter" aria-label="按状态过滤">▽</button>${statusPopover}</span></th><th>成功率</th><th>差分包</th><th>任务完成时间</th><th>操作</th></tr></thead><tbody>${rows.map(task => `<tr><td>${esc(task.name)}</td><td class="cell-truncate" title="${esc(task.targetVersion)}">${esc(task.targetVersion)}</td><td title="${esc(task.sourceVersions.join(", "))}" class="cell-truncate">${esc(task.sourceVersions.join(", "))}</td><td><span class="tag ${task.status === "已完成" ? "success" : task.status === "差分失败" ? "danger" : "warning"}">${esc(task.status)}</span></td><td>${esc(task.successRate)}</td><td>${task.packageCount}</td><td>${esc(task.completedAt || "-")}</td><td><button class="link-btn" data-action="differential-task-detail" data-task-id="${esc(task.id)}">详情</button></td></tr>`).join("")}</tbody></table></div>${rows.length ? pagination(filtered.length, state.differentialTaskPage, "differential-task-page", "differentialTasks") : `<div class="empty-state differential-empty"><div><div class="empty-illustration">▤</div>暂无差分任务</div></div>`}</section>`;
+  }
+
+  function renderDifferentialPackages(identifier) {
+    const query = state.filters.differentialPackage.trim().toLowerCase();
+    const filtered = identifier.differentialPackages.filter(group => !query || group.targetVersion.toLowerCase().includes(query));
+    const pageSize = state.pageSizes.differentialPackages;
+    state.differentialPackagePage = clampPage(filtered.length, pageSize, state.differentialPackagePage);
+    const rows = filtered.slice((state.differentialPackagePage - 1) * pageSize, state.differentialPackagePage * pageSize);
+    const body = rows.map(group => {
+      const expanded = state.expandedDifferentialPackages.includes(group.targetVersion);
+      return `<tr class="differential-summary-row"><td><button class="expand-btn" data-action="toggle-differential-package" data-target-version="${esc(group.targetVersion)}" aria-label="${expanded ? "收起" : "展开"}">${expanded ? "⌄" : "›"}</button></td><td>${esc(group.targetVersion)}</td><td>${group.items.length}</td><td>${esc(group.updatedAt)}</td></tr>${expanded ? `<tr class="differential-detail-row"><td colspan="4"><div class="differential-package-detail"><h4>支持升级到该版本的源固件明细（共 ${group.items.length} 个）</h4><div class="table-wrap"><table class="data-table differential-package-detail-table"><thead><tr><th>源版本</th><th>差分包大小（KB）</th><th>差分包名称</th><th>操作</th></tr></thead><tbody>${group.items.map(item => `<tr><td>${esc(item.sourceVersion)}</td><td>${esc(item.sizeKb)}</td><td title="${esc(item.name)}" class="cell-truncate">${esc(item.name)}</td><td><div class="cell-actions"><button class="link-btn" data-action="download-differential-package" data-package-id="${esc(item.id)}">差分包下载</button><button class="link-btn danger-link" data-action="delete-differential-package" data-package-id="${esc(item.id)}" data-target-version="${esc(group.targetVersion)}">删除</button></div></td></tr>`).join("")}</tbody></table></div></div></td></tr>` : ""}`;
+    }).join("");
+    return `<section class="section-block differential-section"><div class="differential-toolbar"><input class="field search-field differential-search" data-filter="differentialPackage" value="${esc(state.filters.differentialPackage)}" placeholder="请输入目标版本号" aria-label="目标版本号"></div><div class="table-wrap"><table class="data-table differential-package-table"><thead><tr><th class="expand-column"></th><th>目标版本</th><th>差分包数</th><th>更新时间</th></tr></thead><tbody>${body}</tbody></table></div>${rows.length ? pagination(filtered.length, state.differentialPackagePage, "differential-package-page", "differentialPackages") : `<div class="empty-state differential-empty"><div><div class="empty-illustration">▤</div>暂无差分包</div></div>`}</section>`;
   }
 
   function renderColumnPopover() {
@@ -686,9 +921,9 @@
 
   function renderOverlay() {
     if (!state.modal && !state.drawer) return "";
-    if (state.modal && state.drawer) return `<div class="overlay ${animateCurrentDrawer ? "is-entering" : ""}" data-action="overlay-close"></div>${renderDrawer()}<div class="overlay overlay-secondary ${animateCurrentModal ? "is-entering" : ""}" data-action="close-modal"></div>${renderModal()}`;
+    if (state.modal && state.drawer) return `<div class="overlay drawer-overlay ${animateCurrentDrawer ? "is-entering" : ""}" data-action="overlay-close"></div>${renderDrawer()}<div class="overlay overlay-secondary ${animateCurrentModal ? "is-entering" : ""}" data-action="close-modal"></div>${renderModal()}`;
     if (state.modal) return `<div class="overlay ${animateCurrentModal ? "is-entering" : ""}" data-action="overlay-close"></div>${renderModal()}`;
-    return `<div class="overlay ${animateCurrentDrawer ? "is-entering" : ""}" data-action="overlay-close"></div>${renderDrawer()}`;
+    return `<div class="overlay drawer-overlay ${animateCurrentDrawer ? "is-entering" : ""}" data-action="overlay-close"></div>${renderDrawer()}`;
   }
 
   function modalFrame(title, body, footer = "", wide = false, nested = false) {
@@ -733,6 +968,14 @@
     if (modal.type === "dingDefaults") {
       return modalFrame("DING 默认配置", `<div class="notice">当前固件标识默认继承所属产品线配置；保存后转为固件标识级覆盖，单次发布仍可调整。</div>${renderDingConfiguration(modal, "publish")}`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" data-action="save-ding-defaults">保存默认配置</button>`, true);
     }
+    if (modal.type === "addDifferentialTask") {
+      const identifier = activeIdentifier();
+      const targetVersion = modal.targetVersion || "";
+      const availableSources = identifier.versions.filter(version => version.version !== targetVersion);
+      const sourceSummary = (modal.sourceVersions || []).length ? modal.sourceVersions.join(", ") : "请选择源版本";
+      const sourceOptions = modal.sourceOpen ? `<div class="differential-source-dropdown">${availableSources.map(version => `<label class="check"><input type="checkbox" data-differential-source="${esc(version.version)}" ${(modal.sourceVersions || []).includes(version.version) ? "checked" : ""}>${esc(version.version)}</label>`).join("") || `<span class="muted">没有可选的源版本</span>`}</div>` : "";
+      return modalFrame("新增差分任务", `<form id="differential-task-form" class="differential-task-form"><div class="form-field required"><label for="differential-task-name">差分任务名称</label><div class="field-control"><input id="differential-task-name" class="field" name="name" data-modal-field="name" maxlength="50" value="${esc(modal.name || "")}" placeholder="如：xx旧版本升级至xx新版本包的差分任务" autocomplete="off">${errorFor("differentialTaskName")}<div class="helper align-right">${(modal.name || "").length} / 50</div></div></div><div class="form-field required"><label for="differential-target-version">目标版本</label><div class="field-control"><select id="differential-target-version" class="select" name="targetVersion" data-modal-field="targetVersion"><option value="">请选择目标版本</option>${identifier.versions.map(version => `<option value="${esc(version.version)}" ${version.version === targetVersion ? "selected" : ""}>${esc(version.version)}</option>`).join("")}</select>${errorFor("differentialTargetVersion")}</div></div><div class="form-field required"><label>源版本</label><div class="field-control differential-source-control"><button class="multi-select-trigger ${(modal.sourceVersions || []).length ? "has-value" : ""}" type="button" data-action="toggle-differential-sources" aria-expanded="${Boolean(modal.sourceOpen)}"><span title="${esc(sourceSummary)}">${esc(sourceSummary)}</span><span class="select-chevron">⌄</span></button>${sourceOptions}${errorFor("differentialSourceVersions")}</div></div><div class="form-field"><label for="differential-module-model">模组型号</label><div class="field-control"><input id="differential-module-model" class="field" value="${esc(identifier.models)}" placeholder="根据固件标识自动带出" disabled></div></div></form>`, `<button class="btn" data-action="close-overlay">取 消</button><button class="btn primary" type="submit" form="differential-task-form">确 认</button>`);
+    }
     if (modal.type === "publish") {
       const identifier = activeIdentifier();
       const targetVersion = findVersion(modal.version);
@@ -755,6 +998,9 @@
     }
     if (modal.type === "deleteIdentifier") {
       return modalFrame("删除固件标识", `<div class="confirm-icon">!</div><p class="confirm-copy">确定删除固件标识【${esc(activeIdentifier().id)}】及其版本记录吗？</p>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn danger" data-action="confirm-delete-identifier">删除</button>`);
+    }
+    if (modal.type === "deleteDifferentialPackage") {
+      return modalFrame("警告提示", `<div class="confirm-icon">!</div><p class="confirm-copy">删除后，该差分包将在后续 OTA 任务不可再选择使用；已创建任务不受影响。是否确认删除？</p>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" data-action="confirm-delete-differential-package">确定</button>`);
     }
     if (modal.type === "addRole") {
       return renderRoleFormModal("新增角色", null);
@@ -818,9 +1064,16 @@
     if (drawer.type === "addVersion") return renderVersionFormDrawer("新增固件版本号", null);
     if (drawer.type === "editVersion") return renderVersionFormDrawer("编辑固件版本号", findVersion(drawer.version));
     if (drawer.type === "versionDetail") return renderVersionDetail(findVersion(drawer.version));
+    if (drawer.type === "differentialTaskDetail") return renderDifferentialTaskDetail(drawer.taskId);
     if (drawer.type === "userDetail") return renderUserDetail(db.users[drawer.userIndex]);
     if (drawer.type === "userPermissions") return renderUserPermissions(db.users[drawer.userIndex]);
     return "";
+  }
+
+  function renderDifferentialTaskDetail(taskId) {
+    const task = activeIdentifier().differentialTasks.find(item => item.id === taskId);
+    if (!task) return "";
+    return drawerFrame("差分任务详情", `<div class="differential-task-summary"><div><strong>${esc(task.name)}</strong><span class="tag ${task.status === "已完成" ? "success" : task.status === "差分失败" ? "danger" : "warning"}">${esc(task.status)}</span></div><p><span>创建时间：</span>${esc(task.createdAt)}</p></div><div class="drawer-section differential-task-table-section"><div class="table-wrap"><table class="data-table differential-task-detail-table"><thead><tr><th>源版本</th><th>目标版本</th><th>模组型号</th><th>差分状态</th><th>失败原因</th><th>操作</th></tr></thead><tbody>${task.items.map(item => `<tr><td>${esc(item.sourceVersion)}</td><td>${esc(item.targetVersion)}</td><td>${esc(item.moduleModel)}</td><td><span class="tag ${item.status === "已完成" ? "success" : item.status === "差分失败" ? "danger" : "warning"}">${esc(item.status)}</span></td><td>${esc(item.failureReason || "-")}</td><td>${item.status === "已完成" ? `<button class="link-btn" data-action="download-differential-package" data-package-name="${esc(item.packageName)}">差分包下载</button>` : "-"}</td></tr>`).join("")}</tbody></table></div></div>`);
   }
 
   function renderVersionFormDrawer(title, version) {
@@ -1129,7 +1382,19 @@
     }
     if (action === "select-identifier") {
       state.selectedIdentifier = target.dataset.id;
+      state.firmwareTab = "firmware";
       state.firmwarePage = 1;
+      state.differentialTaskPage = 1;
+      state.differentialPackagePage = 1;
+      state.expandedDifferentialPackages = [];
+      state.popover = null;
+      renderShell();
+      return;
+    }
+    if (action === "firmware-subtab") {
+      const tab = target.dataset.tab;
+      if (tab !== "firmware" && activeIdentifier().product !== "4G模组") return;
+      state.firmwareTab = tab;
       state.popover = null;
       renderShell();
       return;
@@ -1202,6 +1467,77 @@
     if (action === "refresh") {
       renderShell();
       toast("固件数据已刷新");
+      return;
+    }
+    if (action === "add-differential-task") {
+      const identifier = activeIdentifier();
+      if (identifier.product !== "4G模组") return;
+      if (identifier.versions.length < 2) { toast("至少需要两个固件版本才能创建差分任务", "warning"); return; }
+      state.errors = {};
+      state.modal = { type: "addDifferentialTask", name: "", targetVersion: "", sourceVersions: [], sourceOpen: false };
+      renderShell();
+      return;
+    }
+    if (action === "toggle-differential-sources") {
+      if (state.modal?.type !== "addDifferentialTask") return;
+      state.modal.sourceOpen = !state.modal.sourceOpen;
+      renderShell();
+      return;
+    }
+    if (action === "differential-task-detail") {
+      state.drawer = { type: "differentialTaskDetail", taskId: target.dataset.taskId };
+      renderShell();
+      return;
+    }
+    if (action === "differential-status-filter") {
+      state.popover = state.popover === "differentialStatus" ? null : "differentialStatus";
+      renderShell();
+      return;
+    }
+    if (action === "set-differential-status") {
+      state.filters.differentialTaskStatus = target.dataset.status || "";
+      state.differentialTaskPage = 1;
+      state.popover = null;
+      renderShell();
+      return;
+    }
+    if (action === "toggle-differential-package") {
+      const version = target.dataset.targetVersion;
+      state.expandedDifferentialPackages = state.expandedDifferentialPackages.includes(version) ? state.expandedDifferentialPackages.filter(item => item !== version) : [...state.expandedDifferentialPackages, version];
+      renderShell();
+      return;
+    }
+    if (action === "download-differential-package") {
+      const identifier = activeIdentifier();
+      const packageItem = identifier.differentialPackages.flatMap(group => group.items).find(item => item.id === target.dataset.packageId);
+      const name = target.dataset.packageName || packageItem?.name || "差分包";
+      addOperation("差分包", "下载", name);
+      persist();
+      toast(`差分包 ${name} 已开始下载`);
+      return;
+    }
+    if (action === "delete-differential-package") {
+      state.modal = { type: "deleteDifferentialPackage", packageId: target.dataset.packageId, targetVersion: target.dataset.targetVersion };
+      renderShell();
+      return;
+    }
+    if (action === "confirm-delete-differential-package") {
+      const identifier = activeIdentifier();
+      const group = identifier.differentialPackages.find(item => item.targetVersion === state.modal.targetVersion);
+      const packageItem = group?.items.find(item => item.id === state.modal.packageId);
+      if (!group || !packageItem) { closeOverlay(); toast("差分包已不存在", "warning"); return; }
+      group.items = group.items.filter(item => item.id !== packageItem.id);
+      if (!group.items.length) {
+        identifier.differentialPackages = identifier.differentialPackages.filter(item => item !== group);
+        state.expandedDifferentialPackages = state.expandedDifferentialPackages.filter(item => item !== group.targetVersion);
+      } else {
+        group.updatedAt = now();
+      }
+      state.differentialPackagePage = clampPage(identifier.differentialPackages.length, state.pageSizes.differentialPackages, state.differentialPackagePage);
+      addOperation("差分包", "删除", packageItem.name);
+      persist();
+      closeOverlay();
+      toast("差分包已删除");
       return;
     }
     if (action === "add-version") {
@@ -1582,8 +1918,8 @@
       renderShell();
       return;
     }
-    if (["firmware-page", "module-page", "operation-page", "approval-page", "user-page"].includes(action)) {
-      const key = { "firmware-page": "firmwarePage", "module-page": "modulePage", "operation-page": "operationPage", "approval-page": "approvalPage", "user-page": "userPage" }[action];
+    if (["firmware-page", "differential-task-page", "differential-package-page", "module-page", "operation-page", "approval-page", "user-page"].includes(action)) {
+      const key = { "firmware-page": "firmwarePage", "differential-task-page": "differentialTaskPage", "differential-package-page": "differentialPackagePage", "module-page": "modulePage", "operation-page": "operationPage", "approval-page": "approvalPage", "user-page": "userPage" }[action];
       state[key] = Number(target.dataset.page);
       renderShell();
       return;
@@ -1700,11 +2036,21 @@
     const draft = event.target.dataset.draft;
     const versionDraft = event.target.dataset.versionDraft;
     const modalDraft = event.target.dataset.modalDraft;
-    if (filter) state.filters[filter] = event.target.value;
+    if (filter) {
+      state.filters[filter] = event.target.value;
+      if (filter === "differentialTask") state.differentialTaskPage = 1;
+      if (filter === "differentialPackage") state.differentialPackagePage = 1;
+    }
     if (draft) state.draftFilters[draft] = event.target.value;
     if (versionDraft && state.drawer?.formDraft) state.drawer.formDraft[versionDraft] = event.target.value;
     if (modalDraft && state.modal?.draft) state.modal.draft[modalDraft] = event.target.value;
     if (event.target.dataset.modalField && state.modal) state.modal[event.target.dataset.modalField] = event.target.value;
+    if (event.target.dataset.modalField === "name" && state.modal?.type === "addDifferentialTask") {
+      delete state.errors.differentialTaskName;
+      event.target.closest(".form-field")?.querySelector(".error-text")?.remove();
+      const counter = event.target.closest(".form-field")?.querySelector(".helper.align-right");
+      if (counter) counter.textContent = `${event.target.value.length} / 50`;
+    }
     if (event.target.dataset.revisionLocale && state.modal?.notesDraft) state.modal.notesDraft[event.target.dataset.revisionLocale] = event.target.value;
     if (event.target.matches("[data-revision-reason]") && state.modal) state.modal.reason = event.target.value;
     if (event.target.matches("[data-feature-search]") && state.modal?.type === "featurePicker") state.modal.query = event.target.value;
@@ -1714,8 +2060,20 @@
 
   app.addEventListener("change", event => {
     const target = event.target;
+    if (target.dataset.differentialSource && state.modal?.type === "addDifferentialTask") {
+      const version = target.dataset.differentialSource;
+      state.modal.sourceVersions = target.checked ? [...new Set([...(state.modal.sourceVersions || []), version])] : (state.modal.sourceVersions || []).filter(item => item !== version);
+      delete state.errors.differentialSourceVersions;
+      renderShell();
+      return;
+    }
     if (target.dataset.modalField && state.modal) {
       state.modal[target.dataset.modalField] = target.type === "checkbox" ? target.checked : target.value;
+      if (target.dataset.modalField === "targetVersion" && state.modal.type === "addDifferentialTask") {
+        state.modal.sourceVersions = (state.modal.sourceVersions || []).filter(version => version !== target.value);
+        state.modal.sourceOpen = false;
+        delete state.errors.differentialTargetVersion;
+      }
       renderShell();
       return;
     }
@@ -1728,6 +2086,10 @@
     if (target.dataset.change === "product-filter") {
       state.filters.product = target.value;
       syncSelectedIdentifierToFilters();
+      state.firmwareTab = "firmware";
+      state.differentialTaskPage = 1;
+      state.differentialPackagePage = 1;
+      state.expandedDifferentialPackages = [];
       renderShell();
       return;
     }
@@ -1750,7 +2112,7 @@
     if (target.dataset.pageSize) {
       const key = target.dataset.pageSize;
       state.pageSizes[key] = Number(target.value);
-      const pageKey = { firmware: "firmwarePage", modules: "modulePage", operations: "operationPage", approvals: "approvalPage", users: "userPage" }[key];
+      const pageKey = { firmware: "firmwarePage", differentialTasks: "differentialTaskPage", differentialPackages: "differentialPackagePage", modules: "modulePage", operations: "operationPage", approvals: "approvalPage", users: "userPage" }[key];
       state[pageKey] = 1;
       renderShell();
       return;
@@ -1856,7 +2218,7 @@
     if (event.target.dataset.pageJump) {
       event.preventDefault();
       const page = Math.min(Number(event.target.dataset.maxPage), Math.max(1, Number(event.target.value) || 1));
-      const key = { "firmware-page": "firmwarePage", "module-page": "modulePage", "operation-page": "operationPage", "approval-page": "approvalPage", "user-page": "userPage" }[event.target.dataset.pageAction];
+      const key = { "firmware-page": "firmwarePage", "differential-task-page": "differentialTaskPage", "differential-package-page": "differentialPackagePage", "module-page": "modulePage", "operation-page": "operationPage", "approval-page": "approvalPage", "user-page": "userPage" }[event.target.dataset.pageAction];
       state[key] = page;
       renderShell();
     }
@@ -1881,9 +2243,10 @@
       if (db.identifiers.some(item => item.id === id)) state.errors.id = "该固件标识已存在";
       if (!models) state.errors.models = "请输入关联机型";
       if (Object.keys(state.errors).length) { renderShell(); return; }
-      db.identifiers.unshift({ id, product, created: now(), models, network: "仅4G", power: "常电", architecture: "新架构", versions: [], currentVersion: null, rollbackTargetVersion: null, rollbackAvailable: false, releaseEvents: [], activeApproval: null, dingDefaults: { enabled: true, scopes: ["dept-firmware", "user-line-owner"], source: "product" } });
+      db.identifiers.unshift({ id, product, created: now(), models, network: "仅4G", power: "常电", architecture: "新架构", versions: [], differentialTasks: [], differentialPackages: [], currentVersion: null, rollbackTargetVersion: null, rollbackAvailable: false, releaseEvents: [], activeApproval: null, dingDefaults: { enabled: true, scopes: ["dept-firmware", "user-line-owner"], source: "product" } });
       state.selectedIdentifier = id;
       state.filters.product = product;
+      state.firmwareTab = "firmware";
       addOperation("固件标识", "新增", id);
       persist();
       closeOverlay();
@@ -1902,6 +2265,47 @@
       persist();
       closeOverlay();
       toast("固件标识信息已更新");
+      return;
+    }
+
+    if (form.id === "differential-task-form") {
+      const identifier = activeIdentifier();
+      const name = String(state.modal.name || values.get("name") || "").trim();
+      const targetVersion = String(state.modal.targetVersion || values.get("targetVersion") || "");
+      const versionNames = new Set(identifier.versions.map(version => version.version));
+      const sourceVersions = [...new Set(state.modal.sourceVersions || [])].filter(version => version !== targetVersion && versionNames.has(version));
+      state.modal.name = name;
+      state.modal.targetVersion = targetVersion;
+      state.modal.sourceVersions = sourceVersions;
+      if (!name) state.errors.differentialTaskName = "请输入差分任务名称";
+      if (name.length > 50) state.errors.differentialTaskName = "差分任务名称不能超过 50 个字符";
+      if (!targetVersion || !versionNames.has(targetVersion)) state.errors.differentialTargetVersion = "请选择有效的目标版本";
+      if (!sourceVersions.length) state.errors.differentialSourceVersions = "请至少选择一个源版本";
+      if (Object.keys(state.errors).length) { renderShell(); return; }
+      const stamp = now();
+      const epoch = Math.floor(Date.now() / 1000);
+      const taskId = releaseId("DIFF-TASK");
+      const items = sourceVersions.map((sourceVersion, index) => ({
+        id: `${taskId}-${index + 1}`, sourceVersion, targetVersion, moduleModel: identifier.models, status: "已完成", failureReason: "-", packageName: `diff_${sourceVersion}_to_${targetVersion}_${epoch + index}.par`
+      }));
+      identifier.differentialTasks.unshift({ id: taskId, name, targetVersion, sourceVersions, moduleModel: identifier.models, status: "已完成", successRate: "100.0%", packageCount: items.length, createdAt: stamp, completedAt: stamp, items });
+      let group = identifier.differentialPackages.find(item => item.targetVersion === targetVersion);
+      if (!group) {
+        group = { targetVersion, updatedAt: stamp, items: [] };
+        identifier.differentialPackages.unshift(group);
+      }
+      items.forEach((item, index) => {
+        const existing = group.items.find(packageItem => packageItem.sourceVersion === item.sourceVersion);
+        const nextPackage = { id: releaseId("DIFF-PACKAGE"), sourceVersion: item.sourceVersion, sizeKb: (5 + index / 10).toFixed(1), name: item.packageName, createdAt: stamp };
+        if (existing) Object.assign(existing, nextPackage);
+        else group.items.push(nextPackage);
+      });
+      group.updatedAt = stamp;
+      state.differentialTaskPage = 1;
+      addOperation("在线差分", "新增任务", name);
+      persist();
+      closeOverlay();
+      toast(`差分任务 ${name} 已创建并完成`);
       return;
     }
 

@@ -1064,10 +1064,21 @@
     if (drawer.type === "addVersion") return renderVersionFormDrawer("新增固件版本号", null);
     if (drawer.type === "editVersion") return renderVersionFormDrawer("编辑固件版本号", findVersion(drawer.version));
     if (drawer.type === "versionDetail") return renderVersionDetail(findVersion(drawer.version));
+    if (drawer.type === "lifecycleFlowDetail") return renderLifecycleFlowDetail(drawer.flowId);
     if (drawer.type === "differentialTaskDetail") return renderDifferentialTaskDetail(drawer.taskId);
     if (drawer.type === "userDetail") return renderUserDetail(db.users[drawer.userIndex]);
     if (drawer.type === "userPermissions") return renderUserPermissions(db.users[drawer.userIndex]);
     return "";
+  }
+
+  function renderLifecycleFlowDetail(flowId) {
+    const identifier = activeIdentifier();
+    const events = (identifier.lifecycleEvents || []).filter(event => event.flowId === flowId).sort((left, right) => left.time.localeCompare(right.time));
+    if (!events.length) return "";
+    const flow = lifecycleFlows(events)[0];
+    const issueCount = events.filter(event => ["partial", "failed", "rejected"].includes(event.result)).length;
+    const transition = flow.toVersion ? `${flow.fromVersion || "首次发布"} -> ${flow.toVersion}` : "标识初始化";
+    return drawerFrame("完整链路详情", `<div class="flow-detail-hero"><div class="flow-detail-heading"><span class="lifecycle-flow-icon ${flow.flowType}">${flow.flowType === "rollback" ? "回" : flow.flowType === "identifier" ? "标" : "发"}</span><div><span>${lifecycleFlowLabel(flow)}</span><h3>${esc(transition)}</h3><p>${esc(flow.flowId)}</p></div><span class="tag ${lifecycleFlowStatusClass(flow.flowStatus)}">${lifecycleFlowStatusLabel(flow.flowStatus)}</span></div><div class="flow-detail-stats"><div><span>固件标识</span><strong>${esc(identifier.id)}</strong></div><div><span>链路事件</span><strong>${events.length} 条</strong></div><div><span>异常事件</span><strong>${issueCount} 条</strong></div><div><span>链路耗时</span><strong>${events.length > 1 ? "跨阶段持续记录" : "单节点事件"}</strong></div></div></div><div class="flow-detail-section"><div class="flow-detail-section-head"><h3>事件时间线</h3><span>日志按实际发生时间排序，只追加不覆盖</span></div><div class="flow-detail-timeline">${events.map((event, index) => `<article><div class="flow-detail-marker"><span class="event-dot ${lifecycleResultClass(event.result)}"></span>${index < events.length - 1 ? `<i></i>` : ""}</div><div class="flow-detail-event"><div><span>${lifecycleStageLabel(event.stage)}</span><time>${esc(event.time)}</time></div><h4>${esc(event.title)} <span class="tag ${lifecycleResultClass(event.result)}">${lifecycleResultLabel(event.result)}</span></h4><p>${esc(event.summary)}</p><dl><div><dt>操作主体</dt><dd>${esc(event.operator)} · ${esc(event.operatorType)}</dd></div><div><dt>事件编号</dt><dd>${esc(event.id)}</dd></div>${event.stage === "release" ? `<div><dt>状态快照</dt><dd>${esc(flow.fromVersion || "无当前版本")} -> ${esc(flow.toVersion || "-")}</dd></div>` : ""}</dl></div></article>`).join("")}</div></div><div class="flow-detail-section flow-snapshot-section"><div class="flow-detail-section-head"><h3>链路关联</h3><span>用于跨审批、通知和设备结果快速定位</span></div><div class="flow-link-grid"><div><span>审批记录</span><strong>${events.some(event => event.stage === "approval") ? "已关联" : "无记录"}</strong></div><div><span>发布记录</span><strong>${events.some(event => event.stage === "release") ? "已关联" : "无记录"}</strong></div><div><span>DING 任务</span><strong>${events.some(event => event.stage === "notification") ? "已关联" : "无记录"}</strong></div><div><span>设备结果</span><strong>${events.some(event => event.stage === "device") ? "已关联汇总" : "无记录"}</strong></div></div></div>`);
   }
 
   function renderDifferentialTaskDetail(taskId) {

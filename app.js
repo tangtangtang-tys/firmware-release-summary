@@ -1230,6 +1230,7 @@
     const isRollback = type === "rollback";
     const target = isRollback ? rollbackTarget(identifier) : findVersion(config.version);
     const current = currentVersion(identifier);
+    const flowId = releaseId(isRollback ? "FLOW-ROLLBACK" : "FLOW-PUB");
     const approval = {
       id: releaseId("APR"),
       version: target.version,
@@ -1251,11 +1252,13 @@
       platformReleaseNotes: target.platformReleaseNotes,
       reason: config.reason || "",
       snapshotRecordVersion: target.recordVersion
+      , flowId
     };
     db.approvals.unshift(approval);
     identifier.activeApproval = { approvalId: approval.id, type, version: target.version };
     if (!isRollback) target.status = "approval";
     addOperation(isRollback ? "固件回滚" : "固件申请", "提交审批", target.version);
+    addLifecycleEvent(identifier, { flowId, flowType: isRollback ? "rollback" : "publish", flowStatus: "pending", fromVersion: current?.version || null, toVersion: target.version, stage: "approval", title: isRollback ? "提交回滚审批" : "提交发布审批", operator: approval.submitter, result: "success", summary: `审批快照已锁定，目标版本 ${target.version}` });
     persist();
     return approval;
   }
@@ -1267,6 +1270,7 @@
     const current = currentVersion(identifier);
     if (!target || target.recordVersion !== approval.snapshotRecordVersion) return { ok: false, message: "目标版本已发生变化，原审批快照失效" };
     const stamp = now();
+    addLifecycleEvent(identifier, { flowId: approval.flowId || releaseId("FLOW"), flowType: approval.type === "rollback" ? "rollback" : "publish", flowStatus: "pending", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: approval.type === "rollback" ? "回滚审批通过" : "发布审批通过", time: stamp, operator: "IPC 产品线负责人", operatorType: "钉钉审批", result: "success", summary: "审批回调与版本快照校验通过" });
     if (approval.type === "publish") {
       if (target.status !== "approval" || current?.version !== approval.fromVersion) return { ok: false, message: "当前发布版本已变化，原发布审批失效" };
       identifier.versions.forEach(version => { version.latest = false; if (version.status === "current") version.status = "historical"; });
@@ -1276,13 +1280,15 @@
       target.reminder = reminderLabel(approval.reminderPolicy);
       const previousEvent = activeRelease(identifier);
       if (previousEvent) { previousEvent.status = "superseded"; previousEvent.rollbackAvailable = false; }
-      const event = { id: releaseId("REL"), action: "publish", fromVersion: current?.version || null, toVersion: target.version, status: "active", reminderPolicy: approval.reminderPolicy, rollbackTargetVersion: current?.version || null, rollbackAvailable: Boolean(current), dingEnabled: approval.dingEnabled, effectiveAt: stamp, operator: approval.submitter, approvalId: approval.id };
+      const event = { id: releaseId("REL"), flowId: approval.flowId, action: "publish", fromVersion: current?.version || null, toVersion: target.version, status: "active", reminderPolicy: approval.reminderPolicy, rollbackTargetVersion: current?.version || null, rollbackAvailable: Boolean(current), dingEnabled: approval.dingEnabled, effectiveAt: stamp, operator: approval.submitter, approvalId: approval.id };
       identifier.releaseEvents.unshift(event);
       identifier.currentVersion = target.version;
       identifier.rollbackTargetVersion = current?.version || null;
       identifier.rollbackAvailable = Boolean(current);
       createDingRecord(identifier, event, approval, "publish");
       addOperation("固件申请", "发布", target.version);
+      addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: "publish", flowStatus: "active", fromVersion: current?.version || null, toVersion: target.version, stage: "release", title: "当前发布版本切换", time: stamp, operator: "发布服务", operatorType: "系统", result: "success", summary: `${current?.version || "首次发布"} -> ${target.version}，生成 ${event.id}` });
+      addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: "publish", flowStatus: "active", fromVersion: current?.version || null, toVersion: target.version, stage: "notification", title: approval.dingEnabled ? "发布 DING 发送成功" : "本次不发送 DING", time: stamp, operator: "DING 任务", operatorType: "系统", result: approval.dingEnabled ? "success" : "skipped", summary: approval.dingEnabled ? `实际接收 ${approval.recipientCount} 人` : "已记录 not_required 结果" });
     } else {
       if (!identifier.rollbackAvailable || current?.version !== approval.fromVersion || identifier.rollbackTargetVersion !== target.version) return { ok: false, message: "唯一回滚目标已变化，原回滚审批失效" };
       current.status = "withdrawn";
@@ -1292,13 +1298,14 @@
       target.reminder = reminderLabel(approval.reminderPolicy);
       const previousEvent = activeRelease(identifier);
       if (previousEvent) { previousEvent.status = "rolled_back"; previousEvent.rollbackAvailable = false; }
-      const event = { id: releaseId("ROLLBACK"), action: "rollback", fromVersion: current.version, toVersion: target.version, status: "active", reminderPolicy: approval.reminderPolicy, rollbackTargetVersion: null, rollbackAvailable: false, dingEnabled: approval.dingEnabled, effectiveAt: stamp, operator: approval.submitter, approvalId: approval.id, reason: approval.reason };
+      const event = { id: releaseId("ROLLBACK"), flowId: approval.flowId, action: "rollback", fromVersion: current.version, toVersion: target.version, status: "active", reminderPolicy: approval.reminderPolicy, rollbackTargetVersion: null, rollbackAvailable: false, dingEnabled: approval.dingEnabled, effectiveAt: stamp, operator: approval.submitter, approvalId: approval.id, reason: approval.reason };
       identifier.releaseEvents.unshift(event);
       identifier.currentVersion = target.version;
       identifier.rollbackTargetVersion = null;
       identifier.rollbackAvailable = false;
       createDingRecord(identifier, event, approval, "rollback");
       addOperation("固件回滚", "回滚生效", `${current.version} → ${target.version}`);
+      addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: "rollback", flowStatus: "active", fromVersion: current.version, toVersion: target.version, stage: "rollback", title: "回滚版本切换成功", time: stamp, operator: "发布服务", operatorType: "系统", result: "success", summary: `${current.version} -> ${target.version}，原发布链路已关闭回滚入口` });
     }
     identifier.activeApproval = null;
     approval.status = "审批通过";
@@ -1318,6 +1325,7 @@
     approval.approveTime = now();
     approval.note = approval.reason || "当前发布风险未确认，审批驳回";
     addOperation(approval.type === "rollback" ? "固件回滚" : "固件申请", "审批驳回", approval.version);
+    if (identifier) addLifecycleEvent(identifier, { flowId: approval.flowId || releaseId("FLOW"), flowType: approval.type === "rollback" ? "rollback" : "publish", flowStatus: "rejected", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: approval.type === "rollback" ? "回滚审批驳回" : "发布审批驳回", operator: "IPC 产品线负责人", operatorType: "钉钉审批", result: "rejected", summary: approval.note });
     persist();
   }
 
@@ -1394,6 +1402,10 @@
     if (action === "select-identifier") {
       state.selectedIdentifier = target.dataset.id;
       state.firmwareTab = "firmware";
+      state.filters.lifecycleQuery = "";
+      state.lifecycleStage = "";
+      state.lifecycleResult = "";
+      state.expandedLifecycleFlows = [];
       state.firmwarePage = 1;
       state.differentialTaskPage = 1;
       state.differentialPackagePage = 1;
@@ -1404,9 +1416,36 @@
     }
     if (action === "firmware-subtab") {
       const tab = target.dataset.tab;
-      if (tab !== "firmware" && activeIdentifier().product !== "4G模组") return;
+      if (!["firmware", "lifecycle"].includes(tab) && activeIdentifier().product !== "4G模组") return;
       state.firmwareTab = tab;
       state.popover = null;
+      renderShell();
+      return;
+    }
+    if (action === "lifecycle-view") {
+      state.lifecycleView = target.dataset.view;
+      renderShell();
+      return;
+    }
+    if (action === "apply-lifecycle-filter") {
+      renderShell();
+      return;
+    }
+    if (action === "reset-lifecycle-filter") {
+      state.filters.lifecycleQuery = "";
+      state.lifecycleStage = "";
+      state.lifecycleResult = "";
+      renderShell();
+      return;
+    }
+    if (action === "toggle-lifecycle-flow") {
+      const flowId = target.dataset.flowId;
+      state.expandedLifecycleFlows = state.expandedLifecycleFlows.includes(flowId) ? state.expandedLifecycleFlows.filter(item => item !== flowId) : [...state.expandedLifecycleFlows, flowId];
+      renderShell();
+      return;
+    }
+    if (action === "lifecycle-flow-detail") {
+      state.drawer = { type: "lifecycleFlowDetail", flowId: target.dataset.flowId };
       renderShell();
       return;
     }
@@ -2101,6 +2140,16 @@
       state.differentialTaskPage = 1;
       state.differentialPackagePage = 1;
       state.expandedDifferentialPackages = [];
+      renderShell();
+      return;
+    }
+    if (target.dataset.change === "lifecycle-stage") {
+      state.lifecycleStage = target.value;
+      renderShell();
+      return;
+    }
+    if (target.dataset.change === "lifecycle-result") {
+      state.lifecycleResult = target.value;
       renderShell();
       return;
     }

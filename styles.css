@@ -727,7 +727,7 @@ button { color: inherit; }
 .lifecycle-kicker { color: #17785a; font-size: 12px; font-weight: 700; }
 .lifecycle-overview-copy h3 { margin: 6px 0 7px; font-size: 20px; font-weight: 650; }
 .lifecycle-overview-copy p { margin: 0; color: var(--text-3); font-size: 13px; }
-.lifecycle-stats { width: min(650px, 62%); display: grid; grid-template-columns: repeat(4, minmax(105px, 1fr)); border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.lifecycle-stats { width: min(650px, 62%); display: grid; grid-template-columns: minmax(135px, 1.5fr) repeat(3, minmax(90px, 1fr)); border: 1px solid var(--line); border-radius: 6px; background: #fff; }
 .lifecycle-stats > div { min-width: 0; padding: 14px 16px; border-right: 1px solid var(--line); }
 .lifecycle-stats > div:last-child { border-right: 0; }
 .lifecycle-stats span, .lifecycle-stats strong { display: block; }

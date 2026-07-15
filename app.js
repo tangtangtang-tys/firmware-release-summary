@@ -13,7 +13,7 @@
 
   const productLines = ["IPC", "车载", "NVR", "AI玩具", "婴儿看护", "4G模组", "BK系列"];
   const permissionRows = [
-    { menu: "固件管理", page: "固件列表", actions: ["查看固件标识列表", "编辑固件标识", "新增固件标识", "发布固件版本", "删除固件标识", "查看版本列表", "新增固件版本", "编辑固件版本", "删除固件版本", "删除差分文件", "新建差分任务"] },
+    { menu: "固件管理", page: "固件列表", actions: ["查看固件标识列表", "编辑固件标识", "新增固件标识", "发布固件版本", "回滚固件版本", "维护APP更新说明", "管理DING配置", "查看发布记录", "查看DING记录", "重试DING", "补发DING", "删除固件标识", "查看版本列表", "新增固件版本", "编辑固件版本", "删除固件版本", "删除差分文件", "新建差分任务"] },
     { menu: "模组型号", page: "", actions: [] },
     { menu: "日志管理", page: "操作日志", actions: ["查看操作日志"] },
     { menu: "审批日志", page: "", actions: [] },
@@ -66,6 +66,29 @@
     { id: "low-power", name: "低功耗待机", imageLabel: "低功耗" },
     { id: "motion-track", name: "移动侦测跟踪", imageLabel: "跟踪" },
     { id: "voice-intercom", name: "双向语音对讲", imageLabel: "语音" }
+  ];
+
+  const localeCatalog = [
+    { locale: "de-DE", label: "Deutsch" },
+    { locale: "fr-FR", label: "Français" },
+    { locale: "es-ES", label: "Español" },
+    { locale: "pt-BR", label: "Português (Brasil)" },
+    { locale: "ja-JP", label: "日本語" },
+    { locale: "ko-KR", label: "한국어" }
+  ];
+
+  const reminderPolicies = [
+    { value: "none", label: "不提醒", hint: "不主动弹窗，仅在设备设置中可见" },
+    { value: "weak", label: "弱提醒", hint: "非阻断提示一次，可关闭" },
+    { value: "strong", label: "强提醒", hint: "明显弹窗，可暂缓处理" },
+    { value: "forced-dialog", label: "强制弹窗提醒", hint: "持续展示提示，但不会自动安装固件" }
+  ];
+
+  const dingDirectory = [
+    { id: "dept-firmware", type: "department", name: "固件研发组", count: 8, members: ["刘林胶", "张元", "汤彦珊", "黄晓纯", "江锐", "邓文韬", "罗琅仁", "李金璨"] },
+    { id: "dept-test", type: "department", name: "设备测试组", count: 6, members: ["凌紫妍", "彭志勇", "阮天丽", "严鹏", "何圣安", "全继科"] },
+    { id: "user-line-owner", type: "user", name: "IPC 产品线负责人", count: 1, members: ["彭冬柏"] },
+    { id: "user-ops", type: "user", name: "平台运维负责人", count: 1, members: ["严国潮"] }
   ];
 
   function configFromCatalog(item, optionValue = item.options[0].value) {
@@ -138,7 +161,7 @@
       ["23.110.315.3", "黄晓纯", "2026-07-11 11:46:34", "彭冬柏", "审批通过", "2026-07-11 12:52:51"],
       ["23.120.304.4", "黄晓纯", "2026-07-09 17:40:18", "彭冬柏", "审批通过", "2026-07-09 18:54:14"],
       ["23.120.211.28", "罗琅仁", "2026-07-09 17:17:11", "彭冬柏", "审批通过", "2026-07-09 18:54:15"]
-    ].map(([version, submitter, submitTime, approver, status, approveTime]) => ({ version, event: "发布最新固件版本", submitter, submitTime, approver, status, approveTime, note: "-" })),
+    ].map(([version, submitter, submitTime, approver, status, approveTime]) => ({ version, event: "发布当前固件版本", submitter, submitTime, approver, status, approveTime, note: "-" })),
     users: [
       ["严国潮", "系统管理员", productLines, "2025-12-24 14:48:27"],
       ["严彬铭", "默认人员", productLines, "2025-12-24 14:48:27"],
@@ -174,9 +197,12 @@
   const clone = value => JSON.parse(JSON.stringify(value));
 
   function normalizeDatabase(data) {
+    if (!Array.isArray(data.dingNotices)) data.dingNotices = [];
     const identifierIds = new Set(data.identifiers.map(identifier => identifier.id));
-    data.identifiers.forEach(identifier => {
-      identifier.versions.forEach(version => {
+    data.identifiers.forEach((identifier, identifierIndex) => {
+      const legacyCurrent = identifier.versions.find(version => version.version === identifier.currentVersion) || identifier.versions.find(version => version.latest) || identifier.versions[0] || null;
+      const legacyRollbackTarget = identifier.versions.find(version => version !== legacyCurrent && version.models === legacyCurrent?.models) || identifier.versions.find(version => version !== legacyCurrent) || null;
+      identifier.versions.forEach((version, versionIndex) => {
         if (!Array.isArray(version.featureConfigs)) {
           version.featureConfigs = featureCatalog.slice(0, Number(version.features) || 0).map(item => configFromCatalog(item));
         }
@@ -188,8 +214,73 @@
         }));
         version.features = version.featureConfigs.length;
         if (!version.published && version.latest) version.published = version.version === "23.110.211.13" ? "2026-07-14 18:41:21" : version.updated;
+        if (!version.platformReleaseNotes) version.platformReleaseNotes = version.note && version.note !== "-" ? version.note : "稳定性优化与已知问题修复";
+        if (!version.appReleaseNotes || typeof version.appReleaseNotes !== "object") {
+          version.appReleaseNotes = {
+            "zh-CN": version.note && version.note !== "-" ? version.note : "提升设备连接稳定性并修复已知问题。",
+            "en-US": "Improve device connection stability and fix known issues."
+          };
+        }
+        if (!Array.isArray(version.noteRevisions)) version.noteRevisions = [];
+        if (!version.status) {
+          if (version === legacyCurrent) version.status = "current";
+          else if (version === legacyRollbackTarget) version.status = "historical";
+          else version.status = "unpublished";
+        }
+        version.latest = version.status === "current";
+        if (!version.created) version.created = version.updated;
+        if (!version.recordVersion) version.recordVersion = 1;
       });
+      if (!identifier.currentVersion && legacyCurrent) identifier.currentVersion = legacyCurrent.version;
+      if (identifier.rollbackTargetVersion === undefined) identifier.rollbackTargetVersion = legacyRollbackTarget?.version || null;
+      if (identifier.rollbackAvailable === undefined) identifier.rollbackAvailable = Boolean(legacyCurrent && legacyRollbackTarget);
+      if (!Array.isArray(identifier.releaseEvents)) identifier.releaseEvents = [];
+      if (!identifier.releaseEvents.length && legacyCurrent) {
+        identifier.releaseEvents.push({
+          id: `REL-INIT-${identifierIndex + 1}`,
+          action: "publish",
+          fromVersion: legacyRollbackTarget?.version || null,
+          toVersion: legacyCurrent.version,
+          status: "active",
+          reminderPolicy: legacyCurrent.reminder === "不提醒" ? "none" : "weak",
+          rollbackTargetVersion: legacyRollbackTarget?.version || null,
+          rollbackAvailable: Boolean(legacyRollbackTarget),
+          dingEnabled: identifierIndex === 0,
+          effectiveAt: legacyCurrent.published || legacyCurrent.updated,
+          operator: legacyCurrent.creator || "管理员"
+        });
+      }
+      if (identifier.activeApproval === undefined) identifier.activeApproval = null;
+      if (!identifier.dingDefaults) identifier.dingDefaults = { enabled: true, scopes: ["dept-firmware", "user-line-owner"], source: "product" };
+      identifier.versions.forEach(version => {
+        if (version.version === identifier.currentVersion) { version.status = "current"; version.latest = true; }
+        else if (version.status === "current") { version.status = "historical"; version.latest = false; }
+      });
+      if (!identifier.versions.some(version => version.version === identifier.rollbackTargetVersion)) {
+        identifier.rollbackTargetVersion = null;
+        identifier.rollbackAvailable = false;
+      }
     });
+
+    if (!data.dingNotices.length && data.identifiers[0]?.releaseEvents[0]) {
+      const initialEvent = data.identifiers[0].releaseEvents[0];
+      data.dingNotices.push({
+        id: "DING-INIT-1",
+        releaseId: initialEvent.id,
+        firmwareId: data.identifiers[0].id,
+        version: initialEvent.toVersion,
+        noticeType: "publish",
+        status: "partial_failed",
+        kind: "task",
+        scopes: ["dept-firmware", "dept-test"],
+        recipients: ["刘林胶", "张元", "汤彦珊", "黄晓纯", "江锐", "邓文韬", "罗琅仁", "李金璨", "凌紫妍", "彭志勇", "阮天丽", "严鹏", "何圣安", "全继科"],
+        messageSnapshot: `[固件发布] ${data.identifiers[0].id} ${initialEvent.toVersion}`,
+        createdAt: initialEvent.effectiveAt,
+        sentAt: initialEvent.effectiveAt,
+        attemptCount: 2,
+        failureReason: "何圣安、全继科发送失败，等待重试"
+      });
+    }
     data.modules.forEach((module, index) => {
       if (!Array.isArray(module.linkedIdentifiers)) {
         module.linkedIdentifiers = Number(module.firmwareCount) ? [index === 1 ? "23.110.211" : "23.100.111"] : [];
@@ -209,6 +300,9 @@
       if (!Array.isArray(user.approverLines)) user.approverLines = [];
       if (!Array.isArray(user.changeLogs)) user.changeLogs = [];
       user.approverLines = user.approverLines.filter(line => user.lines.includes(line));
+    });
+    data.identifiers.forEach(identifier => {
+      if (identifier.activeApproval && !data.approvals.some(approval => approval.id === identifier.activeApproval.approvalId && approval.status === "审批中")) identifier.activeApproval = null;
     });
     return data;
   }
@@ -316,6 +410,83 @@
     return left.length === right.length && left.every(value => right.includes(value));
   }
 
+  function modelValues(value) {
+    return String(value || "").split(/[,，/]/).map(item => item.trim().toLowerCase()).filter(Boolean);
+  }
+
+  function targetCoversModels(current, target) {
+    const targetModels = modelValues(target?.models);
+    return modelValues(current?.models).every(model => targetModels.includes(model));
+  }
+
+  function versionStatusLabel(status) {
+    return ({ unpublished: "未发布", approval: "发布审批中", current: "当前发布", historical: "历史发布", withdrawn: "已撤销" })[status] || "未发布";
+  }
+
+  function reminderLabel(value) {
+    return reminderPolicies.find(item => item.value === value)?.label || value || "不提醒";
+  }
+
+  function currentVersion(identifier = activeIdentifier()) {
+    return identifier?.versions.find(version => version.version === identifier.currentVersion) || identifier?.versions.find(version => version.status === "current") || null;
+  }
+
+  function rollbackTarget(identifier = activeIdentifier()) {
+    return identifier?.versions.find(version => version.version === identifier.rollbackTargetVersion) || null;
+  }
+
+  function activeRelease(identifier = activeIdentifier()) {
+    return identifier?.releaseEvents.find(event => event.status === "active") || identifier?.releaseEvents[0] || null;
+  }
+
+  function releaseEventsForVersion(version, identifier = activeIdentifier()) {
+    return (identifier?.releaseEvents || []).filter(event => event.fromVersion === version.version || event.toVersion === version.version);
+  }
+
+  function dingRecordsForVersion(version, identifier = activeIdentifier()) {
+    const releaseIds = new Set(releaseEventsForVersion(version, identifier).map(event => event.id));
+    return db.dingNotices.filter(notice => notice.firmwareId === identifier.id && releaseIds.has(notice.releaseId));
+  }
+
+  function selectedDingScopes(modal = state.modal) {
+    return dingDirectory.filter(item => (modal?.dingScopes || []).includes(item.id));
+  }
+
+  function resolveDingRecipients(scopeIds) {
+    return [...new Set(dingDirectory.filter(item => scopeIds.includes(item.id)).flatMap(item => item.members))];
+  }
+
+  function dingRecipientCount(modal = state.modal) {
+    return resolveDingRecipients(modal?.dingScopes || []).length;
+  }
+
+  function releaseId(prefix = "REL") {
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+  }
+
+  function createDingRecord(identifier, event, config, noticeType) {
+    if (!config.dingEnabled) {
+      const result = { id: releaseId("DING-RESULT"), releaseId: event.id, firmwareId: identifier.id, version: event.toVersion, noticeType, status: "not_required", kind: "result", scopes: [], recipients: [], messageSnapshot: "本次明确不发送 DING", createdAt: now(), sentAt: "-", attemptCount: 0, failureReason: "" };
+      db.dingNotices.unshift(result);
+      return result;
+    }
+    const scopes = dingDirectory.filter(item => config.dingScopes.includes(item.id));
+    const recipients = resolveDingRecipients(config.dingScopes);
+    const notice = {
+      id: releaseId("DING"), releaseId: event.id, firmwareId: identifier.id, version: event.toVersion,
+      noticeType, status: "sent", kind: "task", scopes: scopes.map(item => item.id),
+      recipients,
+      messageSnapshot: `[固件${noticeType === "rollback" ? "回滚" : "发布"}] ${identifier.id} ${event.toVersion}\n${config.platformReleaseNotes || config.reason || "-"}`,
+      createdAt: now(), sentAt: now(), attemptCount: 1, failureReason: ""
+    };
+    db.dingNotices.unshift(notice);
+    return notice;
+  }
+
+  function approvalById(id) {
+    return db.approvals.find(item => item.id === id);
+  }
+
   function addOperation(module, action, resource, user = "汤彦珊") {
     db.operations.unshift({ time: now(), user, module, action, resource, description: `${action}${module}: [${resource}]` });
   }
@@ -413,15 +584,17 @@
     if (!selected) {
       return `<section class="page tint-page">${header}<div class="firmware-layout"><aside class="identifier-panel"><h2 class="panel-heading">固件管理</h2><button class="btn panel-action" data-action="add-identifier">⊕ 新增标识</button><div class="muted" style="padding:16px">无匹配标识</div></aside><div class="firmware-main"><div class="empty-state"><div><div class="empty-illustration">▤</div>暂无匹配的固件数据</div></div></div></div></section>`;
     }
-    const latest = selected.versions.find(item => item.latest) || selected.versions[0];
+    const latest = currentVersion(selected);
+    const pendingApproval = selected.activeApproval ? approvalById(selected.activeApproval.approvalId) : null;
     return `<section class="page tint-page">
       ${header}
       <div class="firmware-layout">
         <aside class="identifier-panel"><h2 class="panel-heading">固件管理</h2><button class="btn panel-action" data-action="add-identifier">⊕ 新增标识</button><div class="identifier-list">${identifiers.map(item => `<button class="identifier-item ${item.id === selected.id ? "active" : ""}" data-action="select-identifier" data-id="${esc(item.id)}">${esc(item.id)}</button>`).join("") || `<div class="muted" style="padding:16px">无匹配标识</div>`}</div></aside>
         <div class="firmware-main">
-          <div class="summary-band"><div class="summary-head"><h2>${esc(selected.id)}</h2><div class="summary-actions"><button class="btn small" data-action="refresh">↻ 刷新</button><div class="popover-wrap"><button class="btn small" data-action="identifier-actions" aria-expanded="${state.popover === "identifier"}">••• 更多</button>${state.popover === "identifier" ? `<div class="action-popover compact-popover"><button data-action="edit-identifier">编辑</button><button class="danger-item" data-action="delete-identifier">删除</button></div>` : ""}</div></div></div><div class="meta-grid"><span>所属产品线：<strong>${esc(selected.product)}</strong></span><span>创建时间：<strong>${esc(selected.created)}</strong></span><span>关联机型：<strong>${esc(selected.models)}</strong></span><span>网络类型：<strong>${esc(selected.network)}</strong></span><span>电量类型：<strong>${esc(selected.power)}</strong></span><span>架构类型：<strong>${esc(selected.architecture)}</strong></span></div></div>
+          <div class="summary-band"><div class="summary-head"><h2>${esc(selected.id)}</h2><div class="summary-actions"><button class="btn small" data-action="refresh">↻ 刷新</button><div class="popover-wrap"><button class="btn small" data-action="identifier-actions" aria-expanded="${state.popover === "identifier"}">••• 更多</button>${state.popover === "identifier" ? `<div class="action-popover compact-popover"><button data-action="edit-identifier">编辑</button><button data-action="ding-defaults">DING 默认配置</button><button class="danger-item" data-action="delete-identifier">删除</button></div>` : ""}</div></div></div><div class="meta-grid"><span>所属产品线：<strong>${esc(selected.product)}</strong></span><span>创建时间：<strong>${esc(selected.created)}</strong></span><span>关联机型：<strong>${esc(selected.models)}</strong></span><span>网络类型：<strong>${esc(selected.network)}</strong></span><span>电量类型：<strong>${esc(selected.power)}</strong></span><span>架构类型：<strong>${esc(selected.architecture)}</strong></span><span>DING 默认：<strong>${selected.dingDefaults.enabled ? `开启 · ${selected.dingDefaults.scopes.length} 个范围` : "关闭"}</strong></span></div></div>
+          ${pendingApproval ? `<div class="approval-banner"><div><strong>${pendingApproval.event === "撤销并回滚固件版本" ? "回滚审批中" : "发布审批中"}</strong><span>${esc(pendingApproval.version)} · 提交人 ${esc(pendingApproval.submitter)} · ${esc(pendingApproval.submitTime)}</span></div><button class="btn small primary" data-action="view-active-approval">查看审批</button></div>` : ""}
           <div class="tab-strip"><button class="tab active">固件列表</button></div>
-          ${latest ? `<section class="section-block"><h3 class="section-heading">最新发布版本</h3>${renderLatest(latest)}</section>` : ""}
+          ${latest ? `<section class="section-block"><h3 class="section-heading">当前发布版本</h3>${renderLatest(selected, latest)}</section>` : ""}
           <section class="section-block"><div class="section-bar"><h3>固件版本列表</h3><div class="section-actions"><div class="popover-wrap"><button class="btn icon-btn" title="行高：${state.density === "default" ? "默认" : state.density === "comfortable" ? "宽松" : "紧凑"}" aria-label="行高：${state.density === "default" ? "默认" : state.density === "comfortable" ? "宽松" : "紧凑"}" data-action="density-menu">☷</button>${state.popover === "density" ? `<div class="action-popover density-popover">${[["default", "默认"], ["comfortable", "宽松"], ["compact", "紧凑"]].map(([value, label]) => `<button class="${state.density === value ? "selected" : ""}" data-action="set-density" data-density="${value}">${label}<span>${state.density === value ? "✓" : ""}</span></button>`).join("")}</div>` : ""}</div><div class="popover-wrap"><button class="btn icon-btn" title="列设置" aria-label="列设置" data-action="column-settings">⚙</button>${state.popover === "columns" ? renderColumnPopover() : ""}</div><button class="btn primary" data-action="add-version">＋ 新增版本</button></div></div>${renderFirmwareTable(selected)}${pagination(selected.versions.length, state.firmwarePage, "firmware-page", "firmware")}</section>
         </div>
       </div>
@@ -429,20 +602,24 @@
   }
 
   function renderColumnPopover() {
-    const labels = { url: "下载地址", size: "文件大小（M）", models: "适用机型", features: "功能集数", creator: "创建人", note: "说明", updated: "更新时间" };
+    const labels = { url: "下载地址", size: "文件大小（M）", models: "适用机型", features: "功能集数", creator: "创建人", note: "平台发布说明", updated: "更新时间" };
     return `<div class="action-popover column-popover"><strong>列设置</strong><label class="check"><input type="checkbox" checked disabled>固件版本号</label>${Object.entries(labels).map(([key, label]) => `<label class="check"><input type="checkbox" data-column="${key}" ${state.columns[key] ? "checked" : ""}>${label}</label>`).join("")}<label class="check"><input type="checkbox" checked disabled>操作</label></div>`;
   }
 
-  function renderLatest(version) {
-    return `<div class="latest-card"><div class="latest-version"><span class="file-mark">V</span><div><strong>${esc(version.version)}</strong><div class="muted" style="margin-top:6px">发布时间：${esc(version.published || version.updated)}</div></div></div><div><span class="latest-label">下载地址</span><span class="ellipsis">${esc(version.url)}</span></div><div><span class="latest-label">文件大小</span><strong>${esc(version.size)}M</strong></div><div><span class="latest-label">提醒方式</span><span class="tag warning">${esc(version.reminder || "不提醒")}</span></div><div><span class="latest-label">适用机型</span><strong>${esc(version.models)}</strong></div><div><span class="latest-label">说明</span><span class="ellipsis">${esc(version.note)}</span></div><button class="btn small" data-action="version-detail" data-version="${esc(version.version)}">详情</button></div>`;
+  function renderLatest(identifier, version) {
+    const event = activeRelease(identifier);
+    const previous = rollbackTarget(identifier);
+    const notice = db.dingNotices.find(item => item.releaseId === event?.id);
+    const dingLabel = ({ sent: "发送成功", pending: "等待发送", sending: "发送中", partial_failed: "部分失败", failed: "发送失败", not_required: "本次不发送" })[notice?.status] || "无记录";
+    return `<div class="current-release-card"><div class="current-release-head"><div class="latest-version"><span class="file-mark">V</span><div><strong>${esc(version.version)}</strong><div class="muted">${event?.action === "rollback" ? `由 ${esc(event.fromVersion)} 回滚恢复` : previous ? `上一个发布版本 ${esc(previous.version)}` : "首次发布"}</div></div></div><div class="current-release-actions"><button class="btn small" data-action="version-detail" data-version="${esc(version.version)}">详情</button>${identifier.rollbackAvailable && previous ? `<button class="btn small danger" data-action="start-rollback" ${identifier.activeApproval ? "disabled" : ""}>撤销并回滚</button>` : `<button class="btn small" disabled title="当前没有可用的一次性回滚目标">不可回滚</button>`}</div></div><div class="current-release-grid"><div><span>生效时间</span><strong>${esc(event?.effectiveAt || version.published || version.updated)}</strong></div><div><span>APP 提醒方式</span><strong>${esc(reminderLabel(event?.reminderPolicy))}</strong></div><div><span>适用机型</span><strong>${esc(version.models)}</strong></div><div><span>DING 状态</span><strong>${esc(dingLabel)}</strong></div><div><span>文件大小</span><strong>${esc(version.size)} M</strong></div><div class="release-url"><span>下载地址</span><strong title="${esc(version.url)}">${esc(version.url)}</strong><div class="release-url-actions"><button class="link-btn" data-action="copy" data-copy="${esc(version.url)}" title="复制下载地址" aria-label="复制下载地址">▣</button><a class="link-btn" href="${esc(version.url)}" download title="下载固件" aria-label="下载固件">⇩</a></div></div></div></div>`;
   }
 
   function renderFirmwareTable(identifier) {
     const columns = state.columns;
     const pageSize = state.pageSizes.firmware;
     const rows = identifier.versions.slice((state.firmwarePage - 1) * pageSize, state.firmwarePage * pageSize);
-    const headers = [`<th style="width:155px">固件版本号</th>`, columns.url && `<th style="width:230px">下载地址</th>`, columns.size && `<th style="width:105px">文件大小（M）</th>`, columns.models && `<th style="width:125px">适用机型</th>`, columns.features && `<th style="width:90px">功能集数</th>`, columns.creator && `<th style="width:120px">创建人</th>`, columns.note && `<th style="width:175px">说明</th>`, columns.updated && `<th style="width:170px">更新时间</th>`, `<th style="width:200px">操作</th>`].filter(Boolean).join("");
-    return `<div class="table-wrap firmware-table-wrap"><table class="data-table firmware-version-table ${state.density}"><thead><tr>${headers}</tr></thead><tbody>${rows.map(version => `<tr><td><span>${esc(version.version)}</span>${version.latest ? ` <span class="tag success">最新</span>` : ""}</td>${columns.url ? `<td><div class="cell-actions"><span class="cell-truncate" title="${esc(version.url)}">${esc(version.url)}</span><button class="link-btn" title="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button></div></td>` : ""}${columns.size ? `<td>${esc(version.size)}</td>` : ""}${columns.models ? `<td>${esc(version.models)}</td>` : ""}${columns.features ? `<td>${version.features}</td>` : ""}${columns.creator ? `<td>${esc(version.creator)}</td>` : ""}${columns.note ? `<td class="cell-truncate" title="${esc(version.note)}">${esc(version.note)}</td>` : ""}${columns.updated ? `<td>${esc(version.updated)}</td>` : ""}<td><div class="cell-actions firmware-row-actions"><button class="link-btn" data-action="version-detail" data-version="${esc(version.version)}">详情</button>${version.latest ? "" : `<button class="link-btn" data-action="publish-version" data-version="${esc(version.version)}">发布</button><button class="link-btn" data-action="edit-version" data-version="${esc(version.version)}">编辑</button><button class="link-btn danger-link" data-action="delete-version" data-version="${esc(version.version)}">删除</button>`}</div></td></tr>`).join("")}</tbody></table></div>`;
+    const headers = [`<th style="width:185px">固件版本号</th>`, columns.url && `<th style="width:230px">下载地址</th>`, columns.size && `<th style="width:105px">文件大小（M）</th>`, columns.models && `<th style="width:125px">适用机型</th>`, columns.features && `<th style="width:90px">功能集数</th>`, columns.creator && `<th style="width:120px">创建人</th>`, columns.note && `<th style="width:190px">平台发布说明</th>`, columns.updated && `<th style="width:170px">更新时间</th>`, `<th style="width:200px">操作</th>`].filter(Boolean).join("");
+    return `<div class="table-wrap firmware-table-wrap"><table class="data-table firmware-version-table ${state.density}"><thead><tr>${headers}</tr></thead><tbody>${rows.map(version => { const canEdit = version.status === "unpublished"; return `<tr><td><span>${esc(version.version)}</span> <span class="tag ${version.status === "current" ? "success" : version.status === "withdrawn" ? "danger" : version.status === "approval" ? "warning" : ""}">${esc(versionStatusLabel(version.status))}</span></td>${columns.url ? `<td><div class="cell-actions"><span class="cell-truncate" title="${esc(version.url)}">${esc(version.url)}</span><button class="link-btn" title="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button></div></td>` : ""}${columns.size ? `<td>${esc(version.size)}</td>` : ""}${columns.models ? `<td>${esc(version.models)}</td>` : ""}${columns.features ? `<td>${version.features}</td>` : ""}${columns.creator ? `<td>${esc(version.creator)}</td>` : ""}${columns.note ? `<td class="cell-truncate" title="${esc(version.platformReleaseNotes)}">${esc(version.platformReleaseNotes)}</td>` : ""}${columns.updated ? `<td>${esc(version.updated)}</td>` : ""}<td><div class="cell-actions firmware-row-actions"><button class="link-btn" data-action="version-detail" data-version="${esc(version.version)}">详情</button>${canEdit ? `<button class="link-btn" data-action="publish-version" data-version="${esc(version.version)}" ${identifier.activeApproval ? "disabled" : ""}>发布</button><button class="link-btn" data-action="edit-version" data-version="${esc(version.version)}">编辑</button><button class="link-btn danger-link" data-action="delete-version" data-version="${esc(version.version)}">删除</button>` : ""}</div></td></tr>`; }).join("")}</tbody></table></div>`;
   }
 
   function renderModules() {
@@ -526,6 +703,22 @@
     return state.errors[name] ? `<div class="error-text">${esc(state.errors[name])}</div>` : "";
   }
 
+  function renderReminderOptions(selected, field = "reminderPolicy") {
+    return `<div class="reminder-options">${reminderPolicies.map(item => `<label class="reminder-option ${selected === item.value ? "selected" : ""}"><input type="radio" name="${field}" data-modal-field="${field}" value="${item.value}" ${selected === item.value ? "checked" : ""}><span><strong>${esc(item.label)}</strong><small>${esc(item.hint)}</small></span></label>`).join("")}</div>`;
+  }
+
+  function renderDingConfiguration(modal, noticeType = "publish") {
+    const scopes = selectedDingScopes(modal);
+    const count = dingRecipientCount(modal);
+    return `<div class="ding-config"><div class="ding-switch-row"><div><strong>${noticeType === "rollback" ? "发送回滚 DING" : "发送发布 DING"}</strong><span>审批通过且版本事务成功后自动发送，不影响固件生效结果</span></div><label class="toggle"><input type="checkbox" data-modal-field="dingEnabled" ${modal.dingEnabled ? "checked" : ""}><span></span></label></div>${modal.dingEnabled ? `<div class="ding-scope-grid"><div><h4>钉钉组织架构接收范围</h4><div class="ding-directory">${dingDirectory.map(item => `<label class="check"><input type="checkbox" data-ding-scope="${item.id}" ${modal.dingScopes.includes(item.id) ? "checked" : ""}><span>${esc(item.name)} <small>${item.type === "department" ? `${item.count} 人` : "指定成员"}</small></span></label>`).join("")}</div>${errorFor("dingScopes")}</div><aside class="ding-preview"><span>预计接收 ${count} 人</span><strong>[固件${noticeType === "rollback" ? "回滚" : "发布"}] ${esc(activeIdentifier().id)} ${esc(modal.version || modal.targetVersion || "")}</strong><p>${esc(modal.platformReleaseNotes || modal.reason || "消息内容将在提交时根据平台发布说明生成")}</p><small>实际接收人将在发送时按组织架构解析、去重并保存快照</small></aside></div>` : `<div class="ding-off-note">本次不发送，发布成功后仅记录 <code>not_required</code> 结果。</div>`}</div>`;
+  }
+
+  function renderApprovalSimulation(modal) {
+    const approval = approvalById(modal.approvalId);
+    const rollback = approval.event === "撤销并回滚固件版本";
+    return modalFrame(rollback ? "回滚审批已提交" : "发布审批已提交", `<div class="approval-submit-result"><div class="approval-result-icon">✓</div><h3>审批单已进入钉钉审批</h3><p>当前发布版本保持不变，审批通过后平台会重新校验快照并执行${rollback ? "回滚" : "发布"}事务。</p><div class="approval-snapshot"><span>审批事件<strong>${esc(approval.event)}</strong></span><span>目标版本<strong>${esc(approval.version)}</strong></span><span>APP 提醒<strong>${esc(reminderLabel(approval.reminderPolicy))}</strong></span><span>DING 决策<strong>${approval.dingEnabled ? `发送给预计 ${approval.recipientCount} 人` : "本次不发送"}</strong></span><span>提交人<strong>${esc(approval.submitter)}</strong></span><span>提交时间<strong>${esc(approval.submitTime)}</strong></span></div><div class="prototype-simulation-note">原型审批模拟</div></div>`, `<button class="btn danger" data-action="simulate-approval-reject">模拟审批驳回</button><button class="btn primary" data-action="simulate-approval-approve">模拟审批通过</button>`, true);
+  }
+
   function renderModal() {
     const modal = state.modal;
     if (modal.type === "addIdentifier") {
@@ -537,8 +730,25 @@
       const item = activeIdentifier();
       return modalFrame("编辑固件标识", `<form id="edit-identifier-form"><div class="notice">关联机型创建后不可二次编辑。</div><div class="form-grid"><div class="form-field"><label>固件标识</label><input class="field" value="${esc(item.id)}" disabled></div><div class="form-field required"><label>所属产线</label><select class="select" name="product">${productLines.map(line => `<option ${line === item.product ? "selected" : ""}>${line}</option>`).join("")}</select></div><div class="form-field required"><label>关联机型</label><input class="field" value="${esc(item.models)}" disabled></div><div class="form-field"><label>网络类型</label><select class="select" name="network"><option ${item.network === "仅4G" ? "selected" : ""}>仅4G</option><option ${item.network === "WiFi" ? "selected" : ""}>WiFi</option><option ${item.network === "4G + WiFi" ? "selected" : ""}>4G + WiFi</option></select></div><div class="form-field"><label>电量类型</label><select class="select" name="power"><option ${item.power === "常电" ? "selected" : ""}>常电</option><option ${item.power === "低功耗" ? "selected" : ""}>低功耗</option></select></div><div class="form-field"><label>架构类型</label><select class="select" name="architecture"><option ${item.architecture === "新架构" ? "selected" : ""}>新架构</option><option ${item.architecture === "旧架构" ? "selected" : ""}>旧架构</option></select></div></div></form>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" type="submit" form="edit-identifier-form">保存</button>`, true);
     }
+    if (modal.type === "dingDefaults") {
+      return modalFrame("DING 默认配置", `<div class="notice">当前固件标识默认继承所属产品线配置；保存后转为固件标识级覆盖，单次发布仍可调整。</div>${renderDingConfiguration(modal, "publish")}`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" data-action="save-ding-defaults">保存默认配置</button>`, true);
+    }
     if (modal.type === "publish") {
-      return modalFrame("是否确认发布当前固件为最新版本？", `<p class="confirm-copy">是否发布当前【${esc(modal.version)}】固件版本？</p><div class="form-field required"><label for="publish-reminder">APP提醒方式：</label><select id="publish-reminder" class="select" style="width:100%"><option>不提醒</option><option>仅首页提醒</option><option>强提醒</option></select></div>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" data-action="confirm-publish">确认</button>`);
+      const identifier = activeIdentifier();
+      const targetVersion = findVersion(modal.version);
+      const current = currentVersion(identifier);
+      return modalFrame("提交固件发布审批", `<div class="release-impact"><div><span>当前发布版本</span><strong>${esc(current?.version || "-")}</strong></div><div class="impact-arrow">→</div><div><span>目标发布版本</span><strong>${esc(targetVersion.version)}</strong></div></div><div class="form-field required"><label>APP 提醒方式</label>${renderReminderOptions(modal.reminderPolicy)}${errorFor("reminderPolicy")}</div><div class="release-summary"><span>适用机型<strong>${esc(targetVersion.models)}</strong></span><span>平台发布说明<strong>${esc(targetVersion.platformReleaseNotes)}</strong></span><span>回滚目标<strong>${esc(current?.version || "首次发布，无回滚目标")}</strong></span></div>${renderDingConfiguration(modal, "publish")}`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" data-action="confirm-publish">提交发布审批</button>`, true);
+    }
+    if (modal.type === "rollback") {
+      const identifier = activeIdentifier();
+      const current = currentVersion(identifier);
+      const targetVersion = rollbackTarget(identifier);
+      const currentLocales = Object.keys(current.appReleaseNotes || {});
+      const targetLocales = Object.keys(targetVersion.appReleaseNotes || {});
+      return modalFrame("撤销并回滚版本", `<div class="rollback-heading"><strong>当前版本 ${esc(current.version)} 将被撤销</strong><span>审批通过后恢复至唯一回滚目标 ${esc(targetVersion.version)}</span></div><div class="rollback-compare"><div class="compare-head"><span>对比项</span><strong>当前发布版本</strong><strong>回滚目标版本</strong><span>变化</span></div>${[["固件版本号", current.version, targetVersion.version, "切换目标"], ["版本状态", "当前发布", "历史发布", "恢复生效"], ["适用机型", current.models, targetVersion.models, current.models === targetVersion.models ? "无变化" : "存在差异"], ["功能集配置", `${current.featureConfigs.length} 项`, `${targetVersion.featureConfigs.length} 项`, current.featureConfigs.length === targetVersion.featureConfigs.length ? "无变化" : "存在差异"], ["APP 说明", `${currentLocales.length} 种语言`, `${targetLocales.length} 种语言`, sameValues(currentLocales, targetLocales) ? "无变化" : "覆盖变化"]].map(row => `<div class="compare-row"><span>${esc(row[0])}</span><strong>${esc(row[1])}</strong><strong>${esc(row[2])}</strong><em class="${row[3].includes("差异") || row[3].includes("变化") ? "changed" : ""}">${esc(row[3])}</em></div>`).join("")}</div><div class="rollback-risk">平台切换目标版本不等于设备立即执行版本更新。只有兼容且符合范围的设备，才会按本次 APP 提醒策略展示恢复提示。</div><div class="form-field required"><label>本次 APP 提醒方式</label>${renderReminderOptions(modal.reminderPolicy)}${errorFor("reminderPolicy")}</div><div class="form-field required"><label>回滚原因</label><textarea class="textarea" data-modal-field="reason" maxlength="500" placeholder="请说明问题表现、影响范围、回滚原因及后续处理计划">${esc(modal.reason || "")}</textarea>${errorFor("rollbackReason")}<div class="helper align-right">${(modal.reason || "").length} / 500</div></div>${renderDingConfiguration(modal, "rollback")}`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" data-action="confirm-rollback">提交回滚审批</button>`, true);
+    }
+    if (modal.type === "approvalSimulation") {
+      return renderApprovalSimulation(modal);
     }
     if (modal.type === "deleteVersion") {
       return modalFrame("删除固件版本", `<div class="confirm-icon">!</div><p class="confirm-copy">确定删除固件版本【${esc(modal.version)}】吗？删除后不可恢复。</p>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn danger" data-action="confirm-delete-version">删除</button>`);
@@ -555,10 +765,19 @@
     if (modal.type === "moduleFirmware") {
       const module = db.modules.find(item => item.model === modal.model);
       const linked = module.linkedIdentifiers.map(id => db.identifiers.find(item => item.id === id)).filter(Boolean);
-      return modalFrame(`${module.model} 关联固件列表`, `<div class="table-wrap"><table class="data-table"><thead><tr><th>固件标识</th><th>所属产线</th><th>APP提醒方式</th><th>关联时间</th></tr></thead><tbody>${linked.map(identifier => `<tr><td>${esc(identifier.id)}</td><td>${esc(identifier.product)}</td><td>-</td><td>${esc(module.linkedAt)}</td></tr>`).join("")}</tbody></table></div>${linked.length ? "" : `<div class="empty-state compact-empty"><div><div class="empty-illustration">▤</div>暂无数据</div></div>`}`, "", true);
+      return modalFrame(`${module.model} 关联固件列表`, `<div class="table-wrap"><table class="data-table"><thead><tr><th>固件标识</th><th>所属产线</th><th>APP 提醒方式</th><th>关联时间</th></tr></thead><tbody>${linked.map(identifier => `<tr><td>${esc(identifier.id)}</td><td>${esc(identifier.product)}</td><td>-</td><td>${esc(module.linkedAt)}</td></tr>`).join("")}</tbody></table></div>${linked.length ? "" : `<div class="empty-state compact-empty"><div><div class="empty-illustration">▤</div>暂无数据</div></div>`}`, "", true);
     }
     if (modal.type === "featurePicker") {
       return renderFeaturePicker();
+    }
+    if (modal.type === "editAppNotes") {
+      const notes = modal.notesDraft;
+      const available = localeCatalog.filter(item => !(item.locale in notes));
+      return modalFrame("维护 APP 更新说明", `<div class="revision-warning">已发布文案修改无需重新审批，但会生成不可覆盖的修订记录并立即失效 APP 升级检查缓存。</div><div class="revision-note-list">${Object.entries(notes).map(([locale, content]) => `<div class="revision-note-item"><div><strong>${esc(locale === "zh-CN" ? "简体中文" : locale === "en-US" ? "English" : localeCatalog.find(item => item.locale === locale)?.label || locale)}</strong><span>${esc(locale)} ${["zh-CN", "en-US"].includes(locale) ? "· 必填" : "· 选填"}</span></div>${["zh-CN", "en-US"].includes(locale) ? "" : `<button class="link-btn danger-link" data-action="remove-revision-locale" data-locale="${locale}">删除</button>`}<textarea class="textarea" data-revision-locale="${locale}" maxlength="500">${esc(content)}</textarea>${errorFor(`revision-${locale}`)}</div>`).join("")}</div>${available.length ? `<div class="form-field"><label>添加其他语言</label><select class="select" data-change="add-revision-locale"><option value="">请选择 Locale</option>${available.map(item => `<option value="${item.locale}">${esc(item.label)} · ${item.locale}</option>`).join("")}</select></div>` : ""}<div class="form-field required"><label>修改原因</label><textarea class="textarea" data-revision-reason maxlength="200" placeholder="请说明翻译修正、措辞优化或其他修改原因">${esc(modal.reason || "")}</textarea>${errorFor("revisionReason")}</div>`, `<button class="btn" data-action="close-modal">取消</button><button class="btn primary" data-action="save-app-notes">保存修订</button>`, true, true);
+    }
+    if (modal.type === "resendDing") {
+      const notice = db.dingNotices.find(item => item.id === modal.noticeId);
+      return modalFrame("补发 DING", `<div class="confirm-icon">!</div><p class="confirm-copy">补发将基于当前钉钉组织架构重新解析接收人，并生成一条独立通知记录，不覆盖原记录。</p><div class="form-field required"><label>接收范围</label><div class="ding-directory">${dingDirectory.map(item => `<label class="check"><input type="checkbox" data-ding-scope="${item.id}" ${modal.dingScopes.includes(item.id) ? "checked" : ""}>${esc(item.name)}</label>`).join("")}</div>${errorFor("dingScopes")}</div><div class="subtle">原通知状态：${esc(notice?.status || "-")}</div>`, `<button class="btn" data-action="close-modal">取消</button><button class="btn primary" data-action="confirm-resend-ding">确认补发</button>`, true, true);
     }
     if (modal.type === "deleteRole") {
       return modalFrame("删除角色", `<div class="confirm-icon">!</div><p class="confirm-copy">确定删除角色【${esc(activeRole().name)}】吗？</p>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn danger" data-action="confirm-delete-role">删除</button>`);
@@ -610,6 +829,10 @@
     const formDraft = state.drawer.formDraft || { version: version?.version || upload?.version || "", models: version?.models || "", note: version?.note === "-" ? "" : version?.note || "" };
     const generatedVersion = formDraft.version;
     const associatedFeatures = state.drawer?.associatedFeatures || [];
+    const appReleaseNotes = state.drawer.appReleaseNotes || clone(version?.appReleaseNotes || { "zh-CN": "", "en-US": "" });
+    const activeLocale = state.drawer.activeLocale || "zh-CN";
+    const activeLocaleLabel = activeLocale === "zh-CN" ? "简体中文" : activeLocale === "en-US" ? "English" : localeCatalog.find(item => item.locale === activeLocale)?.label || activeLocale;
+    const availableLocales = localeCatalog.filter(item => !(item.locale in appReleaseNotes));
     const configurable = editing || Boolean(upload);
     const existingConfigs = version?.featureConfigs || [];
     const uploadName = editing ? version.url.split("/").pop() : upload?.name;
@@ -623,7 +846,7 @@
       return `<div class="capability-card"><div><div class="capability-name">${esc(item.name)} <span title="${esc(item.hint)}">ⓘ</span></div><div class="capability-hint">${esc(item.hint)}</div></div><div class="capability-control"><button class="btn small" type="button" data-action="capability-help" data-capability="${item.key}">版本说明</button><select class="select" name="capability-${item.key}" aria-label="${esc(item.name)}">${item.options.map(option => `<option value="${esc(option.value)}" ${option.value === selected ? "selected" : ""}>${esc(option.label)}</option>`).join("")}</select></div>${helpOpen ? `<div class="capability-description"><strong>版本 ${esc(selectedOption.version)}</strong><span>${esc(selectedOption.description)}</span></div>` : ""}</div>`;
     }).join("") : "";
     const md5Field = editing ? "" : `<div class="form-field required"><label>MD5值</label><input class="field" value="${esc(upload?.md5 || "")}" readonly placeholder="上传文件后自动生成"></div>`;
-    return drawerFrame(title, `<form id="version-form"><input type="hidden" name="mode" value="${editing ? "edit" : "add"}"><input type="hidden" name="version" value="${esc(generatedVersion)}"><div class="form-grid"><div class="form-field required"><label>固件标识</label><input class="field" value="${esc(activeIdentifier().id)}" disabled placeholder="固件标识"></div><div class="form-field required"><label>固件版本号</label><input class="field" value="${esc(generatedVersion)}" disabled placeholder="上传文件后自动生成">${errorFor("version")}</div><div class="form-field required"><label>上传固件包</label>${uploadCard}${errorFor("file")}</div>${md5Field}<div class="form-field required"><label>适用机型</label><input class="field" name="models" data-version-draft="models" maxlength="100" value="${esc(formDraft.models)}" placeholder="请输入适用机型">${errorFor("models")}<div class="helper align-right">${formDraft.models.length} / 100</div></div></div><div class="drawer-section capability-section"><h3>功能集</h3>${configurable ? `<div class="capability-notice">● 提示：当前固件版本【${esc(generatedVersion)}】支持以下功能集配置；请直接选择对应版本后提交。</div><div class="capability-list">${capabilityCards}</div>${errorFor("capabilities")}` : ""}</div><div class="drawer-section"><div class="form-field"><label>说明</label><textarea class="textarea" name="note" data-version-draft="note" maxlength="200" placeholder="请输入当前固件版本优化的功能说明信息">${esc(formDraft.note)}</textarea><div class="helper align-right">${formDraft.note.length} / 200</div></div></div><div class="drawer-section"><div class="section-bar"><h3>关联功能</h3><button class="btn primary small" type="button" data-action="add-associated-feature">＋ 添加功能</button></div><div class="table-wrap"><table class="data-table associated-table"><thead><tr><th>功能项名称</th><th>功能示意图</th><th>操作</th></tr></thead><tbody>${associatedFeatures.map((feature, index) => `<tr><td>${esc(feature.name)}</td><td><span class="feature-image-placeholder">${esc(feature.imageLabel || "功能")}</span></td><td><button class="link-btn danger-link" type="button" data-action="remove-associated-feature" data-feature-index="${index}">删除</button></td></tr>`).join("")}</tbody></table></div>${associatedFeatures.length ? "" : `<div class="empty-state compact-empty"><div><div class="empty-illustration">▤</div>暂无数据</div></div>`}</div></form>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" type="submit" form="version-form" ${configurable ? "" : "disabled"}>${editing ? "保存" : "完成"}</button>`);
+    return drawerFrame(title, `<form id="version-form"><input type="hidden" name="mode" value="${editing ? "edit" : "add"}"><input type="hidden" name="version" value="${esc(generatedVersion)}"><div class="form-grid"><div class="form-field required"><label>固件标识</label><input class="field" value="${esc(activeIdentifier().id)}" disabled placeholder="固件标识"></div><div class="form-field required"><label>固件版本号</label><input class="field" value="${esc(generatedVersion)}" disabled placeholder="上传文件后自动生成">${errorFor("version")}</div><div class="form-field required"><label>上传固件包</label>${uploadCard}${errorFor("file")}</div>${md5Field}<div class="form-field required"><label>适用机型</label><input class="field" name="models" data-version-draft="models" maxlength="100" value="${esc(formDraft.models)}" placeholder="请输入适用机型">${errorFor("models")}<div class="helper align-right">${formDraft.models.length} / 100</div></div></div><div class="drawer-section capability-section"><h3>功能集</h3>${configurable ? `<div class="capability-notice">● 提示：当前固件版本【${esc(generatedVersion)}】支持以下功能集配置；请直接选择对应版本后提交。</div><div class="capability-list">${capabilityCards}</div>${errorFor("capabilities")}` : ""}</div><div class="drawer-section"><div class="form-field required"><label>平台发布说明</label><textarea class="textarea release-note-textarea" name="platformNote" data-version-draft="note" maxlength="500" placeholder="请填写主要变更、修复问题、影响范围、测试情况和已知风险">${esc(formDraft.note)}</textarea>${errorFor("platformNote")}<div class="helper align-right">${formDraft.note.length} / 500</div></div></div><div class="drawer-section"><div class="section-bar"><div><h3>APP 固件版本更新说明</h3><span class="subtle">简体中文和 English 固定必填，未匹配语言使用 en-US</span></div>${availableLocales.length ? `<select class="select locale-add-select" data-change="add-locale"><option value="">＋ 添加语言</option>${availableLocales.map(item => `<option value="${item.locale}">${esc(item.label)} · ${item.locale}</option>`).join("")}</select>` : ""}</div>${errorFor("appNotes")}<div class="locale-editor"><aside class="locale-list">${Object.keys(appReleaseNotes).map(locale => `<button type="button" class="locale-item ${locale === activeLocale ? "active" : ""}" data-action="select-locale" data-locale="${locale}"><span>${esc(locale === "zh-CN" ? "简体中文" : locale === "en-US" ? "English" : localeCatalog.find(item => item.locale === locale)?.label || locale)}</span><small>${esc(locale)}</small>${["zh-CN", "en-US"].includes(locale) ? `<em>必填</em>` : `<em class="optional">选填</em>`}</button>`).join("")}</aside><div class="locale-writing"><div class="locale-writing-head"><div><strong>${esc(activeLocaleLabel)}</strong><span>Locale：${esc(activeLocale)}</span></div>${["zh-CN", "en-US"].includes(activeLocale) ? "" : `<button type="button" class="link-btn danger-link" data-action="remove-locale" data-locale="${activeLocale}">删除语言</button>`}</div><textarea class="textarea locale-textarea" data-app-note="${esc(activeLocale)}" maxlength="500" placeholder="请输入面向 APP 用户的固件更新说明">${esc(appReleaseNotes[activeLocale] || "")}</textarea>${errorFor(`locale-${activeLocale}`)}<div class="helper align-right">${(appReleaseNotes[activeLocale] || "").length} / 500</div></div></div></div><div class="drawer-section"><div class="section-bar"><h3>关联功能</h3><button class="btn primary small" type="button" data-action="add-associated-feature">＋ 添加功能</button></div><div class="table-wrap"><table class="data-table associated-table"><thead><tr><th>功能项名称</th><th>功能示意图</th><th>操作</th></tr></thead><tbody>${associatedFeatures.map((feature, index) => `<tr><td>${esc(feature.name)}</td><td><span class="feature-image-placeholder">${esc(feature.imageLabel || "功能")}</span></td><td><button class="link-btn danger-link" type="button" data-action="remove-associated-feature" data-feature-index="${index}">删除</button></td></tr>`).join("")}</tbody></table></div>${associatedFeatures.length ? "" : `<div class="empty-state compact-empty"><div><div class="empty-illustration">▤</div>暂无数据</div></div>`}</div></form>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" type="submit" form="version-form" ${configurable ? "" : "disabled"}>${editing ? "保存" : "确认创建"}</button>`);
   }
 
   function renderVersionDetail(version) {
@@ -637,7 +860,21 @@
       const rows = db.approvals.filter(item => item.version === version.version);
       tabContent = rows.length ? `<div class="approval-timeline">${rows.map(row => `<article class="approval-card"><div class="approval-card-head"><div><strong>发布审批</strong><span>${esc(row.submitTime)}</span></div><span class="tag ${row.status === "审批通过" ? "success" : "warning"}">${esc(row.status === "审批通过" ? "已通过" : row.status === "审批过期" ? "已过期" : row.status)}</span></div><div class="approval-meta"><span>提交人<strong>${esc(row.submitter)}</strong></span><span>提交时间<strong>${esc(row.submitTime)}</strong></span><span>审批人<strong>${esc(row.approver)}</strong></span><span>审批时间<strong>${esc(row.approveTime)}</strong></span><span>说明<strong>${esc(row.note)}</strong></span></div></article>`).join("")}</div>` : `<div class="empty-state" style="min-height:180px"><div><div class="empty-illustration">▤</div>暂无审批记录</div></div>`;
     }
-    return drawerFrame("固件版本详情", `<div class="detail-hero"><h3>${esc(version.version)} ${version.latest ? `<span class="tag success">最新</span>` : ""}</h3><div class="detail-note"><span>说明</span><strong>${esc(version.note)}</strong></div><div class="detail-stats four"><div class="detail-stat"><span>适用机型</span><strong>${esc(version.models)}</strong></div><div class="detail-stat"><span>APP提醒方式</span><strong>${esc(version.reminder || "不提醒")}</strong></div><div class="detail-stat"><span>功能集</span><strong>${featureConfigs.length} 项</strong></div><div class="detail-stat"><span>发布时间</span><strong>${esc(version.published || version.updated)}</strong></div></div></div><div class="drawer-section detail-basic-section"><h3>基础信息</h3><table class="info-list detail-info-list"><tr><td>固件版本号</td><td>${esc(version.version)}</td></tr><tr><td>固件标识</td><td>${esc(activeIdentifier().id)}</td></tr><tr><td>文件大小</td><td>${esc(version.size)} M</td></tr><tr><td>固件包下载地址</td><td><div class="detail-url"><span>${esc(version.url)}</span><button class="link-btn" title="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button></div></td></tr><tr><td>创建时间</td><td>${esc(version.updated)}</td></tr><tr><td>创建人</td><td>${esc(version.creator)}</td></tr></table></div><div class="tab-strip detail-tabs"><button class="tab ${tab === "features" ? "active" : ""}" data-action="detail-tab" data-tab="features">功能集配置</button><button class="tab ${tab === "related" ? "active" : ""}" data-action="detail-tab" data-tab="related">关联功能</button><button class="tab ${tab === "approvals" ? "active" : ""}" data-action="detail-tab" data-tab="approvals">审批日志</button></div><div class="detail-tab-content">${tabContent}</div>`);
+    if (tab === "appNotes") {
+      const maintainable = !activeIdentifier().activeApproval && (version.status === "current" || activeIdentifier().rollbackTargetVersion === version.version);
+      const revisions = version.noteRevisions || [];
+      tabContent = `<div class="detail-section-toolbar"><div><strong>APP 固件版本更新说明</strong><span>共 ${Object.keys(version.appReleaseNotes || {}).length} 种语言，未匹配时使用 en-US</span></div>${maintainable ? `<button class="btn small primary" data-action="maintain-app-notes" data-version="${esc(version.version)}">维护文案</button>` : ""}</div><div class="table-wrap"><table class="data-table detail-content-table app-note-table"><thead><tr><th>语言</th><th>Locale</th><th>更新说明</th></tr></thead><tbody>${Object.entries(version.appReleaseNotes || {}).map(([locale, content]) => `<tr><td>${esc(locale === "zh-CN" ? "简体中文" : locale === "en-US" ? "English" : localeCatalog.find(item => item.locale === locale)?.label || locale)}</td><td>${esc(locale)}</td><td>${esc(content)}</td></tr>`).join("")}</tbody></table></div><div class="revision-list"><h4>文案修订记录</h4>${revisions.map(item => `<article><div><strong>${esc(item.operator)}</strong><span>${esc(item.time)}</span></div><p>${esc(item.reason)}</p><small>修订版本 R${item.recordVersion}</small></article>`).join("") || `<div class="empty-state compact-empty"><div>暂无修订记录</div></div>`}</div>`;
+    }
+    if (tab === "releases") {
+      const records = releaseEventsForVersion(version);
+      tabContent = records.length ? `<div class="release-event-list">${records.map(event => `<article><div class="release-event-mark ${event.action}">${event.action === "rollback" ? "回" : "发"}</div><div><strong>${event.action === "rollback" ? "回滚恢复" : "正常发布"} · ${esc(event.fromVersion || "-")} → ${esc(event.toVersion)}</strong><span>${esc(event.effectiveAt)} · ${esc(event.operator)} · ${esc(reminderLabel(event.reminderPolicy))}</span><small>发布标识 ${esc(event.id)} · ${event.status === "active" ? "当前生效" : event.status === "rolled_back" ? "已回滚" : "历史事件"}</small></div></article>`).join("")}</div>` : `<div class="empty-state"><div><div class="empty-illustration">▤</div>暂无发布记录</div></div>`;
+    }
+    if (tab === "ding") {
+      const notices = dingRecordsForVersion(version);
+      tabContent = notices.length ? `<div class="table-wrap"><table class="data-table detail-content-table ding-record-table"><thead><tr><th>通知类型</th><th>状态</th><th>实际接收人快照</th><th>发送时间</th><th>操作</th></tr></thead><tbody>${notices.map(notice => `<tr><td>${esc(notice.noticeType === "rollback" ? "回滚 DING" : notice.noticeType === "manual_resend" ? "人工补发" : "发布 DING")}</td><td><span class="tag ${notice.status === "sent" ? "success" : notice.status === "failed" ? "danger" : "warning"}">${esc(({ sent: "发送成功", failed: "发送失败", partial_failed: "部分失败", pending: "等待发送", not_required: "本次不发送" })[notice.status] || notice.status)}</span>${notice.failureReason ? `<small class="ding-failure">${esc(notice.failureReason)}</small>` : ""}</td><td>${esc(notice.recipients.join(" / ") || "-")}</td><td>${esc(notice.sentAt)}</td><td>${["failed", "partial_failed"].includes(notice.status) ? `<button class="link-btn" data-action="retry-ding" data-notice-id="${notice.id}">重试</button>` : notice.status === "not_required" ? `<button class="link-btn" data-action="resend-ding" data-notice-id="${notice.id}">补发 DING</button>` : "-"}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty-state"><div><div class="empty-illustration">▤</div>暂无 DING 记录</div></div>`;
+    }
+    const event = releaseEventsForVersion(version)[0];
+    return drawerFrame("固件版本详情", `<div class="detail-hero"><h3>${esc(version.version)} <span class="tag ${version.status === "current" ? "success" : version.status === "withdrawn" ? "danger" : ""}">${esc(versionStatusLabel(version.status))}</span></h3><div class="detail-note"><span>平台发布说明</span><strong>${esc(version.platformReleaseNotes)}</strong></div><div class="detail-stats four"><div class="detail-stat"><span>适用机型</span><strong>${esc(version.models)}</strong></div><div class="detail-stat"><span>APP 提醒方式</span><strong>${esc(reminderLabel(event?.reminderPolicy) || version.reminder || "不提醒")}</strong></div><div class="detail-stat"><span>APP 说明</span><strong>${Object.keys(version.appReleaseNotes || {}).length} 种语言</strong></div><div class="detail-stat"><span>生效时间</span><strong>${esc(event?.effectiveAt || version.published || "未发布")}</strong></div></div></div><div class="drawer-section detail-basic-section"><h3>基础信息</h3><table class="info-list detail-info-list"><tr><td>固件版本号</td><td>${esc(version.version)}</td></tr><tr><td>固件标识</td><td>${esc(activeIdentifier().id)}</td></tr><tr><td>文件大小</td><td>${esc(version.size)} M</td></tr><tr><td>固件包下载地址</td><td><div class="detail-url"><span>${esc(version.url)}</span><button class="link-btn" title="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button></div></td></tr><tr><td>创建时间</td><td>${esc(version.created || version.updated)}</td></tr><tr><td>创建人</td><td>${esc(version.creator)}</td></tr></table></div><div class="tab-strip detail-tabs"><button class="tab ${tab === "features" ? "active" : ""}" data-action="detail-tab" data-tab="features">功能集配置</button><button class="tab ${tab === "appNotes" ? "active" : ""}" data-action="detail-tab" data-tab="appNotes">APP 更新说明</button><button class="tab ${tab === "related" ? "active" : ""}" data-action="detail-tab" data-tab="related">关联功能</button><button class="tab ${tab === "releases" ? "active" : ""}" data-action="detail-tab" data-tab="releases">发布记录</button><button class="tab ${tab === "approvals" ? "active" : ""}" data-action="detail-tab" data-tab="approvals">审批日志</button><button class="tab ${tab === "ding" ? "active" : ""}" data-action="detail-tab" data-tab="ding">DING 记录</button></div><div class="detail-tab-content">${tabContent}</div>`);
   }
 
   function renderUserDetail(user) {
@@ -718,6 +955,106 @@
       row.actions.some(action => state.tempPermissions[`action-${action}`] !== false)
     );
     state.tempPermissions[`menu-${menu}`] = hasEnabledChild;
+  }
+
+  function submitReleaseApproval(type, config) {
+    const identifier = activeIdentifier();
+    if (identifier.activeApproval) {
+      toast("当前固件标识已有生效审批，请先处理现有审批", "warning");
+      return null;
+    }
+    const isRollback = type === "rollback";
+    const target = isRollback ? rollbackTarget(identifier) : findVersion(config.version);
+    const current = currentVersion(identifier);
+    const approval = {
+      id: releaseId("APR"),
+      version: target.version,
+      event: isRollback ? "撤销并回滚固件版本" : "发布当前固件版本",
+      submitter: "汤彦珊",
+      submitTime: now(),
+      approver: "-",
+      status: "审批中",
+      approveTime: "-",
+      note: isRollback ? config.reason : target.platformReleaseNotes,
+      type,
+      firmwareId: identifier.id,
+      fromVersion: current?.version || null,
+      toVersion: target.version,
+      reminderPolicy: config.reminderPolicy,
+      dingEnabled: config.dingEnabled,
+      dingScopes: [...config.dingScopes],
+      recipientCount: config.dingEnabled ? resolveDingRecipients(config.dingScopes).length : 0,
+      platformReleaseNotes: target.platformReleaseNotes,
+      reason: config.reason || "",
+      snapshotRecordVersion: target.recordVersion
+    };
+    db.approvals.unshift(approval);
+    identifier.activeApproval = { approvalId: approval.id, type, version: target.version };
+    if (!isRollback) target.status = "approval";
+    addOperation(isRollback ? "固件回滚" : "固件申请", "提交审批", target.version);
+    persist();
+    return approval;
+  }
+
+  function executeApprovedRelease(approval) {
+    const identifier = db.identifiers.find(item => item.id === approval.firmwareId);
+    if (!identifier || identifier.activeApproval?.approvalId !== approval.id) return { ok: false, message: "审批已失效，当前固件状态已发生变化" };
+    const target = identifier.versions.find(version => version.version === approval.toVersion);
+    const current = currentVersion(identifier);
+    if (!target || target.recordVersion !== approval.snapshotRecordVersion) return { ok: false, message: "目标版本已发生变化，原审批快照失效" };
+    const stamp = now();
+    if (approval.type === "publish") {
+      if (target.status !== "approval" || current?.version !== approval.fromVersion) return { ok: false, message: "当前发布版本已变化，原发布审批失效" };
+      identifier.versions.forEach(version => { version.latest = false; if (version.status === "current") version.status = "historical"; });
+      target.status = "current";
+      target.latest = true;
+      target.published = stamp;
+      target.reminder = reminderLabel(approval.reminderPolicy);
+      const previousEvent = activeRelease(identifier);
+      if (previousEvent) { previousEvent.status = "superseded"; previousEvent.rollbackAvailable = false; }
+      const event = { id: releaseId("REL"), action: "publish", fromVersion: current?.version || null, toVersion: target.version, status: "active", reminderPolicy: approval.reminderPolicy, rollbackTargetVersion: current?.version || null, rollbackAvailable: Boolean(current), dingEnabled: approval.dingEnabled, effectiveAt: stamp, operator: approval.submitter, approvalId: approval.id };
+      identifier.releaseEvents.unshift(event);
+      identifier.currentVersion = target.version;
+      identifier.rollbackTargetVersion = current?.version || null;
+      identifier.rollbackAvailable = Boolean(current);
+      createDingRecord(identifier, event, approval, "publish");
+      addOperation("固件申请", "发布", target.version);
+    } else {
+      if (!identifier.rollbackAvailable || current?.version !== approval.fromVersion || identifier.rollbackTargetVersion !== target.version) return { ok: false, message: "唯一回滚目标已变化，原回滚审批失效" };
+      current.status = "withdrawn";
+      current.latest = false;
+      target.status = "current";
+      target.latest = true;
+      target.reminder = reminderLabel(approval.reminderPolicy);
+      const previousEvent = activeRelease(identifier);
+      if (previousEvent) { previousEvent.status = "rolled_back"; previousEvent.rollbackAvailable = false; }
+      const event = { id: releaseId("ROLLBACK"), action: "rollback", fromVersion: current.version, toVersion: target.version, status: "active", reminderPolicy: approval.reminderPolicy, rollbackTargetVersion: null, rollbackAvailable: false, dingEnabled: approval.dingEnabled, effectiveAt: stamp, operator: approval.submitter, approvalId: approval.id, reason: approval.reason };
+      identifier.releaseEvents.unshift(event);
+      identifier.currentVersion = target.version;
+      identifier.rollbackTargetVersion = null;
+      identifier.rollbackAvailable = false;
+      createDingRecord(identifier, event, approval, "rollback");
+      addOperation("固件回滚", "回滚生效", `${current.version} → ${target.version}`);
+    }
+    identifier.activeApproval = null;
+    approval.status = "审批通过";
+    approval.approver = "IPC 产品线负责人";
+    approval.approveTime = stamp;
+    persist();
+    return { ok: true, version: target.version, type: approval.type };
+  }
+
+  function rejectReleaseApproval(approval) {
+    const identifier = db.identifiers.find(item => item.id === approval.firmwareId);
+    const target = identifier?.versions.find(version => version.version === approval.toVersion);
+    if (approval.type === "publish" && target?.status === "approval") target.status = "unpublished";
+    if (identifier?.activeApproval?.approvalId === approval.id) identifier.activeApproval = null;
+    approval.status = "审批驳回";
+    approval.approver = "IPC 产品线负责人";
+    approval.approveTime = now();
+    approval.note = approval.reason || "当前发布风险未确认，审批驳回";
+    addOperation(approval.type === "rollback" ? "固件回滚" : "固件申请", "审批驳回", approval.version);
+    persist();
   }
 
   app.addEventListener("click", async event => {
@@ -814,6 +1151,23 @@
       renderShell();
       return;
     }
+    if (action === "ding-defaults") {
+      const defaults = activeIdentifier().dingDefaults;
+      state.popover = null;
+      state.errors = {};
+      state.modal = { type: "dingDefaults", version: "默认发布通知", dingEnabled: defaults.enabled, dingScopes: [...defaults.scopes], platformReleaseNotes: "发布时自动读取平台发布说明" };
+      renderShell();
+      return;
+    }
+    if (action === "save-ding-defaults") {
+      if (state.modal.dingEnabled && !state.modal.dingScopes.length) { state.errors.dingScopes = "开启默认 DING 时请至少选择一个接收范围"; renderShell(); return; }
+      activeIdentifier().dingDefaults = { enabled: state.modal.dingEnabled, scopes: [...state.modal.dingScopes], source: "identifier" };
+      addOperation("DING 配置", "更新", activeIdentifier().id);
+      persist();
+      closeOverlay();
+      toast("DING 默认配置已保存");
+      return;
+    }
     if (action === "delete-identifier") {
       state.popover = null;
       state.modal = { type: "deleteIdentifier" };
@@ -853,19 +1207,22 @@
     if (action === "add-version") {
       state.upload = null;
       state.errors = {};
-      state.drawer = { type: "addVersion", formDraft: { version: "", models: "", note: "" }, capabilitySelections: {}, associatedFeatures: [] };
+      state.drawer = { type: "addVersion", formDraft: { version: "", models: "", note: "" }, capabilitySelections: {}, associatedFeatures: [], appReleaseNotes: { "zh-CN": "", "en-US": "" }, activeLocale: "zh-CN" };
       renderShell();
       return;
     }
     if (action === "edit-version") {
       const version = findVersion(target.dataset.version);
+      if (!version || version.status !== "unpublished") { toast("只有未发布版本可以编辑", "warning"); return; }
       state.errors = {};
       state.drawer = {
         type: "editVersion",
         version: target.dataset.version,
-        formDraft: { version: version.version, models: version.models, note: version.note === "-" ? "" : version.note },
+        formDraft: { version: version.version, models: version.models, note: version.platformReleaseNotes || (version.note === "-" ? "" : version.note) },
         capabilitySelections: Object.fromEntries((version.featureConfigs || []).map(config => [config.key, config.value])),
-        associatedFeatures: clone(version.associatedFeatures || [])
+        associatedFeatures: clone(version.associatedFeatures || []),
+        appReleaseNotes: clone(version.appReleaseNotes || { "zh-CN": "", "en-US": "" }),
+        activeLocale: "zh-CN"
       };
       renderShell();
       return;
@@ -880,26 +1237,161 @@
       renderShell();
       return;
     }
+    if (action === "maintain-app-notes") {
+      if (activeIdentifier().activeApproval) { toast("审批期间版本文案已锁定", "warning"); return; }
+      const version = findVersion(target.dataset.version);
+      state.errors = {};
+      state.modal = { type: "editAppNotes", version: version.version, notesDraft: clone(version.appReleaseNotes), reason: "" };
+      renderShell();
+      return;
+    }
+    if (action === "remove-revision-locale") {
+      const locale = target.dataset.locale;
+      if (!["zh-CN", "en-US"].includes(locale)) delete state.modal.notesDraft[locale];
+      renderShell();
+      return;
+    }
+    if (action === "save-app-notes") {
+      const version = findVersion(state.modal.version);
+      const notes = Object.fromEntries(Object.entries(state.modal.notesDraft).map(([locale, content]) => [locale, String(content || "").trim()]));
+      state.errors = {};
+      Object.entries(notes).forEach(([locale, content]) => {
+        if (!content) state.errors[`revision-${locale}`] = `${locale} 更新说明不能为空`;
+        if (/<\/?[a-z][\s\S]*>|<script/i.test(content)) state.errors[`revision-${locale}`] = "更新说明不允许包含 HTML 或脚本内容";
+      });
+      if (!notes["zh-CN"] || !notes["en-US"]) state.errors.revisionRequired = "简体中文和 English 必须保留";
+      if (!String(state.modal.reason || "").trim()) state.errors.revisionReason = "请填写修改原因";
+      if (Object.keys(state.errors).length) { renderShell(); return; }
+      const before = clone(version.appReleaseNotes);
+      version.appReleaseNotes = clone(notes);
+      version.recordVersion += 1;
+      version.noteRevisions.unshift({ time: now(), operator: "汤彦珊", reason: state.modal.reason.trim(), before, after: clone(notes), recordVersion: version.recordVersion });
+      addOperation("APP 更新说明", "修订", version.version);
+      persist();
+      state.modal = null;
+      state.errors = {};
+      renderShell();
+      toast(version.status === "current" ? "APP 更新说明已修订，升级检查缓存已失效" : "回滚目标文案已修订，将在版本重新生效时使用");
+      return;
+    }
+    if (action === "retry-ding") {
+      const notice = db.dingNotices.find(item => item.id === target.dataset.noticeId);
+      if (!notice || !["failed", "partial_failed"].includes(notice.status)) return;
+      notice.status = "sent";
+      notice.attemptCount += 1;
+      notice.sentAt = now();
+      notice.failureReason = "";
+      addOperation("DING 通知", "重试成功", notice.version);
+      persist();
+      renderShell();
+      toast("DING 重试发送成功");
+      return;
+    }
+    if (action === "resend-ding") {
+      state.errors = {};
+      state.modal = { type: "resendDing", noticeId: target.dataset.noticeId, dingScopes: ["dept-firmware", "user-line-owner"] };
+      renderShell();
+      return;
+    }
+    if (action === "confirm-resend-ding") {
+      if (!state.modal.dingScopes.length) { state.errors.dingScopes = "请至少选择一个接收范围"; renderShell(); return; }
+      const original = db.dingNotices.find(item => item.id === state.modal.noticeId);
+      const event = activeIdentifier().releaseEvents.find(item => item.id === original.releaseId);
+      const scopes = dingDirectory.filter(item => state.modal.dingScopes.includes(item.id));
+      const recipients = resolveDingRecipients(state.modal.dingScopes);
+      db.dingNotices.unshift({ id: releaseId("DING-MANUAL"), releaseId: original.releaseId, firmwareId: original.firmwareId, version: original.version, noticeType: "manual_resend", status: "sent", kind: "task", scopes: scopes.map(item => item.id), recipients, messageSnapshot: original.messageSnapshot, createdAt: now(), sentAt: now(), attemptCount: 1, failureReason: "", relatedNoticeId: original.id });
+      addOperation("DING 通知", "人工补发", original.version);
+      persist();
+      state.modal = null;
+      state.errors = {};
+      renderShell();
+      toast(`DING 已补发给 ${recipients.length} 人`);
+      return;
+    }
     if (action === "publish-version") {
-      state.modal = { type: "publish", version: target.dataset.version };
+      const identifier = activeIdentifier();
+      const version = findVersion(target.dataset.version);
+      if (identifier.activeApproval) {
+        toast("当前固件标识已有发布或回滚审批", "warning");
+        return;
+      }
+      if (version.status !== "unpublished") {
+        toast("只有未发布版本可以提交发布审批", "warning");
+        return;
+      }
+      state.errors = {};
+      state.modal = { type: "publish", version: target.dataset.version, reminderPolicy: "", dingEnabled: identifier.dingDefaults.enabled, dingScopes: [...identifier.dingDefaults.scopes], platformReleaseNotes: version.platformReleaseNotes };
       renderShell();
       return;
     }
     if (action === "confirm-publish") {
+      state.errors = {};
+      if (!state.modal.reminderPolicy) state.errors.reminderPolicy = "请选择本次 APP 提醒方式";
+      if (state.modal.dingEnabled && !state.modal.dingScopes.length) state.errors.dingScopes = "开启 DING 时请至少选择一个接收范围";
+      if (Object.keys(state.errors).length) { renderShell(); return; }
+      const approval = submitReleaseApproval("publish", state.modal);
+      if (!approval) return;
+      state.modal = { type: "approvalSimulation", approvalId: approval.id };
+      renderShell();
+      return;
+    }
+    if (action === "start-rollback") {
       const identifier = activeIdentifier();
-      const version = identifier.versions.find(item => item.version === state.modal.version);
-      identifier.versions.forEach(item => { item.latest = item === version; });
-      version.reminder = document.getElementById("publish-reminder")?.value || "不提醒";
-      const stamp = now();
-      version.published = stamp;
-      db.approvals.unshift({ version: version.version, event: "发布最新固件版本", submitter: "汤彦珊", submitTime: stamp, approver: "系统自动审批", status: "审批通过", approveTime: stamp, note: "-" });
-      addOperation("固件申请", "发布", version.version);
-      persist();
+      const targetVersion = rollbackTarget(identifier);
+      if (identifier.activeApproval) { toast("当前固件标识已有发布或回滚审批", "warning"); return; }
+      if (!identifier.rollbackAvailable || !targetVersion) { toast("当前发布事件没有可用的一次性回滚目标", "warning"); return; }
+      if (!targetCoversModels(currentVersion(identifier), targetVersion)) { toast("回滚目标未覆盖当前版本全部适用机型", "warning"); return; }
+      if (!targetVersion.appReleaseNotes?.["zh-CN"] || !targetVersion.appReleaseNotes?.["en-US"]) { toast("回滚目标缺少有效的中英文 APP 更新说明", "warning"); return; }
+      state.errors = {};
+      state.modal = { type: "rollback", version: currentVersion(identifier).version, targetVersion: targetVersion.version, reminderPolicy: "", reason: "", dingEnabled: Boolean(activeRelease(identifier)?.dingEnabled), dingScopes: ["dept-firmware", "user-line-owner"], platformReleaseNotes: targetVersion.platformReleaseNotes };
+      renderShell();
+      return;
+    }
+    if (action === "confirm-rollback") {
+      state.errors = {};
+      if (!state.modal.reminderPolicy) state.errors.reminderPolicy = "请选择本次 APP 提醒方式";
+      if (!String(state.modal.reason || "").trim()) state.errors.rollbackReason = "请填写回滚原因";
+      if (state.modal.dingEnabled && !state.modal.dingScopes.length) state.errors.dingScopes = "开启 DING 时请至少选择一个接收范围";
+      if (Object.keys(state.errors).length) { renderShell(); return; }
+      const approval = submitReleaseApproval("rollback", state.modal);
+      if (!approval) return;
+      state.modal = { type: "approvalSimulation", approvalId: approval.id };
+      renderShell();
+      return;
+    }
+    if (action === "view-active-approval") {
+      const approvalId = activeIdentifier().activeApproval?.approvalId;
+      if (!approvalId || !approvalById(approvalId)) { toast("当前没有进行中的审批", "warning"); return; }
+      state.modal = { type: "approvalSimulation", approvalId };
+      renderShell();
+      return;
+    }
+    if (action === "simulate-approval-approve") {
+      const approval = approvalById(state.modal.approvalId);
+      const result = executeApprovedRelease(approval);
+      if (!result.ok) {
+        approval.status = "已失效";
+        approval.approveTime = now();
+        activeIdentifier().activeApproval = null;
+        persist();
+        closeOverlay();
+        toast(result.message, "error");
+        return;
+      }
       closeOverlay();
-      toast(`${version.version} 已发布为最新版本`);
+      toast(result.type === "rollback" ? `${result.version} 已恢复为当前发布版本` : `${result.version} 已成为当前发布版本`);
+      return;
+    }
+    if (action === "simulate-approval-reject") {
+      const approval = approvalById(state.modal.approvalId);
+      rejectReleaseApproval(approval);
+      closeOverlay();
+      toast("审批已驳回，当前发布版本保持不变", "warning");
       return;
     }
     if (action === "delete-version") {
+      const version = findVersion(target.dataset.version);
+      if (!version || version.status !== "unpublished") { toast("只有未发布版本可以删除", "warning"); return; }
       state.modal = { type: "deleteVersion", version: target.dataset.version };
       renderShell();
       return;
@@ -907,9 +1399,10 @@
     if (action === "confirm-delete-version") {
       const identifier = activeIdentifier();
       const version = state.modal.version;
-      if (identifier.versions.find(item => item.version === version)?.latest) {
+      const targetVersion = identifier.versions.find(item => item.version === version);
+      if (targetVersion?.status !== "unpublished") {
         closeOverlay();
-        toast("最新发布版本不能删除，请先发布其他版本", "warning");
+        toast("只有未发布版本可以删除", "warning");
         return;
       }
       identifier.versions = identifier.versions.filter(item => item.version !== version);
@@ -952,6 +1445,20 @@
     }
     if (action === "capability-help") {
       state.drawer.capabilityHelp = state.drawer.capabilityHelp === target.dataset.capability ? null : target.dataset.capability;
+      renderShell();
+      return;
+    }
+    if (action === "select-locale") {
+      state.drawer.activeLocale = target.dataset.locale;
+      renderShell();
+      return;
+    }
+    if (action === "remove-locale") {
+      const locale = target.dataset.locale;
+      if (["zh-CN", "en-US"].includes(locale)) return;
+      delete state.drawer.appReleaseNotes[locale];
+      state.drawer.activeLocale = "zh-CN";
+      delete state.errors[`locale-${locale}`];
       renderShell();
       return;
     }
@@ -1197,15 +1704,41 @@
     if (draft) state.draftFilters[draft] = event.target.value;
     if (versionDraft && state.drawer?.formDraft) state.drawer.formDraft[versionDraft] = event.target.value;
     if (modalDraft && state.modal?.draft) state.modal.draft[modalDraft] = event.target.value;
+    if (event.target.dataset.modalField && state.modal) state.modal[event.target.dataset.modalField] = event.target.value;
+    if (event.target.dataset.revisionLocale && state.modal?.notesDraft) state.modal.notesDraft[event.target.dataset.revisionLocale] = event.target.value;
+    if (event.target.matches("[data-revision-reason]") && state.modal) state.modal.reason = event.target.value;
     if (event.target.matches("[data-feature-search]") && state.modal?.type === "featurePicker") state.modal.query = event.target.value;
     if (event.target.matches("[data-user-note]") && state.drawer?.userDraft) state.drawer.userDraft.note = event.target.value;
+    if (event.target.dataset.appNote && state.drawer?.appReleaseNotes) state.drawer.appReleaseNotes[event.target.dataset.appNote] = event.target.value;
   });
 
   app.addEventListener("change", event => {
     const target = event.target;
+    if (target.dataset.modalField && state.modal) {
+      state.modal[target.dataset.modalField] = target.type === "checkbox" ? target.checked : target.value;
+      renderShell();
+      return;
+    }
+    if (target.dataset.dingScope && state.modal) {
+      const scope = target.dataset.dingScope;
+      state.modal.dingScopes = target.checked ? [...new Set([...(state.modal.dingScopes || []), scope])] : (state.modal.dingScopes || []).filter(item => item !== scope);
+      renderShell();
+      return;
+    }
     if (target.dataset.change === "product-filter") {
       state.filters.product = target.value;
       syncSelectedIdentifierToFilters();
+      renderShell();
+      return;
+    }
+    if (target.dataset.change === "add-locale" && target.value && state.drawer?.appReleaseNotes) {
+      state.drawer.appReleaseNotes[target.value] = "";
+      state.drawer.activeLocale = target.value;
+      renderShell();
+      return;
+    }
+    if (target.dataset.change === "add-revision-locale" && target.value && state.modal?.notesDraft) {
+      state.modal.notesDraft[target.value] = "";
       renderShell();
       return;
     }
@@ -1348,7 +1881,7 @@
       if (db.identifiers.some(item => item.id === id)) state.errors.id = "该固件标识已存在";
       if (!models) state.errors.models = "请输入关联机型";
       if (Object.keys(state.errors).length) { renderShell(); return; }
-      db.identifiers.unshift({ id, product, created: now(), models, network: "仅4G", power: "常电", architecture: "新架构", versions: [] });
+      db.identifiers.unshift({ id, product, created: now(), models, network: "仅4G", power: "常电", architecture: "新架构", versions: [], currentVersion: null, rollbackTargetVersion: null, rollbackAvailable: false, releaseEvents: [], activeApproval: null, dingDefaults: { enabled: true, scopes: ["dept-firmware", "user-line-owner"], source: "product" } });
       state.selectedIdentifier = id;
       state.filters.product = product;
       addOperation("固件标识", "新增", id);
@@ -1378,6 +1911,8 @@
       const oldVersion = editing ? findVersion(state.drawer.version) : null;
       const versionName = String(values.get("version") || "").trim();
       const models = String(values.get("models") || "").trim();
+      const platformReleaseNotes = String(values.get("platformNote") || "").trim();
+      const appReleaseNotes = Object.fromEntries(Object.entries(state.drawer.appReleaseNotes || {}).map(([locale, content]) => [locale, String(content || "").trim()]));
       const featureConfigs = featureCatalog.map(item => {
         const optionValue = String(values.get(`capability-${item.key}`) || state.drawer.capabilitySelections?.[item.key] || "");
         return optionValue ? configFromCatalog(item, optionValue) : null;
@@ -1385,21 +1920,30 @@
       if (!editing && !state.upload) state.errors.file = "请先上传固件包";
       if (!versionName) state.errors.version = "缺少固件版本号";
       if (!models) state.errors.models = "请输入适用机型";
+      if (!platformReleaseNotes) state.errors.platformNote = "请填写平台发布说明";
       if (!editing && identifier.versions.some(item => item.version === versionName)) state.errors.version = "该版本号已存在";
       if (editing && identifier.versions.some(item => item !== oldVersion && item.version === versionName)) state.errors.version = "该版本号已存在";
       if (featureConfigs.some(config => !config)) state.errors.capabilities = "请完成全部功能集能力配置";
+      Object.entries(appReleaseNotes).forEach(([locale, content]) => {
+        if (!content) state.errors[`locale-${locale}`] = `${locale} 更新说明不能为空`;
+        if (/<\/?[a-z][\s\S]*>|<script/i.test(content)) state.errors[`locale-${locale}`] = "更新说明不允许包含 HTML 或脚本内容";
+      });
+      if (!("zh-CN" in appReleaseNotes) || !("en-US" in appReleaseNotes) || Object.keys(state.errors).some(key => key.startsWith("locale-"))) state.errors.appNotes = "请完成全部 APP 多语言更新说明";
       if (Object.keys(state.errors).length) { renderShell(); return; }
       if (editing) {
         oldVersion.version = versionName;
         oldVersion.models = models;
-        oldVersion.note = String(values.get("note") || "-").trim() || "-";
+        oldVersion.note = platformReleaseNotes;
+        oldVersion.platformReleaseNotes = platformReleaseNotes;
+        oldVersion.appReleaseNotes = clone(appReleaseNotes);
         oldVersion.featureConfigs = featureConfigs;
         oldVersion.associatedFeatures = clone(state.drawer.associatedFeatures || []);
         oldVersion.features = featureConfigs.length;
         oldVersion.updated = now();
+        oldVersion.recordVersion += 1;
         addOperation("固件版本", "编辑", versionName);
       } else {
-        identifier.versions.unshift({ version: versionName, url: `http://doraemon.camera666.com/${state.upload.name}`, size: state.upload.size, md5: state.upload.md5, models, features: featureConfigs.length, featureConfigs, associatedFeatures: clone(state.drawer.associatedFeatures || []), creator: "汤彦珊", note: String(values.get("note") || "-").trim() || "-", updated: now(), latest: false, reminder: "不提醒" });
+        identifier.versions.unshift({ version: versionName, url: `http://doraemon.camera666.com/${state.upload.name}`, size: state.upload.size, md5: state.upload.md5, models, features: featureConfigs.length, featureConfigs, associatedFeatures: clone(state.drawer.associatedFeatures || []), creator: "汤彦珊", note: platformReleaseNotes, platformReleaseNotes, appReleaseNotes: clone(appReleaseNotes), noteRevisions: [], created: now(), updated: now(), latest: false, status: "unpublished", reminder: "不提醒", recordVersion: 1 });
         addOperation("固件版本", "新增", versionName);
       }
       persist();

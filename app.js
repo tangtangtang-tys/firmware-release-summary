@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const STORAGE_KEY = "firmware-release-replica-v3-visual-audit";
+  const STORAGE_KEY = "firmware-release-replica-v4-final";
   const routes = {
     firmware: { title: "固件列表", group: "device" },
     modules: { title: "模组型号", group: "device" },
@@ -800,7 +800,8 @@
   function renderLifecycleTimeline(flows) {
     return `<div class="lifecycle-timeline">${flows.map(flow => {
       const expanded = state.expandedLifecycleFlows.includes(flow.flowId);
-      const stages = [...new Set(flow.events.map(event => event.stage))];
+      const stageOrder = ["identifier", "preparation", "approval", "release", "notification", "distribution", "device", "rollback"];
+      const stages = [...new Set(flow.events.map(event => event.stage))].sort((left, right) => stageOrder.indexOf(left) - stageOrder.indexOf(right));
       const issueCount = flow.events.filter(event => ["partial", "failed", "rejected"].includes(event.result)).length;
       const transition = flow.toVersion ? `${flow.fromVersion || "首次发布"} -> ${flow.toVersion}` : "标识初始化";
       return `<article class="lifecycle-flow ${flow.flowStatus}"><button class="lifecycle-flow-head" data-action="toggle-lifecycle-flow" data-flow-id="${esc(flow.flowId)}" aria-expanded="${expanded}"><span class="lifecycle-flow-icon ${flow.flowType}">${flow.flowType === "rollback" ? "回" : flow.flowType === "identifier" ? "标" : "发"}</span><span class="lifecycle-flow-title"><span><strong>${lifecycleFlowLabel(flow)} · ${esc(transition)}</strong><span class="tag ${lifecycleFlowStatusClass(flow.flowStatus)}">${lifecycleFlowStatusLabel(flow.flowStatus)}</span></span><small>${esc(flow.flowId)} · ${esc(flow.startTime)} 至 ${esc(flow.endTime)}</small></span><span class="lifecycle-flow-summary"><strong>${flow.events.length}</strong><small>链路事件</small></span><span class="lifecycle-flow-summary ${issueCount ? "danger-text" : ""}"><strong>${issueCount}</strong><small>异常</small></span><span class="flow-chevron">${expanded ? "⌃" : "⌄"}</span></button><div class="lifecycle-stage-rail">${stages.map(stage => `<span>${lifecycleStageLabel(stage)}</span>`).join("")}</div>${expanded ? `<div class="lifecycle-event-list">${flow.events.map(event => `<div class="lifecycle-event-row"><span class="event-dot ${lifecycleResultClass(event.result)}"></span><time>${esc(event.time)}</time><div><strong>${esc(event.title)}</strong><p>${esc(event.summary)}</p><small>${esc(event.operator)} · ${esc(event.operatorType)}</small></div><span class="tag ${lifecycleResultClass(event.result)}">${lifecycleResultLabel(event.result)}</span></div>`).join("")}<div class="lifecycle-flow-actions"><button class="btn small" data-action="lifecycle-flow-detail" data-flow-id="${esc(flow.flowId)}">查看完整链路</button></div></div>` : ""}</article>`;

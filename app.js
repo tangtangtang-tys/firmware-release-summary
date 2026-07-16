@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const STORAGE_KEY = "firmware-release-replica-v4-final";
+  const STORAGE_KEY = "firmware-release-replica-v8-release-timeline";
   const routes = {
     firmware: { title: "固件列表", group: "device" },
     modules: { title: "模组型号", group: "device" },
@@ -12,8 +12,9 @@
   };
 
   const productLines = ["IPC", "车载", "NVR", "AI玩具", "婴儿看护", "4G模组", "BK系列"];
+  const demoBoundDeviceCounts = { "23.110.211": 528, "25.922.219": 1264 };
   const permissionRows = [
-    { menu: "固件管理", page: "固件列表", actions: ["查看固件标识列表", "编辑固件标识", "新增固件标识", "发布固件版本", "回滚固件版本", "维护APP更新说明", "管理DING配置", "查看发布记录", "查看DING记录", "重试DING", "补发DING", "删除固件标识", "查看版本列表", "新增固件版本", "编辑固件版本", "删除固件版本", "查看在线差分", "新建差分任务", "查看差分包", "下载差分包", "删除差分文件"] },
+    { menu: "固件管理", page: "固件列表", actions: ["查看固件标识列表", "编辑固件标识", "新增固件标识", "发布固件版本", "回滚固件版本", "维护APP更新说明", "管理DING配置", "查看发布日志", "查看DING记录", "删除固件标识", "查看版本列表", "新增固件版本", "编辑固件版本", "删除固件版本", "查看在线差分", "新建差分任务", "查看差分包", "下载差分包", "删除差分文件"] },
     { menu: "模组型号", page: "", actions: [] },
     { menu: "日志管理", page: "操作日志", actions: ["查看操作日志"] },
     { menu: "审批日志", page: "", actions: [] },
@@ -276,27 +277,21 @@
   function initialLifecycleEvents(identifier, legacyCurrent, legacyRollbackTarget, identifierIndex) {
     if (identifier.id === "23.110.211") {
       return [
-        { id: "EVT-1313-01", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "preparation", title: "固件版本创建完成", time: "2026-07-13 16:30:59", operator: "刘林胶", operatorType: "用户", result: "success", summary: "固件包解析成功，版本配置与中英文 APP 更新说明校验通过" },
-        { id: "EVT-1313-02", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "approval", title: "提交发布审批", time: "2026-07-14 18:16:22", operator: "刘林胶", operatorType: "用户", result: "success", summary: "审批快照已锁定，当前发布版本继续生效" },
-        { id: "EVT-1313-03", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "approval", title: "发布审批通过", time: "2026-07-14 18:41:18", operator: "彭冬柏", operatorType: "钉钉审批", result: "success", summary: "审批回调校验通过，进入固件发布事务" },
-        { id: "EVT-1313-04", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "release", title: "当前发布版本切换", time: "2026-07-14 18:41:21", operator: "发布服务", operatorType: "系统", result: "success", summary: "23.110.211.12 -> 23.110.211.13，生成 REL-INIT-1" },
-        { id: "EVT-1313-05", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "notification", title: "发布 DING 部分失败", time: "2026-07-14 18:41:27", operator: "DING 任务", operatorType: "系统", result: "partial", summary: "实际接收 14 人，12 人成功，2 人等待重试" },
-        { id: "EVT-1313-06", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "distribution", title: "APP 分发开始", time: "2026-07-14 18:41:29", operator: "升级检查服务", operatorType: "系统", result: "success", summary: "升级检查缓存已失效，新 releaseId 开始生效" },
-        { id: "EVT-1313-07", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "device", title: "设备执行结果汇总", time: "2026-07-15 10:30:00", operator: "设备结果服务", operatorType: "系统", result: "partial", summary: "成功 328 台，失败 12 台，待执行 47 台" },
-        { id: "EVT-1212-01", flowId: "FLOW-PUB-20260523-1212", flowType: "publish", flowStatus: "superseded", fromVersion: "23.110.211.10", toVersion: "23.110.211.12", stage: "preparation", title: "固件版本创建完成", time: "2026-05-23 14:02:40", operator: "管理员", operatorType: "用户", result: "success", summary: "版本资料校验完成并保存为未发布版本" },
-        { id: "EVT-1212-02", flowId: "FLOW-PUB-20260523-1212", flowType: "publish", flowStatus: "superseded", fromVersion: "23.110.211.10", toVersion: "23.110.211.12", stage: "approval", title: "发布审批通过", time: "2026-05-23 15:20:11", operator: "IPC 产品线负责人", operatorType: "钉钉审批", result: "success", summary: "审批通过并触发发布事务" },
-        { id: "EVT-1212-03", flowId: "FLOW-PUB-20260523-1212", flowType: "publish", flowStatus: "superseded", fromVersion: "23.110.211.10", toVersion: "23.110.211.12", stage: "release", title: "版本发布成功", time: "2026-05-23 15:20:16", operator: "发布服务", operatorType: "系统", result: "success", summary: "当前发布版本切换成功，后续已被 23.110.211.13 替代" },
-        { id: "EVT-0099-01", flowId: "FLOW-PUB-20260701-0099", flowType: "publish", flowStatus: "rejected", fromVersion: "23.110.211.12", toVersion: "23.110.211.99", stage: "preparation", title: "固件版本创建完成", time: "2026-07-01 11:33:34", operator: "张元/Alice", operatorType: "用户", result: "success", summary: "版本资料已保存" },
+        { id: "EVT-1313-01", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "approval", title: "提交发布审批", time: "2026-07-14 18:16:22", operator: "刘林胶", operatorType: "用户", result: "success", summary: "审批快照已锁定，审批期间当前发布版本保持不变" },
+        { id: "EVT-1313-02", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "approval", title: "发布审批通过", time: "2026-07-14 18:41:18", operator: "彭冬柏", operatorType: "钉钉审批", result: "success", summary: "审批回调与版本快照校验通过" },
+        { id: "EVT-1313-03", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "release", title: "当前发布版本切换", time: "2026-07-14 18:41:21", operator: "发布服务", operatorType: "系统", result: "success", summary: "23.110.211.12 -> 23.110.211.13，系统内仅保留一个当前发布版本" },
+        { id: "EVT-1313-04", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "notification", title: "发布 DING 发送结果", time: "2026-07-14 18:41:27", operator: "DING 任务", operatorType: "系统", result: "partial", summary: "实际接收 14 人，12 人成功，何圣安、全继科发送失败" },
+        { id: "EVT-1212-01", flowId: "FLOW-PUB-20260523-1212", flowType: "publish", flowStatus: "superseded", fromVersion: "23.110.211.10", toVersion: "23.110.211.12", stage: "approval", title: "发布审批通过", time: "2026-05-23 15:20:11", operator: "IPC 产品线负责人", operatorType: "钉钉审批", result: "success", summary: "审批通过并触发版本状态切换" },
+        { id: "EVT-1212-02", flowId: "FLOW-PUB-20260523-1212", flowType: "publish", flowStatus: "superseded", fromVersion: "23.110.211.10", toVersion: "23.110.211.12", stage: "release", title: "版本发布成功", time: "2026-05-23 15:20:16", operator: "发布服务", operatorType: "系统", result: "success", summary: "当前发布版本切换成功，后续已被 23.110.211.13 替代" },
+        { id: "EVT-1212-03", flowId: "FLOW-PUB-20260523-1212", flowType: "publish", flowStatus: "superseded", fromVersion: "23.110.211.10", toVersion: "23.110.211.12", stage: "notification", title: "本次不发送 DING", time: "2026-05-23 15:20:16", operator: "DING 任务", operatorType: "系统", result: "skipped", summary: "发布时未启用 DING，已记录通知结果" },
+        { id: "EVT-0099-01", flowId: "FLOW-PUB-20260701-0099", flowType: "publish", flowStatus: "rejected", fromVersion: "23.110.211.12", toVersion: "23.110.211.99", stage: "approval", title: "提交发布审批", time: "2026-07-01 11:40:00", operator: "张元/Alice", operatorType: "用户", result: "success", summary: "目标版本 23.110.211.99，审批期间未改变当前发布版本" },
         { id: "EVT-0099-02", flowId: "FLOW-PUB-20260701-0099", flowType: "publish", flowStatus: "rejected", fromVersion: "23.110.211.12", toVersion: "23.110.211.99", stage: "approval", title: "发布审批驳回", time: "2026-07-01 14:06:50", operator: "彭冬柏", operatorType: "钉钉审批", result: "rejected", summary: "适用机型范围与本次发布计划不一致，版本未生效" }
       ];
     }
     const flowId = `FLOW-PUB-INIT-${identifierIndex + 1}`;
     return legacyCurrent ? [
-      { id: `${flowId}-01`, flowId, flowType: "publish", flowStatus: "active", fromVersion: legacyRollbackTarget?.version || null, toVersion: legacyCurrent.version, stage: "preparation", title: "固件版本创建完成", time: legacyCurrent.created || legacyCurrent.updated, operator: legacyCurrent.creator || "管理员", operatorType: "用户", result: "success", summary: "固件包与版本配置校验通过" },
-      { id: `${flowId}-02`, flowId, flowType: "publish", flowStatus: "active", fromVersion: legacyRollbackTarget?.version || null, toVersion: legacyCurrent.version, stage: "release", title: "版本发布成功", time: legacyCurrent.published || legacyCurrent.updated, operator: "发布服务", operatorType: "系统", result: "success", summary: `当前发布版本已切换为 ${legacyCurrent.version}` }
-    ] : [
-      { id: `EVT-ID-${identifierIndex + 1}`, flowId: `FLOW-ID-${identifierIndex + 1}`, flowType: "identifier", flowStatus: "completed", fromVersion: null, toVersion: null, stage: "identifier", title: "固件标识创建完成", time: identifier.created, operator: "管理员", operatorType: "用户", result: "success", summary: `固件标识 ${identifier.id} 已创建，尚未发布版本` }
-    ];
+      { id: `${flowId}-01`, flowId, flowType: "publish", flowStatus: "active", fromVersion: legacyRollbackTarget?.version || null, toVersion: legacyCurrent.version, stage: "release", title: "版本发布成功", time: legacyCurrent.published || legacyCurrent.updated, operator: "发布服务", operatorType: "系统", result: "success", summary: `当前发布版本已切换为 ${legacyCurrent.version}` }
+    ] : [];
   }
 
   function normalizeDatabase(data) {
@@ -306,6 +301,8 @@
     data.identifiers.forEach((identifier, identifierIndex) => {
       const legacyCurrent = identifier.versions.find(version => version.version === identifier.currentVersion) || identifier.versions.find(version => version.latest) || identifier.versions[0] || null;
       const legacyRollbackTarget = identifier.versions.find(version => version !== legacyCurrent && version.models === legacyCurrent?.models) || identifier.versions.find(version => version !== legacyCurrent) || null;
+      if (!Number.isFinite(Number(identifier.boundDeviceCount))) identifier.boundDeviceCount = demoBoundDeviceCounts[identifier.id] || 160 + (identifierIndex * 73) % 640;
+      identifier.boundDeviceCount = Number(identifier.boundDeviceCount);
       identifier.versions.forEach((version, versionIndex) => {
         if (!Array.isArray(version.featureConfigs)) {
           version.featureConfigs = featureCatalog.slice(0, Number(version.features) || 0).map(item => configFromCatalog(item));
@@ -334,6 +331,8 @@
         version.latest = version.status === "current";
         if (!version.created) version.created = version.updated;
         if (!version.recordVersion) version.recordVersion = 1;
+        if (!Number.isFinite(Number(version.associatedDeviceCount))) version.associatedDeviceCount = associatedDeviceCount(identifier, version.models);
+        version.associatedDeviceCount = Number(version.associatedDeviceCount);
       });
       if (!identifier.currentVersion && legacyCurrent) identifier.currentVersion = legacyCurrent.version;
       if (identifier.rollbackTargetVersion === undefined) identifier.rollbackTargetVersion = legacyRollbackTarget?.version || null;
@@ -384,8 +383,8 @@
         messageSnapshot: `[固件发布] ${data.identifiers[0].id} ${initialEvent.toVersion}`,
         createdAt: initialEvent.effectiveAt,
         sentAt: initialEvent.effectiveAt,
-        attemptCount: 2,
-        failureReason: "何圣安、全继科发送失败，等待重试"
+        attemptCount: 1,
+        failureReason: "何圣安、全继科发送失败"
       });
     }
     data.modules.forEach((module, index) => {
@@ -431,10 +430,6 @@
     selectedRole: db.roles[0]?.name || "",
     roleTab: "permissions",
     firmwareTab: "firmware",
-    lifecycleView: "timeline",
-    lifecycleStage: "",
-    lifecycleResult: "",
-    expandedLifecycleFlows: ["FLOW-PUB-20260714-1313"],
     roleEditing: false,
     profileOpen: false,
     loggedOut: false,
@@ -450,13 +445,14 @@
     approvalPage: 1,
     userPage: 1,
     pageSizes: { firmware: 20, differentialTasks: 20, differentialPackages: 20, modules: 20, operations: 20, approvals: 20, users: 20 },
-    columns: { url: true, size: true, models: true, features: true, creator: true, note: true, updated: true },
+    columns: { url: true, size: true, models: true, devices: true, features: true, creator: true, note: true, updated: true },
     filters: { firmware: "", product: "IPC", lifecycleQuery: "", differentialTask: "", differentialTaskStatus: "", differentialPackage: "", module: "", operation: "", approval: "", user: "", userLines: [], roleUserLines: [], operationStart: "2026-07-08", operationEnd: "2026-07-15", approvalStart: "2026-07-08", approvalEnd: "2026-07-15" },
     draftFilters: {},
     upload: null,
     errors: {},
     tempPermissions: null,
-    expandedDifferentialPackages: []
+    expandedDifferentialPackages: [],
+    expandedLifecycleFlows: [lifecycleFlows(db.identifiers[0]?.lifecycleEvents || []).find(flow => flow.flowStatus === "active")?.flowId].filter(Boolean)
   };
 
   const app = document.getElementById("app");
@@ -518,6 +514,7 @@
       state.differentialTaskPage = 1;
       state.differentialPackagePage = 1;
       state.expandedDifferentialPackages = [];
+      state.expandedLifecycleFlows = [lifecycleFlows(activeIdentifier().lifecycleEvents || []).find(flow => flow.flowStatus === "active")?.flowId].filter(Boolean);
     }
   }
 
@@ -531,6 +528,20 @@
 
   function modelValues(value) {
     return String(value || "").split(/[,，/]/).map(item => item.trim().toLowerCase()).filter(Boolean);
+  }
+
+  function associatedDeviceCount(identifier, models) {
+    const total = Number(identifier?.boundDeviceCount || 0);
+    const identifierModels = modelValues(identifier?.models);
+    const versionModels = modelValues(models);
+    if (!total || !versionModels.length || versionModels.includes("-")) return 0;
+    if (versionModels.some(model => identifierModels.includes(model))) return total;
+    const partiallyMatched = versionModels.some(model => identifierModels.some(identifierModel => model.includes(identifierModel) || identifierModel.includes(model)));
+    return partiallyMatched ? Math.round(total * 0.62) : 0;
+  }
+
+  function formatDeviceCount(value) {
+    return Number(value || 0).toLocaleString("zh-CN");
   }
 
   function targetCoversModels(current, target) {
@@ -602,6 +613,13 @@
     return notice;
   }
 
+  function addDingHistoryEvent(identifier, event, notice, flowType) {
+    const isRollback = flowType === "rollback";
+    const result = notice.status === "sent" ? "success" : notice.status === "not_required" ? "skipped" : notice.status === "partial_failed" ? "partial" : "failed";
+    const summary = notice.status === "sent" ? `实际接收 ${notice.recipients.length} 人` : notice.status === "not_required" ? "本次配置未启用 DING，已记录通知结果" : notice.failureReason || "DING 发送失败";
+    addLifecycleEvent(identifier, { flowId: event.flowId, flowType, flowStatus: "active", fromVersion: event.fromVersion, toVersion: event.toVersion, stage: "notification", title: `${isRollback ? "回滚" : "发布"} DING 发送结果`, operator: "DING 任务", operatorType: "系统", result, summary });
+  }
+
   function approvalById(id) {
     return db.approvals.find(item => item.id === id);
   }
@@ -613,6 +631,13 @@
   function addLifecycleEvent(identifier, event) {
     if (!Array.isArray(identifier.lifecycleEvents)) identifier.lifecycleEvents = [];
     identifier.lifecycleEvents.unshift({ id: releaseId("EVT"), operatorType: "用户", result: "success", time: now(), ...event });
+  }
+
+  function setLifecycleFlowStatus(identifier, flowId, flowStatus) {
+    if (!flowId || !Array.isArray(identifier.lifecycleEvents)) return;
+    identifier.lifecycleEvents.forEach(event => {
+      if (event.flowId === flowId) event.flowStatus = flowStatus;
+    });
   }
 
   function emptyPermissions() {
@@ -703,9 +728,9 @@
 
   function renderIdentifierMeta(identifier) {
     if (identifier.product === "4G模组") {
-      return `<div class="meta-grid four-g-meta"><span>所属产品线：<strong>${esc(identifier.product)}</strong></span><span>创建时间：<strong>${esc(identifier.created)}</strong></span><span>模组型号：<strong>${esc(identifier.models)}</strong></span></div>`;
+      return `<div class="meta-grid four-g-meta"><span>所属产品线：<strong>${esc(identifier.product)}</strong></span><span>创建时间：<strong>${esc(identifier.created)}</strong></span><span>模组型号：<strong>${esc(identifier.models)}</strong></span><span title="固件标识下去重后的绑定设备总数">绑定设备数：<strong>${formatDeviceCount(identifier.boundDeviceCount)} 台</strong></span></div>`;
     }
-    return `<div class="meta-grid"><span>所属产品线：<strong>${esc(identifier.product)}</strong></span><span>创建时间：<strong>${esc(identifier.created)}</strong></span><span>关联机型：<strong>${esc(identifier.models)}</strong></span><span>网络类型：<strong>${esc(identifier.network)}</strong></span><span>电量类型：<strong>${esc(identifier.power)}</strong></span><span>架构类型：<strong>${esc(identifier.architecture)}</strong></span><span>DING 默认：<strong>${identifier.dingDefaults.enabled ? `开启 · ${identifier.dingDefaults.scopes.length} 个范围` : "关闭"}</strong></span></div>`;
+    return `<div class="meta-grid"><span>所属产品线：<strong>${esc(identifier.product)}</strong></span><span>创建时间：<strong>${esc(identifier.created)}</strong></span><span>关联机型：<strong>${esc(identifier.models)}</strong></span><span title="固件标识下去重后的绑定设备总数">绑定设备数：<strong>${formatDeviceCount(identifier.boundDeviceCount)} 台</strong></span><span>网络类型：<strong>${esc(identifier.network)}</strong></span><span>电量类型：<strong>${esc(identifier.power)}</strong></span><span>架构类型：<strong>${esc(identifier.architecture)}</strong></span><span>DING 默认：<strong>${identifier.dingDefaults.enabled ? `开启 · ${identifier.dingDefaults.scopes.length} 个范围` : "关闭"}</strong></span></div>`;
   }
 
   function renderFirmware() {
@@ -724,7 +749,7 @@
         <div class="firmware-main ${selected.product === "4G模组" && state.firmwareTab !== "firmware" ? "differential-main" : ""}">
           <div class="summary-band ${selected.product === "4G模组" ? "four-g-summary" : ""}"><div class="summary-head"><h2>${esc(selected.id)}</h2><div class="summary-actions"><button class="btn small" data-action="refresh">↻ 刷新</button><div class="popover-wrap"><button class="btn small" data-action="identifier-actions" aria-expanded="${state.popover === "identifier"}">••• 更多</button>${state.popover === "identifier" ? `<div class="action-popover compact-popover"><button data-action="edit-identifier">编辑</button><button data-action="ding-defaults">DING 默认配置</button><button class="danger-item" data-action="delete-identifier">删除</button></div>` : ""}</div></div></div>${renderIdentifierMeta(selected)}</div>
           ${pendingApproval ? `<div class="approval-banner"><div><strong>${pendingApproval.event === "撤销并回滚固件版本" ? "回滚审批中" : "发布审批中"}</strong><span>${esc(pendingApproval.version)} · 提交人 ${esc(pendingApproval.submitter)} · ${esc(pendingApproval.submitTime)}</span></div><button class="btn small primary" data-action="view-active-approval">查看审批</button></div>` : ""}
-          <div class="tab-strip firmware-tabs"><button class="tab ${state.firmwareTab === "firmware" ? "active" : ""}" data-action="firmware-subtab" data-tab="firmware">固件列表</button><button class="tab ${state.firmwareTab === "lifecycle" ? "active" : ""}" data-action="firmware-subtab" data-tab="lifecycle">生命周期</button>${selected.product === "4G模组" ? `<button class="tab ${state.firmwareTab === "onlineDifferential" ? "active" : ""}" data-action="firmware-subtab" data-tab="onlineDifferential">在线差分</button><button class="tab ${state.firmwareTab === "differentialPackages" ? "active" : ""}" data-action="firmware-subtab" data-tab="differentialPackages">差分包列表</button>` : ""}</div>
+          <div class="tab-strip firmware-tabs"><button class="tab ${state.firmwareTab === "firmware" ? "active" : ""}" data-action="firmware-subtab" data-tab="firmware">固件列表</button><button class="tab ${state.firmwareTab === "lifecycle" ? "active" : ""}" data-action="firmware-subtab" data-tab="lifecycle">发布日志</button>${selected.product === "4G模组" ? `<button class="tab ${state.firmwareTab === "onlineDifferential" ? "active" : ""}" data-action="firmware-subtab" data-tab="onlineDifferential">在线差分</button><button class="tab ${state.firmwareTab === "differentialPackages" ? "active" : ""}" data-action="firmware-subtab" data-tab="differentialPackages">差分包列表</button>` : ""}</div>
           ${renderFirmwareTabContent(selected, latest)}
         </div>
       </div>
@@ -741,11 +766,11 @@
   }
 
   function lifecycleStageLabel(stage) {
-    return ({ identifier: "标识管理", preparation: "版本准备", approval: "发布审批", release: "发布生效", notification: "DING 通知", distribution: "APP 分发", device: "设备执行", rollback: "回滚处置" })[stage] || stage;
+    return ({ approval: "钉钉审批", release: "发布生效", notification: "DING 通知", rollback: "回滚生效" })[stage] || stage;
   }
 
   function lifecycleResultLabel(result) {
-    return ({ success: "成功", active: "当前生效", partial: "部分成功", failed: "失败", rejected: "已驳回", skipped: "已跳过" })[result] || result;
+    return ({ success: "成功", active: "当前生效", partial: "部分失败", failed: "失败", rejected: "已驳回", skipped: "不发送" })[result] || result;
   }
 
   function lifecycleResultClass(result) {
@@ -754,12 +779,11 @@
 
   function lifecycleFlowLabel(flow) {
     if (flow.flowType === "rollback") return "版本回滚";
-    if (flow.flowType === "identifier") return "标识管理";
     return "版本发布";
   }
 
   function lifecycleFlowStatusLabel(status) {
-    return ({ active: "当前生效", superseded: "历史发布", rejected: "审批驳回", failed: "发布失败", rolled_back: "已回滚", completed: "已完成" })[status] || status;
+    return ({ active: "当前生效", superseded: "历史发布", pending: "审批中", rejected: "审批驳回", failed: "发布失败", rolled_back: "已回滚", completed: "已完成" })[status] || status;
   }
 
   function lifecycleFlowStatusClass(status) {
@@ -768,10 +792,13 @@
 
   function lifecycleFilteredEvents(identifier) {
     const query = state.filters.lifecycleQuery.trim().toLowerCase();
-    return [...(identifier.lifecycleEvents || [])].filter(event => {
+    const events = [...(identifier.lifecycleEvents || [])];
+    if (!query) return events.sort((left, right) => right.time.localeCompare(left.time));
+    const matchingFlowIds = new Set(events.filter(event => {
       const haystack = [event.flowId, event.fromVersion, event.toVersion, event.title, event.summary, event.operator].join(" ").toLowerCase();
-      return (!query || haystack.includes(query)) && (!state.lifecycleStage || event.stage === state.lifecycleStage) && (!state.lifecycleResult || event.result === state.lifecycleResult);
-    }).sort((left, right) => right.time.localeCompare(left.time));
+      return haystack.includes(query);
+    }).map(event => event.flowId));
+    return events.filter(event => matchingFlowIds.has(event.flowId)).sort((left, right) => right.time.localeCompare(left.time));
   }
 
   function lifecycleFlows(events) {
@@ -780,36 +807,38 @@
       if (!flows.has(event.flowId)) flows.set(event.flowId, { flowId: event.flowId, flowType: event.flowType, flowStatus: event.flowStatus, fromVersion: event.fromVersion, toVersion: event.toVersion, events: [] });
       flows.get(event.flowId).events.push(event);
     });
-    return [...flows.values()].map(flow => ({ ...flow, startTime: flow.events[flow.events.length - 1]?.time, endTime: flow.events[0]?.time })).sort((left, right) => right.endTime.localeCompare(left.endTime));
+    return [...flows.values()].map(flow => {
+      const orderedEvents = [...flow.events].sort((left, right) => left.time.localeCompare(right.time));
+      return { ...flow, events: orderedEvents, startTime: orderedEvents[0]?.time, endTime: orderedEvents[orderedEvents.length - 1]?.time };
+    }).sort((left, right) => right.endTime.localeCompare(left.endTime));
   }
 
   function renderLifecycle(identifier) {
     const allEvents = identifier.lifecycleEvents || [];
     const events = lifecycleFilteredEvents(identifier);
     const flows = lifecycleFlows(events);
-    const releaseCount = new Set(allEvents.filter(event => event.flowType === "publish" && ["active", "superseded", "rolled_back"].includes(event.flowStatus)).map(event => event.flowId)).size;
-    const rollbackCount = new Set(allEvents.filter(event => event.flowType === "rollback").map(event => event.flowId)).size;
-    const exceptionCount = allEvents.filter(event => ["partial", "failed", "rejected"].includes(event.result)).length;
+    const releaseCount = new Set(allEvents.filter(event => event.flowType === "publish" && ["superseded", "rolled_back"].includes(event.flowStatus)).map(event => event.flowId)).size;
+    const rollbackCount = new Set(allEvents.filter(event => event.flowType === "rollback" && event.stage === "rollback" && event.result === "success").map(event => event.flowId)).size;
     const current = currentVersion(identifier);
-    const stageOptions = [["", "全部阶段"], ["preparation", "版本准备"], ["approval", "发布审批"], ["release", "发布生效"], ["notification", "DING 通知"], ["distribution", "APP 分发"], ["device", "设备执行"], ["rollback", "回滚处置"]];
-    const resultOptions = [["", "全部结果"], ["success", "成功"], ["partial", "部分成功"], ["failed", "失败"], ["rejected", "已驳回"]];
-    const filtersActive = Boolean(state.filters.lifecycleQuery || state.lifecycleStage || state.lifecycleResult);
-    return `<section class="lifecycle-section"><div class="lifecycle-overview"><div class="lifecycle-overview-copy"><span class="lifecycle-kicker">标识全链路</span><h3>${esc(identifier.id)} 生命周期</h3><p>按发布批次聚合版本准备、审批、生效、通知、APP 分发与设备结果。</p></div><div class="lifecycle-stats"><div><span>当前发布</span><strong>${esc(current?.version || "-")}</strong></div><div><span>历史发布</span><strong>${releaseCount} 次</strong></div><div><span>历史回滚</span><strong>${rollbackCount} 次</strong></div><div class="${exceptionCount ? "has-exception" : ""}"><span>异常事件</span><strong>${exceptionCount} 条</strong></div></div></div><div class="lifecycle-toolbar"><div class="lifecycle-filters"><input class="field lifecycle-search" data-filter="lifecycleQuery" value="${esc(state.filters.lifecycleQuery)}" placeholder="搜索版本号、链路编号或操作人" aria-label="搜索生命周期"><select class="select" data-change="lifecycle-stage" aria-label="生命周期阶段">${stageOptions.map(([value, label]) => `<option value="${value}" ${state.lifecycleStage === value ? "selected" : ""}>${label}</option>`).join("")}</select><select class="select" data-change="lifecycle-result" aria-label="执行结果">${resultOptions.map(([value, label]) => `<option value="${value}" ${state.lifecycleResult === value ? "selected" : ""}>${label}</option>`).join("")}</select><button class="btn" data-action="apply-lifecycle-filter">查询</button>${filtersActive ? `<button class="btn" data-action="reset-lifecycle-filter">重置</button>` : ""}</div><div class="segmented-control" role="group" aria-label="生命周期视图"><button class="${state.lifecycleView === "timeline" ? "active" : ""}" data-action="lifecycle-view" data-view="timeline">时间线</button><button class="${state.lifecycleView === "detail" ? "active" : ""}" data-action="lifecycle-view" data-view="detail">明细</button></div></div>${events.length ? state.lifecycleView === "detail" ? renderLifecycleDetail(events) : renderLifecycleTimeline(flows) : `<div class="empty-state lifecycle-empty"><div><div class="empty-illustration">▤</div>没有符合条件的生命周期记录</div></div>`}</section>`;
+    const filtersActive = Boolean(state.filters.lifecycleQuery);
+    return `<section class="lifecycle-section"><div class="lifecycle-overview release-log-overview"><div class="lifecycle-overview-copy"><h3>发布日志</h3></div><div class="lifecycle-stats release-log-stats"><div><span>当前发布</span><strong>${esc(current?.version || "-")}</strong></div><div><span>历史发布</span><strong>${releaseCount} 次</strong></div><div><span>历史回滚</span><strong>${rollbackCount} 次</strong></div></div></div><div class="lifecycle-toolbar release-log-toolbar"><div class="lifecycle-filters"><input class="field lifecycle-search" data-filter="lifecycleQuery" value="${esc(state.filters.lifecycleQuery)}" placeholder="搜索版本号、链路编号或操作人" aria-label="搜索发布日志"><button class="btn" data-action="apply-lifecycle-filter">查询</button>${filtersActive ? `<button class="btn" data-action="reset-lifecycle-filter">重置</button>` : ""}</div></div>${events.length ? renderLifecycleTimeline(flows) : `<div class="empty-state lifecycle-empty"><div><div class="empty-illustration">▤</div>没有符合条件的发布日志</div></div>`}</section>`;
   }
 
   function renderLifecycleTimeline(flows) {
-    return `<div class="lifecycle-timeline">${flows.map(flow => {
-      const expanded = state.expandedLifecycleFlows.includes(flow.flowId);
-      const stageOrder = ["identifier", "preparation", "approval", "release", "notification", "distribution", "device", "rollback"];
-      const stages = [...new Set(flow.events.map(event => event.stage))].sort((left, right) => stageOrder.indexOf(left) - stageOrder.indexOf(right));
-      const issueCount = flow.events.filter(event => ["partial", "failed", "rejected"].includes(event.result)).length;
+    return `<div class="lifecycle-timeline release-log-list">${flows.map((flow, flowIndex) => {
+      const approvalEvents = flow.events.filter(event => event.stage === "approval");
+      const approvalLabel = approvalEvents.some(event => event.result === "rejected") ? "已驳回" : approvalEvents.some(event => event.title.includes("通过")) ? "已通过" : approvalEvents.length ? "审批中" : "无记录";
+      const approvalClass = approvalLabel === "已驳回" ? "danger-text" : approvalLabel === "已通过" ? "success-text" : "";
+      const notification = flow.events.find(event => event.stage === "notification");
+      const notificationLabel = notification ? lifecycleResultLabel(notification.result) : "无记录";
+      const notificationIssue = notification && ["partial", "failed"].includes(notification.result);
       const transition = flow.toVersion ? `${flow.fromVersion || "首次发布"} -> ${flow.toVersion}` : "标识初始化";
-      return `<article class="lifecycle-flow ${flow.flowStatus}"><button class="lifecycle-flow-head" data-action="toggle-lifecycle-flow" data-flow-id="${esc(flow.flowId)}" aria-expanded="${expanded}"><span class="lifecycle-flow-icon ${flow.flowType}">${flow.flowType === "rollback" ? "回" : flow.flowType === "identifier" ? "标" : "发"}</span><span class="lifecycle-flow-title"><span><strong>${lifecycleFlowLabel(flow)} · ${esc(transition)}</strong><span class="tag ${lifecycleFlowStatusClass(flow.flowStatus)}">${lifecycleFlowStatusLabel(flow.flowStatus)}</span></span><small>${esc(flow.flowId)} · ${esc(flow.startTime)} 至 ${esc(flow.endTime)}</small></span><span class="lifecycle-flow-summary"><strong>${flow.events.length}</strong><small>链路事件</small></span><span class="lifecycle-flow-summary ${issueCount ? "danger-text" : ""}"><strong>${issueCount}</strong><small>异常</small></span><span class="flow-chevron">${expanded ? "⌃" : "⌄"}</span></button><div class="lifecycle-stage-rail">${stages.map(stage => `<span>${lifecycleStageLabel(stage)}</span>`).join("")}</div>${expanded ? `<div class="lifecycle-event-list">${flow.events.map(event => `<div class="lifecycle-event-row"><span class="event-dot ${lifecycleResultClass(event.result)}"></span><time>${esc(event.time)}</time><div><strong>${esc(event.title)}</strong><p>${esc(event.summary)}</p><small>${esc(event.operator)} · ${esc(event.operatorType)}</small></div><span class="tag ${lifecycleResultClass(event.result)}">${lifecycleResultLabel(event.result)}</span></div>`).join("")}<div class="lifecycle-flow-actions"><button class="btn small" data-action="lifecycle-flow-detail" data-flow-id="${esc(flow.flowId)}">查看完整链路</button></div></div>` : ""}</article>`;
+      const expanded = state.expandedLifecycleFlows.includes(flow.flowId);
+      const effectiveEvent = flow.events.find(event => ["release", "rollback"].includes(event.stage)) || flow.events[flow.events.length - 1];
+      const [timelineDate = "-", timelineClock = ""] = String(effectiveEvent?.time || "-").split(" ");
+      const eventChain = expanded ? `<div class="release-log-event-chain">${flow.events.map((event, index) => `<div class="release-log-event"><time>${esc(event.time)}</time><div class="release-log-event-marker"><span class="event-dot ${lifecycleResultClass(event.result)}"></span>${index < flow.events.length - 1 ? `<i></i>` : ""}</div><div class="release-log-event-content"><div><strong>${esc(event.title)}</strong><span class="tag ${lifecycleResultClass(event.result)}">${lifecycleResultLabel(event.result)}</span></div><p>${esc(event.summary)}</p><small>${lifecycleStageLabel(event.stage)} · ${esc(event.operator)}（${esc(event.operatorType)}）</small></div></div>`).join("")}</div>` : "";
+      return `<article class="release-timeline-entry ${flow.flowStatus} ${expanded ? "is-expanded" : ""}"><time class="release-timeline-time" datetime="${esc(effectiveEvent?.time || "")}"><strong>${esc(timelineDate)}</strong><span>${esc(timelineClock)}</span></time><div class="release-timeline-marker"><span class="${lifecycleFlowStatusClass(flow.flowStatus)}"></span>${flowIndex < flows.length - 1 ? `<i></i>` : ""}</div><div class="release-timeline-content"><button class="release-log-item" data-action="toggle-lifecycle-flow" data-flow-id="${esc(flow.flowId)}" aria-expanded="${expanded}"><span class="release-log-main"><span><span class="release-log-kind ${flow.flowType}">${flow.flowType === "rollback" ? "回滚" : "发布"}</span><strong>${esc(transition)}</strong><span class="tag ${lifecycleFlowStatusClass(flow.flowStatus)}">${lifecycleFlowStatusLabel(flow.flowStatus)}</span></span><small>${esc(flow.flowId)}</small></span><span class="release-log-results"><span class="release-log-result ${approvalClass}"><span>审批</span><strong>${approvalLabel}</strong></span><span class="release-log-result ${notificationIssue ? "danger-text" : ""}"><span>DING</span><strong>${notificationLabel}</strong></span></span><span class="release-log-chevron" aria-hidden="true">${expanded ? "⌄" : "›"}</span></button>${eventChain}</div></article>`;
     }).join("")}</div>`;
-  }
-
-  function renderLifecycleDetail(events) {
-    return `<div class="table-wrap lifecycle-detail-wrap"><table class="data-table lifecycle-detail-table"><thead><tr><th>发生时间</th><th>链路编号</th><th>阶段</th><th>事件</th><th>操作主体</th><th>执行结果</th><th>事件摘要</th><th>操作</th></tr></thead><tbody>${events.map(event => `<tr><td>${esc(event.time)}</td><td><button class="link-btn flow-id-link" data-action="lifecycle-flow-detail" data-flow-id="${esc(event.flowId)}">${esc(event.flowId)}</button></td><td>${lifecycleStageLabel(event.stage)}</td><td>${esc(event.title)}</td><td>${esc(event.operator)}<small class="table-subline">${esc(event.operatorType)}</small></td><td><span class="tag ${lifecycleResultClass(event.result)}">${lifecycleResultLabel(event.result)}</span></td><td class="cell-truncate" title="${esc(event.summary)}">${esc(event.summary)}</td><td><button class="link-btn" data-action="lifecycle-flow-detail" data-flow-id="${esc(event.flowId)}">详情</button></td></tr>`).join("")}</tbody></table></div>`;
   }
 
   function renderOnlineDifferential(identifier) {
@@ -838,7 +867,7 @@
   }
 
   function renderColumnPopover() {
-    const labels = { url: "下载地址", size: "文件大小（M）", models: "适用机型", features: "功能集数", creator: "创建人", note: "平台发布说明", updated: "更新时间" };
+    const labels = { url: "下载地址", size: "文件大小（M）", models: "适用机型", devices: "关联设备数", features: "功能集数", creator: "创建人", note: "平台发布说明", updated: "更新时间" };
     return `<div class="action-popover column-popover"><strong>列设置</strong><label class="check"><input type="checkbox" checked disabled>固件版本号</label>${Object.entries(labels).map(([key, label]) => `<label class="check"><input type="checkbox" data-column="${key}" ${state.columns[key] ? "checked" : ""}>${label}</label>`).join("")}<label class="check"><input type="checkbox" checked disabled>操作</label></div>`;
   }
 
@@ -854,8 +883,8 @@
     const columns = state.columns;
     const pageSize = state.pageSizes.firmware;
     const rows = identifier.versions.slice((state.firmwarePage - 1) * pageSize, state.firmwarePage * pageSize);
-    const headers = [`<th style="width:185px">固件版本号</th>`, columns.url && `<th style="width:230px">下载地址</th>`, columns.size && `<th style="width:105px">文件大小（M）</th>`, columns.models && `<th style="width:125px">适用机型</th>`, columns.features && `<th style="width:90px">功能集数</th>`, columns.creator && `<th style="width:120px">创建人</th>`, columns.note && `<th style="width:190px">平台发布说明</th>`, columns.updated && `<th style="width:170px">更新时间</th>`, `<th style="width:200px">操作</th>`].filter(Boolean).join("");
-    return `<div class="table-wrap firmware-table-wrap"><table class="data-table firmware-version-table ${state.density}"><thead><tr>${headers}</tr></thead><tbody>${rows.map(version => { const canEdit = version.status === "unpublished"; return `<tr><td><span>${esc(version.version)}</span> <span class="tag ${version.status === "current" ? "success" : version.status === "withdrawn" ? "danger" : version.status === "approval" ? "warning" : ""}">${esc(versionStatusLabel(version.status))}</span></td>${columns.url ? `<td><div class="cell-actions"><span class="cell-truncate" title="${esc(version.url)}">${esc(version.url)}</span><button class="link-btn" title="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button></div></td>` : ""}${columns.size ? `<td>${esc(version.size)}</td>` : ""}${columns.models ? `<td>${esc(version.models)}</td>` : ""}${columns.features ? `<td>${version.features}</td>` : ""}${columns.creator ? `<td>${esc(version.creator)}</td>` : ""}${columns.note ? `<td class="cell-truncate" title="${esc(version.platformReleaseNotes)}">${esc(version.platformReleaseNotes)}</td>` : ""}${columns.updated ? `<td>${esc(version.updated)}</td>` : ""}<td><div class="cell-actions firmware-row-actions"><button class="link-btn" data-action="version-detail" data-version="${esc(version.version)}">详情</button>${canEdit ? `<button class="link-btn" data-action="publish-version" data-version="${esc(version.version)}" ${identifier.activeApproval ? "disabled" : ""}>发布</button><button class="link-btn" data-action="edit-version" data-version="${esc(version.version)}">编辑</button><button class="link-btn danger-link" data-action="delete-version" data-version="${esc(version.version)}">删除</button>` : ""}</div></td></tr>`; }).join("")}</tbody></table></div>`;
+    const headers = [`<th style="width:150px">固件版本号</th>`, columns.url && `<th style="width:230px">下载地址</th>`, columns.size && `<th style="width:105px">文件大小（M）</th>`, columns.models && `<th style="width:125px">适用机型</th>`, columns.devices && `<th style="width:110px" title="符合该版本适用机型的绑定设备数">关联设备数</th>`, columns.features && `<th style="width:90px">功能集数</th>`, columns.creator && `<th style="width:120px">创建人</th>`, columns.note && `<th style="width:190px">平台发布说明</th>`, columns.updated && `<th style="width:170px">更新时间</th>`, `<th style="width:200px">操作</th>`].filter(Boolean).join("");
+    return `<div class="table-wrap firmware-table-wrap"><table class="data-table firmware-version-table ${state.density}"><thead><tr>${headers}</tr></thead><tbody>${rows.map(version => { const canEdit = version.status === "unpublished"; return `<tr><td>${esc(version.version)}</td>${columns.url ? `<td><div class="cell-actions"><span class="cell-truncate" title="${esc(version.url)}">${esc(version.url)}</span><button class="link-btn" title="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button></div></td>` : ""}${columns.size ? `<td>${esc(version.size)}</td>` : ""}${columns.models ? `<td>${esc(version.models)}</td>` : ""}${columns.devices ? `<td>${formatDeviceCount(version.associatedDeviceCount)}</td>` : ""}${columns.features ? `<td>${version.features}</td>` : ""}${columns.creator ? `<td>${esc(version.creator)}</td>` : ""}${columns.note ? `<td class="cell-truncate" title="${esc(version.platformReleaseNotes)}">${esc(version.platformReleaseNotes)}</td>` : ""}${columns.updated ? `<td>${esc(version.updated)}</td>` : ""}<td><div class="cell-actions firmware-row-actions"><button class="link-btn" data-action="version-detail" data-version="${esc(version.version)}">详情</button>${canEdit ? `<button class="link-btn" data-action="publish-version" data-version="${esc(version.version)}" ${identifier.activeApproval ? "disabled" : ""}>发布</button><button class="link-btn" data-action="edit-version" data-version="${esc(version.version)}">编辑</button><button class="link-btn danger-link" data-action="delete-version" data-version="${esc(version.version)}">删除</button>` : ""}</div></td></tr>`; }).join("")}</tbody></table></div>`;
   }
 
   function renderModules() {
@@ -981,7 +1010,7 @@
       const identifier = activeIdentifier();
       const targetVersion = findVersion(modal.version);
       const current = currentVersion(identifier);
-      return modalFrame("提交固件发布审批", `<div class="release-impact"><div><span>当前发布版本</span><strong>${esc(current?.version || "-")}</strong></div><div class="impact-arrow">→</div><div><span>目标发布版本</span><strong>${esc(targetVersion.version)}</strong></div></div><div class="form-field required"><label>APP 提醒方式</label>${renderReminderOptions(modal.reminderPolicy)}${errorFor("reminderPolicy")}</div><div class="release-summary"><span>适用机型<strong>${esc(targetVersion.models)}</strong></span><span>平台发布说明<strong>${esc(targetVersion.platformReleaseNotes)}</strong></span><span>回滚目标<strong>${esc(current?.version || "首次发布，无回滚目标")}</strong></span></div>${renderDingConfiguration(modal, "publish")}`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" data-action="confirm-publish">提交发布审批</button>`, true);
+      return modalFrame("提交固件发布审批", `<div class="release-impact"><div><span>当前发布版本</span><strong>${esc(current?.version || "-")}</strong></div><div class="impact-arrow">→</div><div><span>目标发布版本</span><strong>${esc(targetVersion.version)}</strong></div></div><div class="form-field required"><label>APP 提醒方式</label>${renderReminderOptions(modal.reminderPolicy)}${errorFor("reminderPolicy")}</div><div class="release-summary"><span>预计影响设备<strong>${formatDeviceCount(targetVersion.associatedDeviceCount)} 台</strong></span><span>适用机型<strong>${esc(targetVersion.models)}</strong></span><span>平台发布说明<strong>${esc(targetVersion.platformReleaseNotes)}</strong></span><span>回滚目标<strong>${esc(current?.version || "首次发布，无回滚目标")}</strong></span></div>${renderDingConfiguration(modal, "publish")}`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" data-action="confirm-publish">提交发布审批</button>`, true);
     }
     if (modal.type === "rollback") {
       const identifier = activeIdentifier();
@@ -1022,10 +1051,6 @@
       const available = localeCatalog.filter(item => !(item.locale in notes));
       return modalFrame("维护 APP 更新说明", `<div class="revision-warning">已发布文案修改无需重新审批，但会生成不可覆盖的修订记录并立即失效 APP 升级检查缓存。</div><div class="revision-note-list">${Object.entries(notes).map(([locale, content]) => `<div class="revision-note-item"><div><strong>${esc(locale === "zh-CN" ? "简体中文" : locale === "en-US" ? "English" : localeCatalog.find(item => item.locale === locale)?.label || locale)}</strong><span>${esc(locale)} ${["zh-CN", "en-US"].includes(locale) ? "· 必填" : "· 选填"}</span></div>${["zh-CN", "en-US"].includes(locale) ? "" : `<button class="link-btn danger-link" data-action="remove-revision-locale" data-locale="${locale}">删除</button>`}<textarea class="textarea" data-revision-locale="${locale}" maxlength="500">${esc(content)}</textarea>${errorFor(`revision-${locale}`)}</div>`).join("")}</div>${available.length ? `<div class="form-field"><label>添加其他语言</label><select class="select" data-change="add-revision-locale"><option value="">请选择 Locale</option>${available.map(item => `<option value="${item.locale}">${esc(item.label)} · ${item.locale}</option>`).join("")}</select></div>` : ""}<div class="form-field required"><label>修改原因</label><textarea class="textarea" data-revision-reason maxlength="200" placeholder="请说明翻译修正、措辞优化或其他修改原因">${esc(modal.reason || "")}</textarea>${errorFor("revisionReason")}</div>`, `<button class="btn" data-action="close-modal">取消</button><button class="btn primary" data-action="save-app-notes">保存修订</button>`, true, true);
     }
-    if (modal.type === "resendDing") {
-      const notice = db.dingNotices.find(item => item.id === modal.noticeId);
-      return modalFrame("补发 DING", `<div class="confirm-icon">!</div><p class="confirm-copy">补发将基于当前钉钉组织架构重新解析接收人，并生成一条独立通知记录，不覆盖原记录。</p><div class="form-field required"><label>接收范围</label><div class="ding-directory">${dingDirectory.map(item => `<label class="check"><input type="checkbox" data-ding-scope="${item.id}" ${modal.dingScopes.includes(item.id) ? "checked" : ""}>${esc(item.name)}</label>`).join("")}</div>${errorFor("dingScopes")}</div><div class="subtle">原通知状态：${esc(notice?.status || "-")}</div>`, `<button class="btn" data-action="close-modal">取消</button><button class="btn primary" data-action="confirm-resend-ding">确认补发</button>`, true, true);
-    }
     if (modal.type === "deleteRole") {
       return modalFrame("删除角色", `<div class="confirm-icon">!</div><p class="confirm-copy">确定删除角色【${esc(activeRole().name)}】吗？</p>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn danger" data-action="confirm-delete-role">删除</button>`);
     }
@@ -1065,21 +1090,10 @@
     if (drawer.type === "addVersion") return renderVersionFormDrawer("新增固件版本号", null);
     if (drawer.type === "editVersion") return renderVersionFormDrawer("编辑固件版本号", findVersion(drawer.version));
     if (drawer.type === "versionDetail") return renderVersionDetail(findVersion(drawer.version));
-    if (drawer.type === "lifecycleFlowDetail") return renderLifecycleFlowDetail(drawer.flowId);
     if (drawer.type === "differentialTaskDetail") return renderDifferentialTaskDetail(drawer.taskId);
     if (drawer.type === "userDetail") return renderUserDetail(db.users[drawer.userIndex]);
     if (drawer.type === "userPermissions") return renderUserPermissions(db.users[drawer.userIndex]);
     return "";
-  }
-
-  function renderLifecycleFlowDetail(flowId) {
-    const identifier = activeIdentifier();
-    const events = (identifier.lifecycleEvents || []).filter(event => event.flowId === flowId).sort((left, right) => left.time.localeCompare(right.time));
-    if (!events.length) return "";
-    const flow = lifecycleFlows(events)[0];
-    const issueCount = events.filter(event => ["partial", "failed", "rejected"].includes(event.result)).length;
-    const transition = flow.toVersion ? `${flow.fromVersion || "首次发布"} -> ${flow.toVersion}` : "标识初始化";
-    return drawerFrame("完整链路详情", `<div class="flow-detail-hero"><div class="flow-detail-heading"><span class="lifecycle-flow-icon ${flow.flowType}">${flow.flowType === "rollback" ? "回" : flow.flowType === "identifier" ? "标" : "发"}</span><div><span>${lifecycleFlowLabel(flow)}</span><h3>${esc(transition)}</h3><p>${esc(flow.flowId)}</p></div><span class="tag ${lifecycleFlowStatusClass(flow.flowStatus)}">${lifecycleFlowStatusLabel(flow.flowStatus)}</span></div><div class="flow-detail-stats"><div><span>固件标识</span><strong>${esc(identifier.id)}</strong></div><div><span>链路事件</span><strong>${events.length} 条</strong></div><div><span>异常事件</span><strong>${issueCount} 条</strong></div><div><span>链路耗时</span><strong>${events.length > 1 ? "跨阶段持续记录" : "单节点事件"}</strong></div></div></div><div class="flow-detail-section"><div class="flow-detail-section-head"><h3>事件时间线</h3><span>日志按实际发生时间排序，只追加不覆盖</span></div><div class="flow-detail-timeline">${events.map((event, index) => `<article><div class="flow-detail-marker"><span class="event-dot ${lifecycleResultClass(event.result)}"></span>${index < events.length - 1 ? `<i></i>` : ""}</div><div class="flow-detail-event"><div><span>${lifecycleStageLabel(event.stage)}</span><time>${esc(event.time)}</time></div><h4>${esc(event.title)} <span class="tag ${lifecycleResultClass(event.result)}">${lifecycleResultLabel(event.result)}</span></h4><p>${esc(event.summary)}</p><dl><div><dt>操作主体</dt><dd>${esc(event.operator)} · ${esc(event.operatorType)}</dd></div><div><dt>事件编号</dt><dd>${esc(event.id)}</dd></div>${event.stage === "release" ? `<div><dt>状态快照</dt><dd>${esc(flow.fromVersion || "无当前版本")} -> ${esc(flow.toVersion || "-")}</dd></div>` : ""}</dl></div></article>`).join("")}</div></div><div class="flow-detail-section flow-snapshot-section"><div class="flow-detail-section-head"><h3>链路关联</h3><span>用于跨审批、通知和设备结果快速定位</span></div><div class="flow-link-grid"><div><span>审批记录</span><strong>${events.some(event => event.stage === "approval") ? "已关联" : "无记录"}</strong></div><div><span>发布记录</span><strong>${events.some(event => event.stage === "release") ? "已关联" : "无记录"}</strong></div><div><span>DING 任务</span><strong>${events.some(event => event.stage === "notification") ? "已关联" : "无记录"}</strong></div><div><span>设备结果</span><strong>${events.some(event => event.stage === "device") ? "已关联汇总" : "无记录"}</strong></div></div></div>`);
   }
 
   function renderDifferentialTaskDetail(taskId) {
@@ -1136,7 +1150,7 @@
     }
     if (tab === "ding") {
       const notices = dingRecordsForVersion(version);
-      tabContent = notices.length ? `<div class="table-wrap"><table class="data-table detail-content-table ding-record-table"><thead><tr><th>通知类型</th><th>状态</th><th>实际接收人快照</th><th>发送时间</th><th>操作</th></tr></thead><tbody>${notices.map(notice => `<tr><td>${esc(notice.noticeType === "rollback" ? "回滚 DING" : notice.noticeType === "manual_resend" ? "人工补发" : "发布 DING")}</td><td><span class="tag ${notice.status === "sent" ? "success" : notice.status === "failed" ? "danger" : "warning"}">${esc(({ sent: "发送成功", failed: "发送失败", partial_failed: "部分失败", pending: "等待发送", not_required: "本次不发送" })[notice.status] || notice.status)}</span>${notice.failureReason ? `<small class="ding-failure">${esc(notice.failureReason)}</small>` : ""}</td><td>${esc(notice.recipients.join(" / ") || "-")}</td><td>${esc(notice.sentAt)}</td><td>${["failed", "partial_failed"].includes(notice.status) ? `<button class="link-btn" data-action="retry-ding" data-notice-id="${notice.id}">重试</button>` : notice.status === "not_required" ? `<button class="link-btn" data-action="resend-ding" data-notice-id="${notice.id}">补发 DING</button>` : "-"}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty-state"><div><div class="empty-illustration">▤</div>暂无 DING 记录</div></div>`;
+      tabContent = notices.length ? `<div class="table-wrap"><table class="data-table detail-content-table ding-record-table"><thead><tr><th>通知类型</th><th>状态</th><th>实际接收人快照</th><th>发送时间</th></tr></thead><tbody>${notices.map(notice => `<tr><td>${esc(notice.noticeType === "rollback" ? "回滚 DING" : "发布 DING")}</td><td><span class="tag ${notice.status === "sent" ? "success" : ["failed", "partial_failed"].includes(notice.status) ? "danger" : "warning"}">${esc(({ sent: "发送成功", failed: "发送失败", partial_failed: "部分失败", pending: "等待发送", not_required: "本次不发送" })[notice.status] || notice.status)}</span>${notice.failureReason ? `<small class="ding-failure">${esc(notice.failureReason)}</small>` : ""}</td><td>${esc(notice.recipients.join(" / ") || "-")}</td><td>${esc(notice.sentAt)}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty-state"><div><div class="empty-illustration">▤</div>暂无 DING 记录</div></div>`;
     }
     const event = releaseEventsForVersion(version)[0];
     return drawerFrame("固件版本详情", `<div class="detail-hero"><h3>${esc(version.version)} <span class="tag ${version.status === "current" ? "success" : version.status === "withdrawn" ? "danger" : ""}">${esc(versionStatusLabel(version.status))}</span></h3><div class="detail-note"><span>平台发布说明</span><strong>${esc(version.platformReleaseNotes)}</strong></div><div class="detail-stats four"><div class="detail-stat"><span>适用机型</span><strong>${esc(version.models)}</strong></div><div class="detail-stat"><span>APP 提醒方式</span><strong>${esc(reminderLabel(event?.reminderPolicy) || version.reminder || "不提醒")}</strong></div><div class="detail-stat"><span>APP 说明</span><strong>${Object.keys(version.appReleaseNotes || {}).length} 种语言</strong></div><div class="detail-stat"><span>生效时间</span><strong>${esc(event?.effectiveAt || version.published || "未发布")}</strong></div></div></div><div class="drawer-section detail-basic-section"><h3>基础信息</h3><table class="info-list detail-info-list"><tr><td>固件版本号</td><td>${esc(version.version)}</td></tr><tr><td>固件标识</td><td>${esc(activeIdentifier().id)}</td></tr><tr><td>文件大小</td><td>${esc(version.size)} M</td></tr><tr><td>固件包下载地址</td><td><div class="detail-url"><span>${esc(version.url)}</span><button class="link-btn" title="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button></div></td></tr><tr><td>创建时间</td><td>${esc(version.created || version.updated)}</td></tr><tr><td>创建人</td><td>${esc(version.creator)}</td></tr></table></div><div class="tab-strip detail-tabs"><button class="tab ${tab === "features" ? "active" : ""}" data-action="detail-tab" data-tab="features">功能集配置</button><button class="tab ${tab === "appNotes" ? "active" : ""}" data-action="detail-tab" data-tab="appNotes">APP 更新说明</button><button class="tab ${tab === "related" ? "active" : ""}" data-action="detail-tab" data-tab="related">关联功能</button><button class="tab ${tab === "releases" ? "active" : ""}" data-action="detail-tab" data-tab="releases">发布记录</button><button class="tab ${tab === "approvals" ? "active" : ""}" data-action="detail-tab" data-tab="approvals">审批日志</button><button class="tab ${tab === "ding" ? "active" : ""}" data-action="detail-tab" data-tab="ding">DING 记录</button></div><div class="detail-tab-content">${tabContent}</div>`);
@@ -1260,6 +1274,7 @@
     if (!isRollback) target.status = "approval";
     addOperation(isRollback ? "固件回滚" : "固件申请", "提交审批", target.version);
     addLifecycleEvent(identifier, { flowId, flowType: isRollback ? "rollback" : "publish", flowStatus: "pending", fromVersion: current?.version || null, toVersion: target.version, stage: "approval", title: isRollback ? "提交回滚审批" : "提交发布审批", operator: approval.submitter, result: "success", summary: `审批快照已锁定，目标版本 ${target.version}` });
+    state.expandedLifecycleFlows = [flowId];
     persist();
     return approval;
   }
@@ -1271,7 +1286,7 @@
     const current = currentVersion(identifier);
     if (!target || target.recordVersion !== approval.snapshotRecordVersion) return { ok: false, message: "目标版本已发生变化，原审批快照失效" };
     const stamp = now();
-    addLifecycleEvent(identifier, { flowId: approval.flowId || releaseId("FLOW"), flowType: approval.type === "rollback" ? "rollback" : "publish", flowStatus: "pending", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: approval.type === "rollback" ? "回滚审批通过" : "发布审批通过", time: stamp, operator: "IPC 产品线负责人", operatorType: "钉钉审批", result: "success", summary: "审批回调与版本快照校验通过" });
+    addLifecycleEvent(identifier, { flowId: approval.flowId || releaseId("FLOW"), flowType: approval.type === "rollback" ? "rollback" : "publish", flowStatus: "active", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: approval.type === "rollback" ? "回滚审批通过" : "发布审批通过", time: stamp, operator: "IPC 产品线负责人", operatorType: "钉钉审批", result: "success", summary: "审批回调与版本快照校验通过" });
     if (approval.type === "publish") {
       if (target.status !== "approval" || current?.version !== approval.fromVersion) return { ok: false, message: "当前发布版本已变化，原发布审批失效" };
       identifier.versions.forEach(version => { version.latest = false; if (version.status === "current") version.status = "historical"; });
@@ -1280,16 +1295,20 @@
       target.published = stamp;
       target.reminder = reminderLabel(approval.reminderPolicy);
       const previousEvent = activeRelease(identifier);
-      if (previousEvent) { previousEvent.status = "superseded"; previousEvent.rollbackAvailable = false; }
+      if (previousEvent) {
+        previousEvent.status = "superseded";
+        previousEvent.rollbackAvailable = false;
+        setLifecycleFlowStatus(identifier, previousEvent.flowId, previousEvent.action === "rollback" ? "completed" : "superseded");
+      }
       const event = { id: releaseId("REL"), flowId: approval.flowId, action: "publish", fromVersion: current?.version || null, toVersion: target.version, status: "active", reminderPolicy: approval.reminderPolicy, rollbackTargetVersion: current?.version || null, rollbackAvailable: Boolean(current), dingEnabled: approval.dingEnabled, effectiveAt: stamp, operator: approval.submitter, approvalId: approval.id };
       identifier.releaseEvents.unshift(event);
       identifier.currentVersion = target.version;
       identifier.rollbackTargetVersion = current?.version || null;
       identifier.rollbackAvailable = Boolean(current);
-      createDingRecord(identifier, event, approval, "publish");
+      const notice = createDingRecord(identifier, event, approval, "publish");
       addOperation("固件申请", "发布", target.version);
       addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: "publish", flowStatus: "active", fromVersion: current?.version || null, toVersion: target.version, stage: "release", title: "当前发布版本切换", time: stamp, operator: "发布服务", operatorType: "系统", result: "success", summary: `${current?.version || "首次发布"} -> ${target.version}，生成 ${event.id}` });
-      addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: "publish", flowStatus: "active", fromVersion: current?.version || null, toVersion: target.version, stage: "notification", title: approval.dingEnabled ? "发布 DING 发送成功" : "本次不发送 DING", time: stamp, operator: "DING 任务", operatorType: "系统", result: approval.dingEnabled ? "success" : "skipped", summary: approval.dingEnabled ? `实际接收 ${approval.recipientCount} 人` : "已记录 not_required 结果" });
+      addDingHistoryEvent(identifier, event, notice, "publish");
     } else {
       if (!identifier.rollbackAvailable || current?.version !== approval.fromVersion || identifier.rollbackTargetVersion !== target.version) return { ok: false, message: "唯一回滚目标已变化，原回滚审批失效" };
       current.status = "withdrawn";
@@ -1298,15 +1317,20 @@
       target.latest = true;
       target.reminder = reminderLabel(approval.reminderPolicy);
       const previousEvent = activeRelease(identifier);
-      if (previousEvent) { previousEvent.status = "rolled_back"; previousEvent.rollbackAvailable = false; }
+      if (previousEvent) {
+        previousEvent.status = "rolled_back";
+        previousEvent.rollbackAvailable = false;
+        setLifecycleFlowStatus(identifier, previousEvent.flowId, "rolled_back");
+      }
       const event = { id: releaseId("ROLLBACK"), flowId: approval.flowId, action: "rollback", fromVersion: current.version, toVersion: target.version, status: "active", reminderPolicy: approval.reminderPolicy, rollbackTargetVersion: null, rollbackAvailable: false, dingEnabled: approval.dingEnabled, effectiveAt: stamp, operator: approval.submitter, approvalId: approval.id, reason: approval.reason };
       identifier.releaseEvents.unshift(event);
       identifier.currentVersion = target.version;
       identifier.rollbackTargetVersion = null;
       identifier.rollbackAvailable = false;
-      createDingRecord(identifier, event, approval, "rollback");
+      const notice = createDingRecord(identifier, event, approval, "rollback");
       addOperation("固件回滚", "回滚生效", `${current.version} → ${target.version}`);
       addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: "rollback", flowStatus: "active", fromVersion: current.version, toVersion: target.version, stage: "rollback", title: "回滚版本切换成功", time: stamp, operator: "发布服务", operatorType: "系统", result: "success", summary: `${current.version} -> ${target.version}，原发布链路已关闭回滚入口` });
+      addDingHistoryEvent(identifier, event, notice, "rollback");
     }
     identifier.activeApproval = null;
     approval.status = "审批通过";
@@ -1404,13 +1428,11 @@
       state.selectedIdentifier = target.dataset.id;
       state.firmwareTab = "firmware";
       state.filters.lifecycleQuery = "";
-      state.lifecycleStage = "";
-      state.lifecycleResult = "";
-      state.expandedLifecycleFlows = [];
       state.firmwarePage = 1;
       state.differentialTaskPage = 1;
       state.differentialPackagePage = 1;
       state.expandedDifferentialPackages = [];
+      state.expandedLifecycleFlows = [lifecycleFlows(activeIdentifier().lifecycleEvents || []).find(flow => flow.flowStatus === "active")?.flowId].filter(Boolean);
       state.popover = null;
       renderShell();
       return;
@@ -1423,30 +1445,18 @@
       renderShell();
       return;
     }
-    if (action === "lifecycle-view") {
-      state.lifecycleView = target.dataset.view;
-      renderShell();
-      return;
-    }
     if (action === "apply-lifecycle-filter") {
       renderShell();
       return;
     }
     if (action === "reset-lifecycle-filter") {
       state.filters.lifecycleQuery = "";
-      state.lifecycleStage = "";
-      state.lifecycleResult = "";
       renderShell();
       return;
     }
     if (action === "toggle-lifecycle-flow") {
       const flowId = target.dataset.flowId;
       state.expandedLifecycleFlows = state.expandedLifecycleFlows.includes(flowId) ? state.expandedLifecycleFlows.filter(item => item !== flowId) : [...state.expandedLifecycleFlows, flowId];
-      renderShell();
-      return;
-    }
-    if (action === "lifecycle-flow-detail") {
-      state.drawer = { type: "lifecycleFlowDetail", flowId: target.dataset.flowId };
       renderShell();
       return;
     }
@@ -1659,40 +1669,6 @@
       state.errors = {};
       renderShell();
       toast(version.status === "current" ? "APP 更新说明已修订，升级检查缓存已失效" : "回滚目标文案已修订，将在版本重新生效时使用");
-      return;
-    }
-    if (action === "retry-ding") {
-      const notice = db.dingNotices.find(item => item.id === target.dataset.noticeId);
-      if (!notice || !["failed", "partial_failed"].includes(notice.status)) return;
-      notice.status = "sent";
-      notice.attemptCount += 1;
-      notice.sentAt = now();
-      notice.failureReason = "";
-      addOperation("DING 通知", "重试成功", notice.version);
-      persist();
-      renderShell();
-      toast("DING 重试发送成功");
-      return;
-    }
-    if (action === "resend-ding") {
-      state.errors = {};
-      state.modal = { type: "resendDing", noticeId: target.dataset.noticeId, dingScopes: ["dept-firmware", "user-line-owner"] };
-      renderShell();
-      return;
-    }
-    if (action === "confirm-resend-ding") {
-      if (!state.modal.dingScopes.length) { state.errors.dingScopes = "请至少选择一个接收范围"; renderShell(); return; }
-      const original = db.dingNotices.find(item => item.id === state.modal.noticeId);
-      const event = activeIdentifier().releaseEvents.find(item => item.id === original.releaseId);
-      const scopes = dingDirectory.filter(item => state.modal.dingScopes.includes(item.id));
-      const recipients = resolveDingRecipients(state.modal.dingScopes);
-      db.dingNotices.unshift({ id: releaseId("DING-MANUAL"), releaseId: original.releaseId, firmwareId: original.firmwareId, version: original.version, noticeType: "manual_resend", status: "sent", kind: "task", scopes: scopes.map(item => item.id), recipients, messageSnapshot: original.messageSnapshot, createdAt: now(), sentAt: now(), attemptCount: 1, failureReason: "", relatedNoticeId: original.id });
-      addOperation("DING 通知", "人工补发", original.version);
-      persist();
-      state.modal = null;
-      state.errors = {};
-      renderShell();
-      toast(`DING 已补发给 ${recipients.length} 人`);
       return;
     }
     if (action === "publish-version") {
@@ -2144,16 +2120,6 @@
       renderShell();
       return;
     }
-    if (target.dataset.change === "lifecycle-stage") {
-      state.lifecycleStage = target.value;
-      renderShell();
-      return;
-    }
-    if (target.dataset.change === "lifecycle-result") {
-      state.lifecycleResult = target.value;
-      renderShell();
-      return;
-    }
     if (target.dataset.change === "add-locale" && target.value && state.drawer?.appReleaseNotes) {
       state.drawer.appReleaseNotes[target.value] = "";
       state.drawer.activeLocale = target.value;
@@ -2405,10 +2371,11 @@
         oldVersion.associatedFeatures = clone(state.drawer.associatedFeatures || []);
         oldVersion.features = featureConfigs.length;
         oldVersion.updated = now();
+        oldVersion.associatedDeviceCount = associatedDeviceCount(identifier, models);
         oldVersion.recordVersion += 1;
         addOperation("固件版本", "编辑", versionName);
       } else {
-        identifier.versions.unshift({ version: versionName, url: `http://doraemon.camera666.com/${state.upload.name}`, size: state.upload.size, md5: state.upload.md5, models, features: featureConfigs.length, featureConfigs, associatedFeatures: clone(state.drawer.associatedFeatures || []), creator: "汤彦珊", note: platformReleaseNotes, platformReleaseNotes, appReleaseNotes: clone(appReleaseNotes), noteRevisions: [], created: now(), updated: now(), latest: false, status: "unpublished", reminder: "不提醒", recordVersion: 1 });
+        identifier.versions.unshift({ version: versionName, url: `http://doraemon.camera666.com/${state.upload.name}`, size: state.upload.size, md5: state.upload.md5, models, associatedDeviceCount: associatedDeviceCount(identifier, models), features: featureConfigs.length, featureConfigs, associatedFeatures: clone(state.drawer.associatedFeatures || []), creator: "汤彦珊", note: platformReleaseNotes, platformReleaseNotes, appReleaseNotes: clone(appReleaseNotes), noteRevisions: [], created: now(), updated: now(), latest: false, status: "unpublished", reminder: "不提醒", recordVersion: 1 });
         addOperation("固件版本", "新增", versionName);
       }
       persist();

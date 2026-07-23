@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const STORAGE_KEY = "firmware-release-replica-v13-edit-permissions-audit";
+  const STORAGE_KEY = "firmware-release-replica-v14-current-version-delisting";
   const routes = {
     firmware: { title: "固件列表", group: "device" },
     modules: { title: "模组型号", group: "device" },
@@ -14,7 +14,7 @@
   const productLines = ["IPC", "车载", "NVR", "AI玩具", "婴儿看护", "4G模组", "BK系列"];
   const demoBoundDeviceCounts = { "23.110.211": 528, "25.922.219": 1264 };
   const permissionRows = [
-    { menu: "固件管理", page: "固件列表", actions: ["查看固件标识列表", "编辑固件标识", "新增固件标识", "发布固件版本", "回滚固件版本", "维护APP更新说明", "管理DING接收人模板", "发送DING", "撤回DING", "查看发布日志", "查看DING记录", "删除固件标识", "查看版本列表", "新增固件版本", "编辑固件版本", "删除固件版本", "查看在线差分", "新建差分任务", "查看差分包", "下载差分包", "删除差分文件"] },
+    { menu: "固件管理", page: "固件列表", actions: ["查看固件标识列表", "编辑固件标识", "新增固件标识", "发布固件版本", "回滚固件版本", "下架当前发布版本", "维护APP更新说明", "管理DING接收人模板", "发送DING", "撤回DING", "查看发布日志", "查看DING记录", "删除固件标识", "查看版本列表", "新增固件版本", "编辑固件版本", "删除固件版本", "查看在线差分", "新建差分任务", "查看差分包", "下载差分包", "删除差分文件"] },
     { menu: "固件管理", page: "模组型号", actions: ["查看模组型号"] },
     { menu: "日志管理", page: "操作日志", actions: ["查看操作日志"] },
     { menu: "日志管理", page: "审批日志", actions: ["查看审批日志"] },
@@ -70,22 +70,44 @@
   ];
 
   const localeCatalog = [
-    { locale: "zh-CN", label: "简体中文", default: true, required: true },
-    { locale: "en-US", label: "英文", default: true, required: true },
-    { locale: "it-IT", label: "意大利语", default: true },
-    { locale: "ko-KR", label: "韩语", default: true },
-    { locale: "de-DE", label: "德语", default: true },
-    { locale: "ja-JP", label: "日语", default: true },
-    { locale: "fr-FR", label: "法语", default: true },
-    { locale: "ru-RU", label: "俄语", default: true },
-    { locale: "es-ES", label: "西班牙语", default: true },
-    { locale: "pt-BR", label: "葡萄牙语（巴西）", default: false }
+    { locale: "zh", label: "简体中文", required: true, limit: 80 },
+    { locale: "en", label: "英文", required: true, limit: 160 },
+    { locale: "zh_FT", label: "繁体中文", limit: 80 },
+    { locale: "vi", label: "越南语", limit: 160 },
+    { locale: "th", label: "泰语", limit: 160 },
+    { locale: "ja", label: "日语", limit: 80 },
+    { locale: "ko", label: "韩语", limit: 80 },
+    { locale: "ru", label: "俄语", limit: 160 },
+    { locale: "de", label: "德语", limit: 160 },
+    { locale: "fr", label: "法语", limit: 160 },
+    { locale: "es", label: "西班牙语", limit: 160 },
+    { locale: "it", label: "意大利语", limit: 160 },
+    { locale: "nl", label: "荷兰语", limit: 160 },
+    { locale: "pl", label: "波兰语", limit: 160 },
+    { locale: "pt", label: "葡萄牙语", limit: 160 }
   ];
-  const defaultLocaleCatalog = localeCatalog.filter(item => item.default);
-  const defaultLocaleIds = defaultLocaleCatalog.map(item => item.locale);
-  const requiredLocaleIds = defaultLocaleCatalog.filter(item => item.required).map(item => item.locale);
+  const defaultLocaleIds = localeCatalog.map(item => item.locale);
+  const requiredLocaleIds = localeCatalog.filter(item => item.required).map(item => item.locale);
 
-  const compactAppNoteLanguages = ["zh", "ja", "ko"];
+  function canonicalLocale(locale) {
+    const normalized = String(locale || "").trim().replace(/_/g, "-").toLowerCase();
+    if (["zh-ft", "zh-tw", "zh-hk", "zh-hant", "zh-mo"].includes(normalized)) return "zh_FT";
+    if (["zh", "zh-cn", "zh-hans", "zh-sg"].includes(normalized)) return "zh";
+    const base = normalized.split("-")[0];
+    return defaultLocaleIds.includes(base) ? base : null;
+  }
+
+  function normalizeAppNotes(notes = {}) {
+    const normalized = {};
+    Object.entries(notes || {}).forEach(([locale, content]) => {
+      const canonical = canonicalLocale(locale);
+      if (canonical && !(canonical in normalized)) normalized[canonical] = content;
+    });
+    Object.entries(notes || {}).forEach(([locale, content]) => {
+      if (defaultLocaleIds.includes(locale)) normalized[locale] = content;
+    });
+    return normalized;
+  }
 
   const reminderPolicies = [
     { value: "none", label: "不提醒", hint: "APP 不主动展示更新提醒" },
@@ -93,6 +115,205 @@
     { value: "strong", label: "强提醒", hint: "设备卡片下方展示升级横幅" },
     { value: "forced-dialog", label: "强制提醒", hint: "进入页面持续展示升级弹窗" }
   ];
+  const delistReasonTypes = ["固件质量问题", "设备兼容性问题", "升级链路异常", "发布配置错误", "误发布", "安全或合规风险", "业务策略调整", "其他原因"];
+
+  const prototypeRuleCatalog = {
+    identifier: {
+      title: "固件标识与影响范围规则",
+      code: "FID",
+      fr: "FR-01、FR-02、FR-18",
+      rules: [
+        ["FID-R01", "新增固件标识", "数据", "固件标识、所属产品线和关联机型必须完整且固件标识唯一", "创建后形成版本集合的唯一业务归属"],
+        ["FID-R02", "编辑固件标识", "状态", "创建成功后不得修改关联机型，其他字段按权限开放", "历史版本与设备范围口径不漂移"],
+        ["FID-R03", "查看标识概览", "数据", "绑定设备数按标识关联机型去重统计，无设备时展示 0", "可判断标识整体影响规模"],
+        ["FID-R04", "查看版本列表", "数据", "关联设备数按版本适用机型去重统计", "列表与审批预计影响设备口径一致"],
+        ["FID-R05", "查看模组关联固件", "交互", "关联固件数大于零时可返回固件列表并带入筛选", "从模组维度形成查询闭环"],
+        ["FID-R06", "无关联数据", "结果", "数量为零时只展示 0，不提供无效跳转", "区分零值、未知值和不可操作状态"]
+      ]
+    },
+    version: {
+      title: "固件版本创建与编辑规则",
+      code: "VER",
+      fr: "FR-03、FR-04、FR-05、FR-07",
+      rules: [
+        ["VER-R01", "上传固件包", "前置", "仅接收 .bin、.binpkg，解析成功后才能继续配置", "失败文件不能形成版本记录"],
+        ["VER-R02", "配置功能集", "前置", "必须为目录内全部能力选择对应版本", "存在缺项时阻止保存并定位"],
+        ["VER-R03", "添加关联功能", "交互", "使用独立选择弹窗，不与固件标识“更多”复用", "功能选择与标识操作职责不冲突"],
+        ["VER-R04", "保存新版本", "数据", "版本号唯一且适用机型、平台说明、中英文 APP 说明完整", "校验通过后保存为未发布版本"],
+        ["VER-R05", "编辑非当前版本", "权限", "未发布、历史发布和已撤回版本可编辑，审批目标锁定", "编辑范围与版本状态一致"],
+        ["VER-R06", "编辑版本内容", "状态", "不得修改版本号或替换固件包", "历史制品和引用关系稳定"],
+        ["VER-R07", "保存历史修订", "审计", "递增 recordVersion 并保留修改前内容", "历史修订不可覆盖且可追溯"],
+        ["VER-R08", "删除版本", "权限", "仅未发布版本可删除", "已形成业务事实的版本不被移除"]
+      ]
+    },
+    locale: {
+      title: "APP 多语言更新说明规则",
+      code: "LOC",
+      fr: "FR-06、FR-08、FR-09、FR-21",
+      rules: [
+        ["LOC-R01", "进入语言配置", "交互", "固定展示 15 种中文语言名称并支持纵向滚动", "无需增删语言即可访问全部配置"],
+        ["LOC-R02", "保存版本", "前置", "简体中文 zh 和英文 en 必填，其他语言选填", "缺失时阻止保存并定位首个错误"],
+        ["LOC-R03", "输入更新说明", "数据", "中文、繁中、日语、韩语上限 80 字，其他语言 160 字", "超限内容不进入版本或审批快照"],
+        ["LOC-R04", "切换语言", "交互", "保留未保存内容、抽屉状态和列表滚动位置", "连续配置不丢失输入或重开容器"],
+        ["LOC-R05", "APP 获取说明", "结果", "语言未配置或非法时统一使用英文说明", "APP 始终获得可展示内容"],
+        ["LOC-R06", "保存选填语言", "数据", "空选填语言不写入版本和审批快照", "不生成无意义空字段"],
+        ["LOC-R07", "维护当前版本文案", "审计", "仅通过独立入口修改，填写原因并递增 recordVersion", "文案生效但不改变原审批事实"],
+        ["LOC-R08", "读取旧 Locale", "兼容", "旧语言码映射到固定目录，历史快照不改写", "新旧数据可用且历史事实不变"]
+      ]
+    },
+    reminder: {
+      title: "APP 提醒策略规则",
+      code: "REM",
+      fr: "FR-06、FR-09、FR-10、FR-12、FR-14",
+      rules: [
+        ["REM-R01", "提交发布审批", "前置", "必须选择不提醒、弱提醒、强提醒或强制提醒", "未选择时阻止提交"],
+        ["REM-R02", "提交回滚审批", "前置", "回滚必须重新选择提醒方式，不继承原事件", "恢复版本与本次触达策略绑定"],
+        ["REM-R03", "切换提醒策略", "交互", "右侧 APP 模拟器实时展示对应效果", "提交前确认 APP 最终表现"],
+        ["REM-R04", "切换预览语言", "交互", "支持全部 15 种语言并标识英文兜底", "提醒样式与语言内容可组合核对"],
+        ["REM-R05", "保存提醒策略", "数据", "策略写入本次发布或回滚事件", "同一版本多次发布的记录互不污染"]
+      ]
+    },
+    publish: {
+      title: "正常发布规则",
+      code: "PUB",
+      fr: "FR-04、FR-06、FR-07、FR-10、FR-11、FR-13、FR-19、FR-20",
+      rules: [
+        ["PUB-R01", "展示发布入口", "状态", "除当前正式版本外均支持发布，审批目标打开已有审批", "不重复创建审批且入口明确"],
+        ["PUB-R02", "点击发布", "权限", "按页面、操作、数据范围、版本状态和审批锁顺序校验", "不满足时阻止并说明原因"],
+        ["PUB-R03", "提交审批", "前置", "校验固件包、功能集、必填语言、提醒策略和审批并发", "仅完整且无冲突的版本进入审批"],
+        ["PUB-R04", "创建审批", "数据", "冻结 recordVersion、影响设备、能力集、说明和提醒方式", "审批内容与执行内容一一对应"],
+        ["PUB-R05", "审批期间", "状态", "当前版本继续生效，目标版本及其内容锁定", "审批不会提前改变线上版本"],
+        ["PUB-R06", "审批通过", "前置", "服务端复检当前指针、目标、固件包和快照版本号", "条件变化时审批失效"],
+        ["PUB-R07", "执行发布", "结果", "同一事务切换唯一当前版本并生成发布事件和回滚目标", "始终只有一个当前正式版本"],
+        ["PUB-R08", "执行失败", "异常", "整体回退且当前版本不变，不自动重试", "不产生双当前或半条事件"],
+        ["PUB-R09", "审批驳回或失效", "状态", "恢复目标提交前真实状态并解除锁定", "历史、已撤回和未发布状态不被误改"],
+        ["PUB-R10", "发布完成", "结果", "DING 不自动发送，仅开放独立入口", "发布事务与通知结果解耦"]
+      ]
+    },
+    rollback: {
+      title: "固件回滚规则",
+      code: "RBK",
+      fr: "FR-09、FR-12、FR-13、FR-19、FR-20",
+      rules: [
+        ["RBK-R01", "展示回滚入口", "状态", "仅当前正常发布事件存在唯一前序且未回滚时展示", "不能任意选择历史版本或连续回滚"],
+        ["RBK-R02", "点击撤销并回滚", "前置", "无发布或回滚审批，原 DING 不处于进行中", "避免版本与通知并发冲突"],
+        ["RBK-R03", "填写回滚信息", "交互", "展示关键差异，重新选择提醒并填写最多 500 字原因", "明确恢复目标和影响"],
+        ["RBK-R04", "提交回滚", "权限", "所有回滚统一创建钉钉审批", "高风险切换具有审批依据"],
+        ["RBK-R05", "审批期间", "状态", "当前版本继续生效，同一标识发布与回滚锁定", "线上状态在审批结束前不变化"],
+        ["RBK-R06", "审批通过", "前置", "复检当前指针、唯一目标、固件包和审批快照", "条件变化时不执行错误恢复"],
+        ["RBK-R07", "执行回滚", "结果", "原子恢复前序版本，问题版本标记已撤回并关闭入口", "形成唯一可追溯的恢复结果"],
+        ["RBK-R08", "执行失败", "异常", "整体回退且当前版本不变，不自动重试", "不留下部分恢复状态"],
+        ["RBK-R09", "回滚完成", "结果", "回滚 DING 固定不适用，不自动处置原 DING", "回滚结果不受通知服务影响"]
+      ]
+    },
+    ding: {
+      title: "独立 DING 通知规则",
+      code: "DING",
+      fr: "FR-05、FR-12、FR-13、FR-20",
+      rules: [
+        ["DING-R01", "展示发送入口", "状态", "仅当前正常发布事件且未创建任务时展示", "回滚、历史和已替代事件不可发送"],
+        ["DING-R02", "打开发送弹窗", "数据", "接收模板只负责预填，不代表默认开启", "每次发送确认实际接收人"],
+        ["DING-R03", "选择接收范围", "交互", "通过组织树选择组织、部门或成员", "范围可理解、调整和核对"],
+        ["DING-R04", "发送预览", "数据", "自动读取发布事件、平台说明和功能集", "消息与已生效发布事实一致"],
+        ["DING-R05", "确认发送", "前置", "展示版本、生效时间、人数、接收人和消息并二次确认", "降低误发风险"],
+        ["DING-R06", "创建任务", "幂等", "每个 releaseId 最多创建一个发送任务", "重复点击不产生多条通知"],
+        ["DING-R07", "发送失败或部分失败", "结果", "保存终态，不允许重试、补发或重建", "通知历史唯一且可审计"],
+        ["DING-R08", "撤回原消息", "权限", "仅成功或部分成功消息可撤回，填写原因并二次确认", "撤回具有明确对象和依据"],
+        ["DING-R09", "撤回失败", "异常", "只允许针对同一原消息重试撤回", "不突破发送一次限制"],
+        ["DING-R10", "回滚后处理原 DING", "状态", "在当前版本区域展示原通知状态和可用操作", "通知处置独立于回滚结果"]
+      ]
+    },
+    detail: {
+      title: "当前版本与版本详情规则",
+      code: "DET",
+      fr: "FR-08、FR-12、FR-13、FR-15、FR-20",
+      rules: [
+        ["DET-R01", "查看当前版本", "数据", "聚合版本、来源、生效、提醒、机型、DING 和文件信息", "无需跨页面判断当前状态"],
+        ["DET-R02", "当前版本操作", "状态", "只展示当前可用的详情、回滚、发送或撤回操作", "禁用操作具有明确原因"],
+        ["DET-R03", "打开版本详情", "交互", "同一详情抽屉承载六类页签", "关联记录保持同一版本上下文"],
+        ["DET-R04", "切换详情页签", "交互", "只替换抽屉内部内容，不关闭或重开", "切换稳定且不丢失位置"],
+        ["DET-R05", "查看详情记录", "数据", "使用版本和事件关联标识查询", "不串联其他版本或事件数据"]
+      ]
+    },
+    releaseLog: {
+      title: "发布日志规则",
+      code: "RLG",
+      fr: "FR-14、FR-20",
+      rules: [
+        ["RLG-R01", "进入发布日志", "数据", "按日期分组，同日多个发布、回滚或下架事件独立展示", "高频操作时链路仍可区分"],
+        ["RLG-R02", "查看事件摘要", "数据", "默认展示版本变化、状态、生效时间和操作人", "首屏只呈现焦点信息"],
+        ["RLG-R03", "展开事件", "交互", "当前页面按时间节点展开审批、执行、结果和通知", "无需跳转即可理解链路"],
+        ["RLG-R04", "查询事件", "交互", "支持版本号、操作人和时间组合查询", "快速定位具体事件"],
+        ["RLG-R05", "页面操作边界", "权限", "发布日志保持只读，不提供 DING 或其他写操作", "历史追溯页不承担执行职责"],
+        ["RLG-R06", "事件命名", "交互", "模块统一命名为发布日志", "页面名称与数据范围一致"]
+      ]
+    },
+    differential: {
+      title: "4G 模组在线差分规则",
+      code: "DIF",
+      fr: "FR-16、FR-17、FR-19、FR-20",
+      rules: [
+        ["DIF-R01", "展示差分页签", "权限", "仅 4G 模组产品线及授权角色可见", "其他产品线无无效入口"],
+        ["DIF-R02", "新建差分任务", "前置", "名称不超过 50 字，目标单选，源版本多选", "输入结构明确且可校验"],
+        ["DIF-R03", "选择版本", "数据", "源版本不得包含目标，模组型号自动带出", "避免自差分和型号错配"],
+        ["DIF-R04", "查看任务结果", "数据", "展示状态、成功率、包数和逐源失败原因", "可判断每条差分结果"],
+        ["DIF-R05", "差分任务失败", "状态", "不在原任务上重试，需要新建任务", "历史输入和失败事实不覆盖"],
+        ["DIF-R06", "查看差分包", "交互", "按目标版本聚合并下拉展示源版本明细", "多包数据清晰可追溯"],
+        ["DIF-R07", "删除差分包", "前置", "删除前二次确认，删除后新 OTA 任务不可选择", "防止误删并明确后续影响"],
+        ["DIF-R08", "已引用差分包", "结果", "删除不影响 OTA 已创建任务", "既有任务执行事实稳定"]
+      ]
+    },
+    audit: {
+      title: "权限与审计规则",
+      code: "AUD",
+      fr: "FR-19、FR-20、FR-22",
+      rules: [
+        ["AUD-R01", "执行写操作", "权限", "服务端按页面、操作、数据范围、版本状态和审批锁校验", "前端隐藏按钮不是安全边界"],
+        ["AUD-R02", "权限不足或状态冲突", "审计", "阻止操作并记录操作人、资源、结果和原因", "失败及被阻止行为可追溯"],
+        ["AUD-R03", "版本及通知操作", "审计", "版本、发布、回滚、文案、DING 和差分操作全部记录", "关键写操作无审计空白"],
+        ["AUD-R04", "角色与用户配置", "审计", "记录变更前后角色、数据范围、审批范围和操作人", "权限变化具有完整依据"],
+        ["AUD-R05", "记录审批状态", "数据", "发布、回滚和下架覆盖审批中、通过、驳回和失效", "审批结果可查询并关联事件"],
+        ["AUD-R06", "跨日志查询", "数据", "使用固件、版本、审批、流程、发布和 DING 标识关联", "三类日志可互相追溯"],
+        ["AUD-R07", "提供模拟数据", "验收", "七类角色、不同产线、正反向权限和日志状态均有 mock", "可直接验证授权边界"]
+      ]
+    },
+    concurrency: {
+      title: "并发、幂等与异常规则",
+      code: "CON",
+      fr: "FR-06、FR-07、FR-10、FR-11、FR-12、FR-13、FR-21",
+      rules: [
+        ["CON-R01", "同一标识已有审批", "并发", "阻止创建第二张发布、回滚或下架审批", "同一标识只有一条有效审批链路"],
+        ["CON-R02", "重复点击审批目标发布", "幂等", "打开已有审批，不重复提交", "不产生重复审批单"],
+        ["CON-R03", "审批期间目标被修改", "异常", "目标锁定，检测到异常修改则审批失效", "执行内容不偏离快照"],
+        ["CON-R04", "审批通过时当前版本变化", "异常", "复检失败并使审批失效", "不覆盖新形成的当前版本"],
+        ["CON-R05", "发布或回滚部分失败", "事务", "整体回滚", "不留下双当前或半条事件"],
+        ["CON-R06", "历史或已撤回版本审批驳回", "状态", "恢复提交前真实状态", "不统一降级为未发布"],
+        ["CON-R07", "DING 重复点击", "幂等", "以 releaseId 幂等，只允许一个任务", "同一事件最多发送一次"],
+        ["CON-R08", "DING 发送失败", "结果", "保存终态，不支持重试或补发", "通知记录唯一且不可覆盖"],
+        ["CON-R09", "DING 撤回失败", "异常", "只允许重试撤回原消息", "不创建第二条通知"],
+        ["CON-R10", "原 DING 进行中", "并发", "暂时阻止回滚，等待终态", "避免通知和版本处置冲突"],
+        ["CON-R11", "APP 语言未配置", "兜底", "统一使用英文说明", "APP 始终有可用内容"],
+        ["CON-R12", "旧 Locale 数据", "兼容", "映射到固定目录且历史快照不改写", "新旧版本兼容且历史不变"]
+      ]
+    },
+    delist: {
+      title: "当前发布版本下架规则",
+      code: "DEL",
+      fr: "FR-23、FR-24、FR-25",
+      rules: [
+        ["DEL-R01", "展示下架入口", "状态", "仅当前正式发布版本展示下架入口", "历史、未发布和已下架版本不能直接下架"],
+        ["DEL-R02", "点击下架", "前置", "校验当前版本、审批锁及原 DING 任务状态", "避免并发操作造成状态冲突"],
+        ["DEL-R03", "展示影响快照", "数据", "展示当前版本、机型、设备数、生效时间和结果边界", "提交前明确下架对象与影响"],
+        ["DEL-R04", "填写下架原因", "交互", "原因类型单选，具体说明必填 10 至 500 字", "形成结构化且可审计的下架依据"],
+        ["DEL-R05", "提交下架审批", "审批", "所有下架统一创建钉钉审批且不自动发送 DING", "高风险停止分发具有审批依据"],
+        ["DEL-R06", "审批期间", "状态", "当前版本继续生效，同一标识其他发布、回滚和下架锁定", "审批结束前线上状态不变化"],
+        ["DEL-R07", "审批通过", "前置", "复检当前版本、记录版本及审批快照后原子执行", "条件变化时审批失效且不清空当前版本"],
+        ["DEL-R08", "下架成功", "结果", "清空当前发布指针但保留固件包，不自动恢复历史版本", "允许明确的暂无当前发布版本状态"],
+        ["DEL-R09", "处理原发布 DING", "通知", "下架不自动发送或撤回 DING，可撤回时提供独立入口", "通知处置与下架结果相互独立"],
+        ["DEL-R10", "重新发布已下架版本", "状态", "已下架版本允许编辑、查看和重新发起发布审批，不允许删除", "版本可再次使用且历史事实不被删除"]
+      ]
+    }
+  };
 
   const dingOrganizationTree = [
     {
@@ -141,7 +362,7 @@
 
   const baseVersions = [
     { version: "23.110.211.13", url: "http://doraemon.camera666.com/firmware_VP_OTA_23.110.211.13_20260630_141359_1783931459.bin", size: "7.07", models: "QD20-DK", features: 4, creator: "刘林胶", note: "更新内容：1.修复已知问题 2.增加MQTT重新获取新的尚云uid 3.更新新的升级方式 4.同步最新代码", updated: "2026-07-13 16:30:59", latest: true, reminder: "不提醒" },
-    { version: "23.110.211.99", url: "http://doraemon.camera666.com/firmware_VP_OTA_23.110.211.99_20260630_140504_1782876814.bin", size: "7.07", models: "QD20", features: 4, featureConfigs: featureCatalog.map(item => configFromCatalog(item)), creator: "张元/Alice", note: "弱网稳定性优化与升级链路修复", platformReleaseNotes: "弱网稳定性优化与升级链路修复", appReleaseNotes: { "zh-CN": "提升弱网环境下的连接稳定性。", "en-US": "Improve connection stability on weak networks." }, updated: "2026-07-21 15:56:20", latest: false, status: "approval", reminder: "弱提醒", recordVersion: 1 },
+    { version: "23.110.211.99", url: "http://doraemon.camera666.com/firmware_VP_OTA_23.110.211.99_20260630_140504_1782876814.bin", size: "7.07", models: "QD20", features: 4, featureConfigs: featureCatalog.map(item => configFromCatalog(item)), creator: "张元/Alice", note: "弱网稳定性优化与升级链路修复", platformReleaseNotes: "弱网稳定性优化与升级链路修复", appReleaseNotes: { zh: "提升弱网环境下的连接稳定性。", en: "Improve connection stability on weak networks." }, updated: "2026-07-21 15:56:20", latest: false, status: "unpublished", reminder: "弱提醒", recordVersion: 1 },
     { version: "23.110.211.12", url: "http://doraemon.camera666.com/firmware_VP_OTA_23.110.211.12_20260520_103629_1779516160.bin", size: "7.17", models: "QD20-DK", features: 4, creator: "管理员", note: "1", updated: "2026-05-23 14:02:40", latest: false, reminder: "不提醒" },
     { version: "23.110.211.22", url: "http://doraemon.camera666.com/firmware_VP_OTA_23.110.211.22_20260518_150508_1779154483.bin", size: "6.86", models: "QD20", features: 4, creator: "管理员", note: "1", updated: "2026-05-19 09:34:43", latest: false, reminder: "不提醒" },
     { version: "23.110.211.10", url: "http://doraemon.camera666.com/firmware_VP_OTA_23.110.211.10_20260306_174532_1773372751.bin", size: "7.26", models: "qd20-dk", features: 0, creator: "管理员", note: "1", updated: "2026-03-13 11:32:31", latest: false, reminder: "不提醒" },
@@ -232,7 +453,7 @@
 
   const seed = {
     identifiers: [
-      { id: "23.110.211", product: "IPC", created: "2025-11-28 00:37:53", models: "QD20-DK", network: "仅4G", power: "常电", architecture: "新架构", versions: baseVersions, activeApproval: { approvalId: "APR-MOCK-PUB-2399", type: "publish", version: "23.110.211.99" } },
+      { id: "23.110.211", product: "IPC", created: "2025-11-28 00:37:53", models: "QD20-DK", network: "仅4G", power: "常电", architecture: "新架构", versions: baseVersions },
       { id: "25.921.219", product: "4G模组", created: "2026-04-21 18:20:12", models: "SY278SAEC", network: "仅4G", power: "常电", architecture: "新架构", versions: [] },
       differentialDemoIdentifier(),
       ...["23.100.111", "23.210.211", "23.120.211", "23.322.219", "23.220.211", "23.110.315", "23.120.304", "23.202.111", "23.203.111", "22.211.109", "23.303.111", "23.312.211", "22.111.109", "23.100.105", "20.190.350", "23.212.211", "23.422.209", "10.187.123", "23.412.219", "23.200.105", "23.403.119", "23.421.209", "23.320.239", "23.130.113", "26.221.201", "23.110.213", "23.230.111", "20.129.257", "20.322.109"].map((id, index) => ({
@@ -245,6 +466,9 @@
         architecture: "新架构",
         versions: [{ version: `${id}.1`, url: `http://doraemon.camera666.com/firmware_${id}.1_demo.bin`, size: "7.12", models: index % 3 === 0 ? "QD20" : "A9-Pro", features: 2, creator: "管理员", note: "稳定版本", updated: "2026-06-18 14:30:00", latest: true, reminder: "不提醒" }]
       }))
+    ],
+    dingNotices: [
+      { id: "DING-MOCK-1313", releaseId: "REL-INIT-1", firmwareId: "23.110.211", version: "23.110.211.13", noticeType: "publish", status: "sent", kind: "task", scopes: ["user-line-owner", "user-fw-liu", "user-fw-tang"], recipients: ["彭冬柏", "刘林胶", "汤彦珊"], messageSnapshot: "[固件发布] 23.110.211 23.110.211.12 -> 23.110.211.13\n更新内容：修复已知问题并优化升级链路\n功能集：4 项", createdAt: "2026-07-14 18:45:00", sentAt: "2026-07-14 18:45:02", attemptCount: 1, failureReason: "", recallStatus: "not_requested", recallAttempts: 0, recalledAt: "-", recalledBy: "-", recallReason: "", recallFailureReason: "" }
     ],
     modules: [
       { model: "SY278SEEC", soc: "EC716E", linkedIdentifiers: [], tool: "FotaToolkit_V3.6.4.0", config: "ec716e", created: "2026-04-21 15:44:54" },
@@ -283,7 +507,7 @@
       return { time, user, role, module, action, resource, result, description: detailed ? description : `${action}${module}: [${resource}]` };
     }),
     approvals: [
-      ["23.110.211.99", "正常发布", "彭冬柏", "2026-07-21 15:56:20", "-", "审批中", "-", "版本快照 R1 已锁定，审批期间不可编辑"],
+      ["23.110.211.99", "正常发布", "彭冬柏", "2026-07-21 15:56:20", "IPC 产品线负责人", "审批驳回", "2026-07-21 16:08:20", "测试范围未覆盖完整，目标版本保持未发布"],
       ["23.110.211.12", "版本回滚", "汤彦珊", "2026-07-21 14:20:08", "彭冬柏", "审批通过", "2026-07-21 14:28:36", "线上连接异常，恢复上一个稳定版本；回滚不发送 DING"],
       ["23.110.211.60", "正常发布", "刘林胶", "2026-07-20 18:05:12", "彭冬柏", "审批驳回", "2026-07-20 18:16:04", "测试报告缺少弱网场景验证"],
       ["31.120.200.4", "阮天丽", "2026-07-14 22:06:22", "彭冬柏", "审批通过", "2026-07-14 22:10:30"],
@@ -332,7 +556,7 @@
     ].map(([name, role, lines, created]) => ({ name, role, lines: [...lines], created, approverLines: role === "产线主管" ? [...lines] : [], note: role })),
     roles: [
       { name: "系统管理员", users: 16, created: "2025-12-24 14:48:27", note: "全部产线与全部管理权限", default: true, scope: "全部产线", permissions: {} },
-      { name: "产线主管", users: 8, created: "2026-01-08 09:22:10", note: "负责所属产线发布、回滚、通知与审批查看", scope: "用户所属产线", permissions: {} },
+      { name: "产线主管", users: 8, created: "2026-01-08 09:22:10", note: "负责所属产线发布、回滚、下架、通知与审批查看", scope: "用户所属产线", permissions: {} },
       { name: "测试人员", users: 5, created: "2026-01-12 10:10:10", note: "维护待发布、历史及已撤回版本，不具备发布和回滚权限", scope: "用户所属产线", permissions: {} },
       { name: "默认人员", users: 86, created: "2025-12-24 14:48:27", note: "只读查看固件与模组信息", scope: "用户所属产线", permissions: {} },
       { name: "FAE技术支持组长", users: 4, created: "2026-04-23 17:29:37", note: "查看版本、发布日志、DING 记录与操作日志", scope: "用户所属产线", permissions: {} },
@@ -346,10 +570,10 @@
   function initialLifecycleEvents(identifier, legacyCurrent, legacyRollbackTarget, identifierIndex) {
     if (identifier.id === "23.110.211") {
       return [
-        { id: "EVT-MOCK-2399-01", flowId: "FLOW-MOCK-PUB-2399", flowType: "publish", flowStatus: "pending", fromVersion: "23.110.211.13", toVersion: "23.110.211.99", stage: "approval", title: "提交发布审批", time: "2026-07-21 15:56:20", operator: "彭冬柏", operatorType: "用户", result: "success", summary: "审批快照 R1 已锁定，目标版本在审批完成前不可编辑" },
         { id: "EVT-1313-01", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "approval", title: "提交发布审批", time: "2026-07-14 18:16:22", operator: "刘林胶", operatorType: "用户", result: "success", summary: "审批快照已锁定，审批期间当前发布版本保持不变" },
         { id: "EVT-1313-02", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "approval", title: "发布审批通过", time: "2026-07-14 18:41:18", operator: "彭冬柏", operatorType: "钉钉审批", result: "success", summary: "审批回调与版本快照校验通过" },
         { id: "EVT-1313-03", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "release", title: "当前发布版本切换", time: "2026-07-14 18:41:21", operator: "发布服务", operatorType: "系统", result: "success", summary: "23.110.211.12 -> 23.110.211.13，系统内仅保留一个当前发布版本" },
+        { id: "EVT-1313-04", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "notification", title: "发布 DING 发送结果", time: "2026-07-14 18:45:02", operator: "DING 任务", operatorType: "系统", result: "success", summary: "实际接收 3 人；该事件不可再次发送" },
         { id: "EVT-1499-01", flowId: "FLOW-PUB-20260714-1499", flowType: "publish", flowStatus: "rejected", fromVersion: "23.110.211.12", toVersion: "23.110.211.99", stage: "approval", title: "提交发布审批", time: "2026-07-14 16:20:05", operator: "张元/Alice", operatorType: "用户", result: "success", summary: "目标版本 23.110.211.99，当前发布版本保持不变" },
         { id: "EVT-1499-02", flowId: "FLOW-PUB-20260714-1499", flowType: "publish", flowStatus: "rejected", fromVersion: "23.110.211.12", toVersion: "23.110.211.99", stage: "approval", title: "发布审批驳回", time: "2026-07-14 16:50:42", operator: "彭冬柏", operatorType: "钉钉审批", result: "rejected", summary: "适用机型范围与本次发布计划不一致，版本未生效" },
         { id: "EVT-1422-01", flowId: "FLOW-PUB-20260714-1422", flowType: "publish", flowStatus: "failed", fromVersion: "23.110.211.12", toVersion: "23.110.211.22", stage: "approval", title: "提交发布审批", time: "2026-07-14 14:00:10", operator: "汤彦珊", operatorType: "用户", result: "success", summary: "审批快照已锁定，目标版本 23.110.211.22" },
@@ -399,10 +623,11 @@
         if (!version.platformReleaseNotes) version.platformReleaseNotes = version.note && version.note !== "-" ? version.note : "稳定性优化与已知问题修复";
         if (!version.appReleaseNotes || typeof version.appReleaseNotes !== "object") {
           version.appReleaseNotes = {
-            "zh-CN": version.note && version.note !== "-" ? version.note : "提升设备连接稳定性并修复已知问题。",
-            "en-US": "Improve device connection stability and fix known issues."
+            zh: version.note && version.note !== "-" ? version.note : "提升设备连接稳定性并修复已知问题。",
+            en: "Improve device connection stability and fix known issues."
           };
         }
+        version.appReleaseNotes = normalizeAppNotes(version.appReleaseNotes);
         if (!Array.isArray(version.noteRevisions)) version.noteRevisions = [];
         if (!version.status) {
           if (version === legacyCurrent) version.status = "current";
@@ -415,7 +640,7 @@
         if (!Number.isFinite(Number(version.associatedDeviceCount))) version.associatedDeviceCount = associatedDeviceCount(identifier, version.models);
         version.associatedDeviceCount = Number(version.associatedDeviceCount);
       });
-      if (!identifier.currentVersion && legacyCurrent) identifier.currentVersion = legacyCurrent.version;
+      if (identifier.currentVersion === undefined && legacyCurrent) identifier.currentVersion = legacyCurrent.version;
       if (identifier.rollbackTargetVersion === undefined) identifier.rollbackTargetVersion = legacyRollbackTarget?.version || null;
       if (identifier.rollbackAvailable === undefined) identifier.rollbackAvailable = Boolean(legacyCurrent && legacyRollbackTarget);
       if (!Array.isArray(identifier.releaseEvents)) identifier.releaseEvents = [];
@@ -434,6 +659,7 @@
         });
       }
       if (identifier.activeApproval === undefined) identifier.activeApproval = null;
+      if (identifier.lastDelisted === undefined) identifier.lastDelisted = null;
       if (!identifier.dingDefaults) identifier.dingDefaults = { scopes: ["dept-firmware", "user-line-owner"], source: "product" };
       identifier.dingDefaults.scopes = normalizeDingScopeIds(identifier.dingDefaults.scopes || []);
       delete identifier.dingDefaults.enabled;
@@ -443,7 +669,9 @@
           event.flowId = identifier.lifecycleEvents.find(item => item.flowStatus === "active" && item.toVersion === event.toVersion)?.flowId || `FLOW-LEGACY-${identifierIndex + 1}-${event.toVersion}`;
         }
       });
-      const canonicalActiveEvent = identifier.releaseEvents.find(event => event.status === "active" && event.toVersion === identifier.currentVersion) || identifier.releaseEvents.find(event => event.status === "active");
+      const canonicalActiveEvent = identifier.currentVersion
+        ? identifier.releaseEvents.find(event => event.status === "active" && event.toVersion === identifier.currentVersion) || identifier.releaseEvents.find(event => event.status === "active")
+        : null;
       identifier.releaseEvents.forEach(event => {
         if (canonicalActiveEvent && event.id !== canonicalActiveEvent.id && event.status === "active") {
           event.status = canonicalActiveEvent.action === "rollback" && canonicalActiveEvent.fromVersion === event.toVersion ? "rolled_back" : "superseded";
@@ -462,7 +690,7 @@
         if (version.version === identifier.currentVersion) { version.status = "current"; version.latest = true; }
         else if (version.status === "current") { version.status = "historical"; version.latest = false; }
       });
-      if (!identifier.versions.some(version => version.version === identifier.rollbackTargetVersion)) {
+      if (!identifier.currentVersion || !identifier.versions.some(version => version.version === identifier.rollbackTargetVersion)) {
         identifier.rollbackTargetVersion = null;
         identifier.rollbackAvailable = false;
       }
@@ -537,6 +765,9 @@
     loggedOut: false,
     modal: null,
     drawer: null,
+    rulePanel: null,
+    ruleId: null,
+    ruleAnchor: null,
     popover: null,
     density: "default",
     firmwarePage: 1,
@@ -571,6 +802,103 @@
 
   function esc(value) {
     return String(value ?? "").replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);
+  }
+
+  function findPrototypeRule(context, ruleId) {
+    const group = prototypeRuleCatalog[context];
+    if (!group) return null;
+    return group.rules.find(rule => rule[0] === ruleId) || null;
+  }
+
+  const prototypeRuleSequence = Object.values(prototypeRuleCatalog)
+    .flatMap(group => group.rules.map(rule => rule[0]));
+
+  function rulePinNumber(ruleId) {
+    const index = prototypeRuleSequence.indexOf(ruleId);
+    return index >= 0 ? index + 1 : "?";
+  }
+
+  function rulePinButton(context, ruleId, index = 0) {
+    const rule = findPrototypeRule(context, ruleId);
+    if (!rule) return "";
+    const selected = state.rulePanel === context && state.ruleId === ruleId;
+    const [, operation, , requirement] = rule;
+    return `<button class="rule-annotation ${selected ? "active" : ""}" style="--rule-pin-offset:${-10 - index * 18}px" type="button" data-action="open-rule-panel" data-rule-context="${esc(context)}" data-rule-id="${esc(ruleId)}" title="${esc(`${ruleId} · ${operation}：${requirement}`)}" aria-label="查看批注 ${esc(ruleId)}：${esc(operation)}" aria-expanded="${selected}">${rulePinNumber(ruleId)}</button>`;
+  }
+
+  function rulePoint(context) {
+    const group = prototypeRuleCatalog[context];
+    return group?.rules[0] ? ruleAnnotation(context, group.rules[0][0]) : "";
+  }
+
+  function ruleAnnotation(context, ruleId) {
+    const pin = rulePinButton(context, ruleId);
+    return pin ? `<span class="rule-annotation-group" aria-label="当前操作批注">${pin}</span>` : "";
+  }
+
+  function ruleAnnotations(items, className = "") {
+    const valid = items.filter(([context, ruleId]) => findPrototypeRule(context, ruleId));
+    return valid.length ? `<span class="rule-annotation-group ${esc(className)}" aria-label="当前操作批注，共 ${valid.length} 条">${valid.map(([context, ruleId], index) => rulePinButton(context, ruleId, index)).join("")}</span>` : "";
+  }
+
+  function annotatedLabel(label, items, className = "") {
+    return `<span class="annotated-label ${esc(className)}"><span>${esc(label)}</span>${ruleAnnotations(items)}</span>`;
+  }
+
+  function rulePointGroup(contexts) {
+    const valid = [...new Set(contexts.filter(context => prototypeRuleCatalog[context]))];
+    return valid.length ? `<div class="rule-point-group" aria-label="本操作关联需求规则">${valid.map(rulePoint).join("")}</div>` : "";
+  }
+
+  function ruleContextBar(contexts) {
+    return "";
+  }
+
+  function renderRulePanel() {
+    const group = prototypeRuleCatalog[state.rulePanel];
+    const selectedRule = group && state.ruleId ? findPrototypeRule(state.rulePanel, state.ruleId) : null;
+    if (!group || !selectedRule) return "";
+    const [code, operation, type, requirement, expected] = selectedRule;
+    const anchor = state.ruleAnchor || { left: 12, top: 12 };
+    return `<aside class="rule-popover" role="dialog" aria-modal="false" aria-label="批注 ${esc(code)}" style="left:${anchor.left}px;top:${anchor.top}px"><header><span class="rule-popover-pin" aria-hidden="true">${rulePinNumber(code)}</span><div><strong>${esc(code)}</strong><span>${esc(group.title)}</span></div><button class="close-btn" data-action="close-rule-panel" aria-label="关闭批注">×</button></header><div class="rule-popover-body"><span class="rule-popover-type">${esc(type)}</span><dl><div><dt>操作节点</dt><dd>${esc(operation)}</dd></div><div><dt>规则要求</dt><dd>${esc(requirement)}</dd></div><div><dt>预期结果</dt><dd>${esc(expected)}</dd></div></dl></div></aside>`;
+  }
+
+  function calculateRulePopoverPosition(anchorRect) {
+    const gutter = 12;
+    const width = Math.min(356, window.innerWidth - gutter * 2);
+    const estimatedHeight = Math.min(340, window.innerHeight - gutter * 2);
+    let left = anchorRect.right + 10;
+    if (left + width > window.innerWidth - gutter) left = anchorRect.left - width - 10;
+    left = Math.max(gutter, Math.min(left, window.innerWidth - width - gutter));
+    const top = Math.max(gutter, Math.min(anchorRect.top - 16, window.innerHeight - estimatedHeight - gutter));
+    return { left: Math.round(left), top: Math.round(top) };
+  }
+
+  function positionRulePopover(anchorRect) {
+    const popover = app.querySelector(".rule-popover");
+    if (!popover) return;
+    const gutter = 12;
+    const rect = popover.getBoundingClientRect();
+    let left = anchorRect.right + 10;
+    if (left + rect.width > window.innerWidth - gutter) left = anchorRect.left - rect.width - 10;
+    left = Math.max(gutter, Math.min(left, window.innerWidth - rect.width - gutter));
+    let top = anchorRect.top - 16;
+    if (top + rect.height > window.innerHeight - gutter) top = window.innerHeight - rect.height - gutter;
+    top = Math.max(gutter, top);
+    popover.style.left = `${Math.round(left)}px`;
+    popover.style.top = `${Math.round(top)}px`;
+    state.ruleAnchor = { left: Math.round(left), top: Math.round(top) };
+  }
+
+  function dismissRulePopover() {
+    state.rulePanel = null;
+    state.ruleId = null;
+    state.ruleAnchor = null;
+    app.querySelector(".rule-popover")?.remove();
+    app.querySelectorAll(".rule-annotation.active").forEach(item => {
+      item.classList.remove("active");
+      item.setAttribute("aria-expanded", "false");
+    });
   }
 
   function now() {
@@ -669,7 +997,7 @@
   }
 
   function versionStatusLabel(status) {
-    return ({ unpublished: "未发布", approval: "发布审批中", current: "当前发布", historical: "历史发布", withdrawn: "已撤销" })[status] || "未发布";
+    return ({ unpublished: "未发布", approval: "发布审批中", current: "当前发布", historical: "历史发布", withdrawn: "已撤销", delisted: "已下架" })[status] || "未发布";
   }
 
   function reminderLabel(value) {
@@ -677,15 +1005,12 @@
   }
 
   function localeName(locale) {
-    return localeCatalog.find(item => item.locale === locale)?.label || locale;
+    const canonical = canonicalLocale(locale);
+    return localeCatalog.find(item => item.locale === canonical)?.label || locale;
   }
 
   function appNoteDraft(notes = {}) {
-    return { ...Object.fromEntries(defaultLocaleIds.map(locale => [locale, ""])), ...clone(notes || {}) };
-  }
-
-  function isDefaultLocale(locale) {
-    return defaultLocaleIds.includes(locale);
+    return { ...Object.fromEntries(defaultLocaleIds.map(locale => [locale, ""])), ...normalizeAppNotes(clone(notes || {})) };
   }
 
   function isRequiredLocale(locale) {
@@ -693,7 +1018,7 @@
   }
 
   function configuredAppNotes(notes = {}) {
-    return Object.fromEntries(Object.entries(notes)
+    return Object.fromEntries(Object.entries(normalizeAppNotes(notes))
       .map(([locale, content]) => [locale, String(content || "").trim()])
       .filter(([locale, content]) => content || isRequiredLocale(locale)));
   }
@@ -710,11 +1035,12 @@
       status.className = configured ? "configured" : "optional";
     }
     const summary = app.querySelector(".app-note-section-bar .subtle");
-    if (summary) summary.textContent = `简体中文和英文固定必填；已配置 ${configuredDefaultLocaleCount(notes)} / ${defaultLocaleIds.length} 种默认语言；中日韩80字，其他语言160字符`;
+    if (summary) summary.textContent = `已配置 ${configuredDefaultLocaleCount(notes)} / ${defaultLocaleIds.length}；简体中文、英文必填`;
   }
 
   function appNoteLimit(locale) {
-    return compactAppNoteLanguages.includes(String(locale || "").split("-")[0].toLowerCase()) ? 80 : 160;
+    const canonical = canonicalLocale(locale);
+    return localeCatalog.find(item => item.locale === canonical)?.limit || 160;
   }
 
   function appNoteWithinLimit(locale, content) {
@@ -722,8 +1048,13 @@
   }
 
   function appNoteForLocale(version, locale) {
-    const notes = version?.appReleaseNotes || {};
-    return notes[locale] || notes["en-US"] || notes["zh-CN"] || "";
+    const notes = normalizeAppNotes(version?.appReleaseNotes || {});
+    const canonical = canonicalLocale(locale) || "en";
+    return {
+      content: notes[canonical] || notes.en || notes.zh || "",
+      fallback: !notes[canonical] && canonical !== "en" && Boolean(notes.en),
+      sourceLocale: notes[canonical] ? canonical : notes.en ? "en" : "zh"
+    };
   }
 
   function previewSnippet(content, length) {
@@ -740,7 +1071,10 @@
   }
 
   function activeRelease(identifier = activeIdentifier()) {
-    return identifier?.releaseEvents.find(event => event.status === "active") || identifier?.releaseEvents[0] || null;
+    if (!identifier?.currentVersion) return null;
+    return identifier.releaseEvents.find(event => event.status === "active" && event.toVersion === identifier.currentVersion)
+      || identifier.releaseEvents.find(event => event.status === "active")
+      || null;
   }
 
   function releaseEventsForVersion(version, identifier = activeIdentifier()) {
@@ -963,7 +1297,7 @@
     const firmwareRead = ["查看固件标识列表", "查看版本列表", "查看发布日志", "查看DING记录", "查看模组型号"];
     const presets = {
       "系统管理员": permissionRows.flatMap(row => row.actions),
-      "产线主管": [...firmwareRead, "编辑固件标识", "发布固件版本", "回滚固件版本", "维护APP更新说明", "管理DING接收人模板", "发送DING", "撤回DING", "查看操作日志", "查看审批日志"],
+      "产线主管": [...firmwareRead, "编辑固件标识", "发布固件版本", "回滚固件版本", "下架当前发布版本", "维护APP更新说明", "管理DING接收人模板", "发送DING", "撤回DING", "查看操作日志", "查看审批日志"],
       "测试人员": [...firmwareRead, "新增固件版本", "编辑固件版本", "删除固件版本", "查看在线差分", "查看差分包", "下载差分包"],
       "默认人员": firmwareRead,
       "FAE技术支持组长": [...firmwareRead, "查看在线差分", "查看差分包", "下载差分包", "查看操作日志"],
@@ -992,6 +1326,9 @@
   }
 
   function renderShell() {
+    state.rulePanel = null;
+    state.ruleId = null;
+    state.ruleAnchor = null;
     const sameDrawer = Boolean(state.drawer && state.drawer === lastRenderedDrawer);
     const sameModal = Boolean(state.modal && state.modal === lastRenderedModal);
     const previousDrawerScroll = sameDrawer ? app.querySelector(".drawer-body")?.scrollTop ?? 0 : null;
@@ -1042,10 +1379,10 @@
       if (previousLocaleScroll !== null) localeList.scrollTop = previousLocaleScroll;
       const activeLocaleItem = localeList.querySelector(".locale-item.active");
       if (activeLocaleItem) {
-        const itemTop = activeLocaleItem.offsetTop;
-        const itemBottom = itemTop + activeLocaleItem.offsetHeight;
-        if (itemTop < localeList.scrollTop) localeList.scrollTop = itemTop;
-        else if (itemBottom > localeList.scrollTop + localeList.clientHeight) localeList.scrollTop = itemBottom - localeList.clientHeight;
+        const listRect = localeList.getBoundingClientRect();
+        const itemRect = activeLocaleItem.getBoundingClientRect();
+        if (itemRect.top < listRect.top) localeList.scrollTop -= listRect.top - itemRect.top;
+        else if (itemRect.bottom > listRect.bottom) localeList.scrollTop += itemRect.bottom - listRect.bottom;
       }
     }
     app.querySelectorAll('input[data-ding-node][data-partial="true"]').forEach(input => { input.indeterminate = true; });
@@ -1060,15 +1397,15 @@
     return renderRoles();
   }
 
-  function pageHeader(title, tools = "") {
-    return `<div class="page-header"><h1 class="page-title">${title}</h1>${tools ? `<div class="page-tools">${tools}</div>` : ""}</div>`;
+  function pageHeader(title, tools = "", ruleContext = "") {
+    return `<div class="page-header"><div class="page-title-row"><h1 class="page-title">${title}</h1>${ruleContext ? rulePoint(ruleContext) : ""}</div>${tools ? `<div class="page-tools">${tools}</div>` : ""}</div>`;
   }
 
   function renderIdentifierMeta(identifier) {
     if (identifier.product === "4G模组") {
-      return `<div class="meta-grid four-g-meta"><span>所属产品线：<strong>${esc(identifier.product)}</strong></span><span>创建时间：<strong>${esc(identifier.created)}</strong></span><span>模组型号：<strong>${esc(identifier.models)}</strong></span><span title="固件标识下去重后的绑定设备总数">绑定设备数：<strong>${formatDeviceCount(identifier.boundDeviceCount)} 台</strong></span></div>`;
+      return `<div class="meta-grid four-g-meta"><span>所属产品线：<strong>${esc(identifier.product)}</strong></span><span>创建时间：<strong>${esc(identifier.created)}</strong></span><span>模组型号：<strong>${esc(identifier.models)}</strong></span><span title="固件标识下去重后的绑定设备总数">${annotatedLabel("绑定设备数", [["identifier", "FID-R03"]])}：<strong>${formatDeviceCount(identifier.boundDeviceCount)} 台</strong></span></div>`;
     }
-    return `<div class="meta-grid"><span>所属产品线：<strong>${esc(identifier.product)}</strong></span><span>创建时间：<strong>${esc(identifier.created)}</strong></span><span>关联机型：<strong>${esc(identifier.models)}</strong></span><span title="固件标识下去重后的绑定设备总数">绑定设备数：<strong>${formatDeviceCount(identifier.boundDeviceCount)} 台</strong></span><span>网络类型：<strong>${esc(identifier.network)}</strong></span><span>电量类型：<strong>${esc(identifier.power)}</strong></span><span>架构类型：<strong>${esc(identifier.architecture)}</strong></span><span>DING 接收模板：<strong>${resolveDingRecipients(identifier.dingDefaults.scopes).length} 人</strong></span></div>`;
+    return `<div class="meta-grid"><span>所属产品线：<strong>${esc(identifier.product)}</strong></span><span>创建时间：<strong>${esc(identifier.created)}</strong></span><span>关联机型：<strong>${esc(identifier.models)}</strong></span><span title="固件标识下去重后的绑定设备总数">${annotatedLabel("绑定设备数", [["identifier", "FID-R03"]])}：<strong>${formatDeviceCount(identifier.boundDeviceCount)} 台</strong></span><span>网络类型：<strong>${esc(identifier.network)}</strong></span><span>电量类型：<strong>${esc(identifier.power)}</strong></span><span>架构类型：<strong>${esc(identifier.architecture)}</strong></span><span>${annotatedLabel("DING 接收模板", [["ding", "DING-R02"]])}：<strong>${resolveDingRecipients(identifier.dingDefaults.scopes).length} 人</strong></span></div>`;
   }
 
   function renderFirmware() {
@@ -1076,17 +1413,17 @@
     const selected = identifiers.find(item => item.id === state.selectedIdentifier) || identifiers[0] || null;
     const header = pageHeader("固件列表", `<input class="field search-field" data-filter="firmware" value="${esc(state.filters.firmware)}" placeholder="请输入固件标识或固件版本号" aria-label="搜索固件"><select class="select" data-change="product-filter" aria-label="所属产品线">${productLines.map(line => `<option ${line === state.filters.product ? "selected" : ""}>${line}</option>`).join("")}</select>`);
     if (!selected) {
-      return `<section class="page tint-page">${header}<div class="firmware-layout"><aside class="identifier-panel"><h2 class="panel-heading">固件管理</h2><button class="btn panel-action" data-action="add-identifier">⊕ 新增标识</button><div class="muted" style="padding:16px">无匹配标识</div></aside><div class="firmware-main"><div class="empty-state"><div><div class="empty-illustration">▤</div>暂无匹配的固件数据</div></div></div></div></section>`;
+      return `<section class="page tint-page">${header}<div class="firmware-layout"><aside class="identifier-panel"><h2 class="panel-heading">固件管理</h2><div class="panel-action-with-rule"><button class="btn panel-action" data-action="add-identifier">⊕ 新增标识</button>${ruleAnnotation("identifier", "FID-R01")}</div><div class="muted" style="padding:16px">无匹配标识</div></aside><div class="firmware-main"><div class="empty-state"><div><div class="empty-illustration">▤</div>暂无匹配的固件数据</div></div></div></div></section>`;
     }
     const latest = currentVersion(selected);
     const pendingApproval = selected.activeApproval ? approvalById(selected.activeApproval.approvalId) : null;
     return `<section class="page tint-page">
       ${header}
       <div class="firmware-layout ${selected.product === "4G模组" && state.firmwareTab !== "firmware" ? "differential-layout" : ""}">
-        <aside class="identifier-panel"><h2 class="panel-heading">固件管理</h2><button class="btn panel-action" data-action="add-identifier">⊕ 新增标识</button><div class="identifier-list">${identifiers.map(item => `<button class="identifier-item ${item.id === selected.id ? "active" : ""}" data-action="select-identifier" data-id="${esc(item.id)}">${esc(item.id)}</button>`).join("") || `<div class="muted" style="padding:16px">无匹配标识</div>`}</div></aside>
+        <aside class="identifier-panel"><h2 class="panel-heading">固件管理</h2><div class="panel-action-with-rule"><button class="btn panel-action" data-action="add-identifier">⊕ 新增标识</button>${ruleAnnotation("identifier", "FID-R01")}</div><div class="identifier-list">${identifiers.map(item => `<button class="identifier-item ${item.id === selected.id ? "active" : ""}" data-action="select-identifier" data-id="${esc(item.id)}">${esc(item.id)}</button>`).join("") || `<div class="muted" style="padding:16px">无匹配标识</div>`}</div></aside>
         <div class="firmware-main ${selected.product === "4G模组" && state.firmwareTab !== "firmware" ? "differential-main" : ""}">
-          <div class="summary-band ${selected.product === "4G模组" ? "four-g-summary" : ""}"><div class="summary-head"><h2>${esc(selected.id)}</h2><div class="summary-actions"><button class="btn small" data-action="refresh">↻ 刷新</button><div class="popover-wrap"><button class="btn small" data-action="identifier-actions" aria-expanded="${state.popover === "identifier"}">••• 更多</button>${state.popover === "identifier" ? `<div class="action-popover compact-popover"><button data-action="edit-identifier">编辑</button><button data-action="ding-defaults">DING 接收人模板</button><button class="danger-item" data-action="delete-identifier">删除</button></div>` : ""}</div></div></div>${renderIdentifierMeta(selected)}</div>
-          ${pendingApproval ? `<div class="approval-banner"><div><strong>${pendingApproval.event === "撤销并回滚固件版本" ? "回滚审批中" : "发布审批中"}</strong><span>${esc(pendingApproval.version)} · 提交人 ${esc(pendingApproval.submitter)} · ${esc(pendingApproval.submitTime)}</span></div><button class="btn small primary" data-action="view-active-approval">查看审批</button></div>` : ""}
+          <div class="summary-band ${selected.product === "4G模组" ? "four-g-summary" : ""}"><div class="summary-head"><div class="module-title-row"><h2>${esc(selected.id)}</h2></div><div class="summary-actions"><button class="btn small" data-action="refresh">↻ 刷新</button><div class="action-with-rules"><div class="popover-wrap"><button class="btn small" data-action="identifier-actions" aria-expanded="${state.popover === "identifier"}">••• 更多</button>${state.popover === "identifier" ? `<div class="action-popover compact-popover"><button data-action="edit-identifier">编辑</button><button data-action="ding-defaults">DING 接收人模板</button><button class="danger-item" data-action="delete-identifier">删除</button></div>` : ""}</div>${ruleAnnotations([["identifier", "FID-R02"], ["ding", "DING-R02"]])}</div></div></div>${renderIdentifierMeta(selected)}</div>
+          ${pendingApproval ? `<div class="approval-banner"><div><strong>${pendingApproval.type === "rollback" ? "回滚审批中" : pendingApproval.type === "delist" ? "下架审批中" : "发布审批中"}</strong><span>${esc(pendingApproval.version)} · 提交人 ${esc(pendingApproval.submitter)} · ${esc(pendingApproval.submitTime)}</span></div><button class="btn small primary" data-action="view-active-approval">查看审批</button></div>` : ""}
           <div class="tab-strip firmware-tabs"><button class="tab ${state.firmwareTab === "firmware" ? "active" : ""}" data-action="firmware-subtab" data-tab="firmware">固件列表</button><button class="tab ${state.firmwareTab === "lifecycle" ? "active" : ""}" data-action="firmware-subtab" data-tab="lifecycle">发布日志</button>${selected.product === "4G模组" ? `<button class="tab ${state.firmwareTab === "onlineDifferential" ? "active" : ""}" data-action="firmware-subtab" data-tab="onlineDifferential">在线差分</button><button class="tab ${state.firmwareTab === "differentialPackages" ? "active" : ""}" data-action="firmware-subtab" data-tab="differentialPackages">差分包列表</button>` : ""}</div>
           ${renderFirmwareTabContent(selected, latest)}
         </div>
@@ -1097,14 +1434,14 @@
   function renderFirmwareTabContent(identifier, latest) {
     if (state.firmwareTab === "lifecycle") return renderLifecycle(identifier);
     if (identifier.product !== "4G模组" || state.firmwareTab === "firmware") {
-      return `${latest ? `<section class="section-block"><h3 class="section-heading">当前发布版本</h3>${renderLatest(identifier, latest)}</section>` : ""}<section class="section-block"><div class="section-bar"><h3>固件版本列表</h3><div class="section-actions"><div class="popover-wrap"><button class="btn icon-btn" title="行高：${state.density === "default" ? "默认" : state.density === "comfortable" ? "宽松" : "紧凑"}" aria-label="行高：${state.density === "default" ? "默认" : state.density === "comfortable" ? "宽松" : "紧凑"}" data-action="density-menu">☷</button>${state.popover === "density" ? `<div class="action-popover density-popover">${[["default", "默认"], ["comfortable", "宽松"], ["compact", "紧凑"]].map(([value, label]) => `<button class="${state.density === value ? "selected" : ""}" data-action="set-density" data-density="${value}">${label}<span>${state.density === value ? "✓" : ""}</span></button>`).join("")}</div>` : ""}</div><div class="popover-wrap"><button class="btn icon-btn" title="列设置" aria-label="列设置" data-action="column-settings">⚙</button>${state.popover === "columns" ? renderColumnPopover() : ""}</div><button class="btn primary" data-action="add-version">＋ 新增版本</button></div></div>${renderFirmwareTable(identifier)}${pagination(identifier.versions.length, state.firmwarePage, "firmware-page", "firmware")}</section>`;
+      return `<section class="section-block"><div class="module-title-row section-heading-row"><h3 class="section-heading">当前发布版本</h3>${ruleAnnotations([["detail", "DET-R01"], ["delist", "DEL-R08"]])}</div>${latest ? renderLatest(identifier, latest) : renderNoCurrentRelease(identifier)}</section><section class="section-block firmware-version-section"><div class="section-bar"><div class="module-title-row"><h3>固件版本列表</h3>${ruleAnnotation("identifier", "FID-R04")}</div><div class="section-actions"><div class="popover-wrap"><button class="btn icon-btn" title="行高：${state.density === "default" ? "默认" : state.density === "comfortable" ? "宽松" : "紧凑"}" aria-label="行高：${state.density === "default" ? "默认" : state.density === "comfortable" ? "宽松" : "紧凑"}" data-action="density-menu">☷</button>${state.popover === "density" ? `<div class="action-popover density-popover">${[["default", "默认"], ["comfortable", "宽松"], ["compact", "紧凑"]].map(([value, label]) => `<button class="${state.density === value ? "selected" : ""}" data-action="set-density" data-density="${value}">${label}<span>${state.density === value ? "✓" : ""}</span></button>`).join("")}</div>` : ""}</div><div class="popover-wrap"><button class="btn icon-btn" title="列设置" aria-label="列设置" data-action="column-settings">⚙</button>${state.popover === "columns" ? renderColumnPopover() : ""}</div><span class="action-with-rules"><button class="btn primary" data-action="add-version">＋ 新增版本</button>${ruleAnnotations([["version", "VER-R01"], ["version", "VER-R04"]])}</span></div></div>${renderFirmwareTable(identifier)}${pagination(identifier.versions.length, state.firmwarePage, "firmware-page", "firmware")}</section>`;
     }
     if (state.firmwareTab === "onlineDifferential") return renderOnlineDifferential(identifier);
     return renderDifferentialPackages(identifier);
   }
 
   function lifecycleStageLabel(stage) {
-    return ({ approval: "钉钉审批", release: "发布生效", notification: "DING 通知", rollback: "回滚生效" })[stage] || stage;
+    return ({ approval: "钉钉审批", release: "发布生效", notification: "DING 通知", rollback: "回滚生效", delist: "下架生效", cache: "升级检查" })[stage] || stage;
   }
 
   function lifecycleResultLabel(result) {
@@ -1117,15 +1454,16 @@
 
   function lifecycleFlowLabel(flow) {
     if (flow.flowType === "rollback") return "版本回滚";
+    if (flow.flowType === "delist") return "版本下架";
     return "版本发布";
   }
 
   function lifecycleFlowStatusLabel(status) {
-    return ({ active: "当前生效", superseded: "历史发布", pending: "审批中", rejected: "审批驳回", failed: "发布失败", rolled_back: "已回滚", completed: "已完成" })[status] || status;
+    return ({ active: "当前生效", superseded: "历史发布", pending: "审批中", rejected: "审批驳回", failed: "发布失败", rolled_back: "已回滚", delisted: "已下架", completed: "已完成" })[status] || status;
   }
 
   function lifecycleFlowStatusClass(status) {
-    return status === "active" || status === "completed" ? "success" : status === "rejected" || status === "failed" || status === "rolled_back" ? "danger" : "blue";
+    return status === "active" || status === "completed" ? "success" : status === "rejected" || status === "failed" || status === "rolled_back" || status === "delisted" ? "danger" : "blue";
   }
 
   function lifecycleFilteredEvents(identifier) {
@@ -1133,7 +1471,7 @@
     const events = [...(identifier.lifecycleEvents || [])];
     if (!query) return events.sort((left, right) => right.time.localeCompare(left.time));
     const matchingFlowIds = new Set(events.filter(event => {
-      const haystack = [event.flowId, event.fromVersion, event.toVersion, event.title, event.summary, event.operator].join(" ").toLowerCase();
+      const haystack = [event.fromVersion, event.toVersion, event.title, event.summary, event.operator].join(" ").toLowerCase();
       return haystack.includes(query);
     }).map(event => event.flowId));
     return events.filter(event => matchingFlowIds.has(event.flowId)).sort((left, right) => right.time.localeCompare(left.time));
@@ -1142,7 +1480,8 @@
   function lifecycleEventSequence(event) {
     if (Number.isFinite(Number(event.sequence))) return Number(event.sequence);
     if (event.stage === "notification") return 40;
-    if (["release", "rollback"].includes(event.stage)) return 30;
+    if (["release", "rollback", "delist"].includes(event.stage)) return 30;
+    if (event.stage === "cache") return 40;
     if (event.stage === "approval" && (event.title.includes("通过") || event.title.includes("驳回"))) return 20;
     if (event.stage === "approval") return 10;
     return 50;
@@ -1164,7 +1503,7 @@
     });
     return [...flows.values()].map(flow => {
       const orderedEvents = [...flow.events].sort(compareLifecycleEvents);
-      const effectiveEvent = orderedEvents.find(event => ["release", "rollback"].includes(event.stage)) || orderedEvents[orderedEvents.length - 1];
+      const effectiveEvent = orderedEvents.find(event => ["release", "rollback", "delist"].includes(event.stage)) || orderedEvents[orderedEvents.length - 1];
       return { ...flow, events: orderedEvents, startTime: orderedEvents[0]?.time, endTime: orderedEvents[orderedEvents.length - 1]?.time, effectiveTime: effectiveEvent?.time || "" };
     }).sort((left, right) => right.effectiveTime.localeCompare(left.effectiveTime));
   }
@@ -1207,6 +1546,7 @@
       const status = lifecycleDisplayStatus(identifier, flow);
       group.flows.push(flow);
       if (flow.flowType === "rollback" && flow.events.some(event => event.stage === "rollback" && event.result === "success")) group.rollbackCount += 1;
+      if (flow.flowType === "delist" && flow.events.some(event => event.stage === "delist" && event.result === "success")) group.delistCount = (group.delistCount || 0) + 1;
       if (flow.flowType === "publish" && flow.events.some(event => event.stage === "release" && event.result === "success")) group.publishCount += 1;
       if (["rejected", "failed"].includes(status) || ["failed", "partial_failed"].includes(notice?.status) || notice?.recallStatus === "recall_failed") group.exceptionCount += 1;
     });
@@ -1222,13 +1562,14 @@
     const allEvents = identifier.lifecycleEvents || [];
     const events = lifecycleFilteredEvents(identifier);
     const flows = lifecycleFlows(events).filter(lifecycleFlowInRange);
-    const releaseCount = new Set(allEvents.filter(event => event.flowType === "publish" && ["superseded", "rolled_back"].includes(event.flowStatus)).map(event => event.flowId)).size;
+    const releaseCount = new Set(allEvents.filter(event => event.flowType === "publish" && ["superseded", "rolled_back", "delisted"].includes(event.flowStatus)).map(event => event.flowId)).size;
     const rollbackCount = new Set(allEvents.filter(event => event.flowType === "rollback" && event.stage === "rollback" && event.result === "success").map(event => event.flowId)).size;
+    const delistCount = new Set(allEvents.filter(event => event.flowType === "delist" && event.stage === "delist" && event.result === "success").map(event => event.flowId)).size;
     const current = currentVersion(identifier);
     const filtersActive = Boolean(state.filters.lifecycleQuery || state.filters.lifecycleRange !== "7d" || state.filters.lifecycleStart || state.filters.lifecycleEnd);
     const rangeOptions = [["today", "今天"], ["7d", "近 7 天"], ["all", "全部"], ["custom", "自定义"]];
     const rangeControl = `<div class="release-range-control"><div class="segmented-control release-range-segments">${rangeOptions.map(([value, label]) => `<button class="${state.filters.lifecycleRange === value ? "active" : ""}" data-action="set-lifecycle-range" data-range="${value}">${label}</button>`).join("")}</div>${state.filters.lifecycleRange === "custom" ? `<div class="release-custom-range"><input type="date" class="field" data-filter="lifecycleStart" value="${esc(state.filters.lifecycleStart)}" aria-label="发布日志开始日期"><span>至</span><input type="date" class="field" data-filter="lifecycleEnd" value="${esc(state.filters.lifecycleEnd)}" aria-label="发布日志结束日期"></div>` : ""}</div>`;
-    return `<section class="lifecycle-section"><div class="lifecycle-overview release-log-overview"><div class="lifecycle-overview-copy"><h3>发布日志</h3></div><div class="lifecycle-stats release-log-stats"><div><span>当前发布</span><strong>${esc(current?.version || "-")}</strong></div><div><span>历史发布</span><strong>${releaseCount} 次</strong></div><div><span>历史回滚</span><strong>${rollbackCount} 次</strong></div></div></div><div class="lifecycle-toolbar release-log-toolbar"><div class="lifecycle-filters"><input class="field lifecycle-search" data-filter="lifecycleQuery" value="${esc(state.filters.lifecycleQuery)}" placeholder="搜索版本号、链路编号或操作人" aria-label="搜索发布日志"><button class="btn" data-action="apply-lifecycle-filter">查询</button>${filtersActive ? `<button class="btn" data-action="reset-lifecycle-filter">重置</button>` : ""}</div>${rangeControl}</div>${flows.length ? renderLifecycleTimeline(flows, identifier) : `<div class="empty-state lifecycle-empty"><div><div class="empty-illustration">▤</div>没有符合条件的发布日志</div></div>`}</section>`;
+    return `<section class="lifecycle-section"><div class="lifecycle-overview release-log-overview"><div class="lifecycle-overview-copy"><div class="module-title-row"><h3>发布日志</h3>${ruleAnnotations([["releaseLog", "RLG-R01"], ["releaseLog", "RLG-R06"]])}</div></div><div class="lifecycle-stats release-log-stats"><div><span>当前发布</span><strong>${esc(current?.version || "暂无")}</strong></div><div><span>历史发布</span><strong>${releaseCount} 次</strong></div><div><span>历史回滚</span><strong>${rollbackCount} 次</strong></div><div><span>历史下架</span><strong>${delistCount} 次</strong></div></div></div><div class="lifecycle-toolbar release-log-toolbar"><div class="lifecycle-filters"><input class="field lifecycle-search" data-filter="lifecycleQuery" value="${esc(state.filters.lifecycleQuery)}" placeholder="搜索版本号或操作人" aria-label="搜索发布日志"><span class="action-with-rules"><button class="btn" data-action="apply-lifecycle-filter">查询</button>${ruleAnnotation("releaseLog", "RLG-R04")}</span>${filtersActive ? `<button class="btn" data-action="reset-lifecycle-filter">重置</button>` : ""}</div>${rangeControl}</div>${flows.length ? renderLifecycleTimeline(flows, identifier) : `<div class="empty-state lifecycle-empty"><div><div class="empty-illustration">▤</div>没有符合条件的发布日志</div></div>`}</section>`;
   }
 
   function renderLifecycleStep(event, mainDate, isLast) {
@@ -1245,17 +1586,21 @@
       const releaseEvent = identifier.releaseEvents.find(event => event.flowId === flow.flowId);
       const notice = dingRecordForEvent(releaseEvent);
       const displayFlowStatus = lifecycleDisplayStatus(identifier, flow);
-      const notificationLabel = releaseEvent?.action === "rollback" ? "不适用" : releaseEvent ? dingDisplayLabel(notice) : "不适用";
+      const notificationLabel = ["rollback", "delist"].includes(releaseEvent?.action) ? "不触发" : releaseEvent ? dingDisplayLabel(notice) : "不适用";
       const notificationIssue = Boolean(notice && (["failed", "partial_failed"].includes(notice.status) || notice.recallStatus === "recall_failed"));
-      const transition = flow.toVersion ? `${flow.fromVersion || "首次发布"} → ${flow.toVersion}` : "标识初始化";
+      const transition = flow.flowType === "delist" ? `${flow.fromVersion} → 暂无当前版本` : flow.toVersion ? `${flow.fromVersion || "首次发布"} → ${flow.toVersion}` : "标识初始化";
       const expanded = state.expandedLifecycleFlows.includes(flow.flowId);
-      const effectiveEvent = flow.events.find(event => ["release", "rollback"].includes(event.stage)) || flow.events[flow.events.length - 1];
+      const effectiveEvent = flow.events.find(event => ["release", "rollback", "delist"].includes(event.stage)) || flow.events[flow.events.length - 1];
       const [timelineDate = "-", timelineClock = ""] = String(effectiveEvent?.time || "-").split(" ");
       const coreEvents = flow.events.filter(event => event.stage !== "notification");
       const notificationEvents = flow.events.filter(event => event.stage === "notification");
       let optionalNotification = "";
       if (releaseEvent) {
-        if (releaseEvent.action === "rollback") {
+        if (releaseEvent.action === "delist") {
+          const sourceNotice = db.dingNotices.find(item => item.id === releaseEvent.sourceNoticeId);
+          const sourceSummary = !sourceNotice ? "原发布事件未发送 DING，无需处理通知" : canRecallDing(sourceNotice) ? `原发布 DING 当前状态：${dingDisplayLabel(sourceNotice)}；可在暂无当前发布版本区域独立撤回` : `原发布 DING 当前状态：${dingDisplayLabel(sourceNotice)}；当前无需或无法撤回`;
+          optionalNotification = `<div class="release-log-optional"><div class="release-log-optional-label"><span>通知边界</span></div><div class="release-log-ding-empty"><strong>下架不触发 DING</strong><span>${esc(sourceSummary)}</span></div></div>`;
+        } else if (releaseEvent.action === "rollback") {
           const sourceNotice = sourceDingForRollback(identifier, releaseEvent);
           const sourceSummary = !sourceNotice ? "原发布事件未发送 DING，无需处理通知"
             : sourceNotice.recallStatus === "recalled" ? "原发布 DING 已撤回，原发送事实和接收人快照继续保留"
@@ -1271,14 +1616,14 @@
         }
       }
       const eventChain = expanded ? `<div class="release-log-event-chain"><div class="release-log-core-events">${coreEvents.map((event, index) => renderLifecycleStep(event, timelineDate, index === coreEvents.length - 1)).join("")}</div>${optionalNotification}</div>` : "";
-      return `<article class="release-timeline-entry ${displayFlowStatus} ${expanded ? "is-expanded" : ""}"><time class="release-timeline-time" datetime="${esc(effectiveEvent?.time || "")}"><strong>${esc(timelineClock)}</strong></time><div class="release-timeline-marker"><span class="${lifecycleFlowStatusClass(displayFlowStatus)}"></span>${flowIndex < flowCount - 1 ? `<i></i>` : ""}</div><div class="release-timeline-content"><div class="release-log-row"><button class="release-log-item" data-action="toggle-lifecycle-flow" data-flow-id="${esc(flow.flowId)}" aria-expanded="${expanded}"><span class="release-log-main"><span><span class="release-log-kind ${flow.flowType}">${flow.flowType === "rollback" ? "回滚" : "发布"}</span><strong>${esc(transition)}</strong><span class="tag ${lifecycleFlowStatusClass(displayFlowStatus)}">${lifecycleFlowStatusLabel(displayFlowStatus)}</span></span><small>${esc(flow.flowId)}</small></span><span class="release-log-results"><span class="release-log-result ${approvalClass}"><span>审批</span><strong>${approvalLabel}</strong></span><span class="release-log-result ${notificationIssue ? "danger-text" : ""}"><span>DING</span><strong>${notificationLabel}</strong></span></span><span class="release-log-chevron" aria-hidden="true">${expanded ? "⌄" : "›"}</span></button></div>${eventChain}</div></article>`;
+      return `<article class="release-timeline-entry ${displayFlowStatus} ${expanded ? "is-expanded" : ""}"><time class="release-timeline-time" datetime="${esc(effectiveEvent?.time || "")}"><strong>${esc(timelineClock)}</strong></time><div class="release-timeline-marker"><span class="${lifecycleFlowStatusClass(displayFlowStatus)}"></span>${flowIndex < flowCount - 1 ? `<i></i>` : ""}</div><div class="release-timeline-content"><div class="release-log-row"><button class="release-log-item" data-action="toggle-lifecycle-flow" data-flow-id="${esc(flow.flowId)}" aria-expanded="${expanded}"><span class="release-log-main"><span><span class="release-log-kind ${flow.flowType}">${flow.flowType === "rollback" ? "回滚" : flow.flowType === "delist" ? "下架" : "发布"}</span><strong>${esc(transition)}</strong><span class="tag ${lifecycleFlowStatusClass(displayFlowStatus)}">${lifecycleFlowStatusLabel(displayFlowStatus)}</span></span></span><span class="release-log-results"><span class="release-log-result ${approvalClass}"><span>审批</span><strong>${approvalLabel}</strong></span><span class="release-log-result ${notificationIssue ? "danger-text" : ""}"><span>DING</span><strong>${notificationLabel}</strong></span></span><span class="release-log-chevron" aria-hidden="true">${expanded ? "⌄" : "›"}</span></button>${ruleAnnotations([["releaseLog", "RLG-R02"], ["releaseLog", "RLG-R03"]], "release-entry-rules")}</div>${eventChain}</div></article>`;
   }
 
   function renderLifecycleTimeline(flows, identifier) {
     const groups = lifecycleDateGroups(flows, identifier);
     const todayValue = formatLocalDate(new Date());
     return `<div class="release-date-groups">${groups.map(group => {
-      const summary = [`${group.flows.length} 条记录`, `${group.publishCount} 次发布`, `${group.rollbackCount} 次回滚`];
+      const summary = [`${group.flows.length} 条记录`, `${group.publishCount} 次发布`, `${group.rollbackCount} 次回滚`, `${group.delistCount || 0} 次下架`];
       return `<section class="release-date-group"><header class="release-date-header"><div><strong>${esc(group.date)}</strong><span>${group.date === todayValue ? "今天 · " : ""}${esc(weekdayLabel(group.date))}</span></div><div class="release-date-summary">${summary.map(item => `<span>${esc(item)}</span>`).join("")}${group.exceptionCount ? `<span class="has-exception">${group.exceptionCount} 个异常</span>` : ""}</div></header><div class="lifecycle-timeline release-log-list">${group.flows.map((flow, index) => renderLifecycleEntry(flow, index, group.flows.length, identifier)).join("")}</div></section>`;
     }).join("")}</div>`;
   }
@@ -1292,7 +1637,7 @@
     const rows = filtered.slice((state.differentialTaskPage - 1) * pageSize, state.differentialTaskPage * pageSize);
     const statuses = ["差分中", "已完成", "差分失败"];
     const statusPopover = state.popover === "differentialStatus" ? `<div class="action-popover differential-status-popover">${statuses.map(item => `<button class="${status === item ? "selected" : ""}" data-action="set-differential-status" data-status="${item}"><span>${esc(item)}</span><span>${status === item ? "✓" : ""}</span></button>`).join("")}<button data-action="set-differential-status" data-status=""><span>全部状态</span><span>${status ? "" : "✓"}</span></button></div>` : "";
-    return `<section class="section-block differential-section"><div class="differential-toolbar"><input class="field search-field differential-search" data-filter="differentialTask" value="${esc(state.filters.differentialTask)}" placeholder="请输入差分任务名称" aria-label="差分任务名称"><button class="btn primary" data-action="add-differential-task">＋ 差分任务</button></div><div class="table-wrap differential-task-table-wrap"><table class="data-table differential-task-table"><thead><tr><th>差分任务名称</th><th>目标版本</th><th>源版本</th><th>状态 <span class="popover-wrap"><button class="table-filter-btn ${status ? "active" : ""}" data-action="differential-status-filter" aria-label="按状态过滤">▽</button>${statusPopover}</span></th><th>成功率</th><th>差分包</th><th>任务完成时间</th><th>操作</th></tr></thead><tbody>${rows.map(task => `<tr><td>${esc(task.name)}</td><td class="cell-truncate" title="${esc(task.targetVersion)}">${esc(task.targetVersion)}</td><td title="${esc(task.sourceVersions.join(", "))}" class="cell-truncate">${esc(task.sourceVersions.join(", "))}</td><td><span class="tag ${task.status === "已完成" ? "success" : task.status === "差分失败" ? "danger" : "warning"}">${esc(task.status)}</span></td><td>${esc(task.successRate)}</td><td>${task.packageCount}</td><td>${esc(task.completedAt || "-")}</td><td><button class="link-btn" data-action="differential-task-detail" data-task-id="${esc(task.id)}">详情</button></td></tr>`).join("")}</tbody></table></div>${rows.length ? pagination(filtered.length, state.differentialTaskPage, "differential-task-page", "differentialTasks") : `<div class="empty-state differential-empty"><div><div class="empty-illustration">▤</div>暂无差分任务</div></div>`}</section>`;
+    return `<section class="section-block differential-section"><div class="differential-toolbar"><input class="field search-field differential-search" data-filter="differentialTask" value="${esc(state.filters.differentialTask)}" placeholder="请输入差分任务名称" aria-label="差分任务名称"><div class="differential-rule-actions"><span class="action-with-rules"><button class="btn primary" data-action="add-differential-task">＋ 差分任务</button>${ruleAnnotation("differential", "DIF-R02")}</span></div></div><div class="table-wrap differential-task-table-wrap"><table class="data-table differential-task-table"><thead><tr><th>差分任务名称</th><th><span class="table-rule-header">目标版本${ruleAnnotation("differential", "DIF-R03")}</span></th><th>源版本</th><th><span class="table-rule-header">状态${ruleAnnotation("differential", "DIF-R04")}</span> <span class="popover-wrap"><button class="table-filter-btn ${status ? "active" : ""}" data-action="differential-status-filter" aria-label="按状态过滤">▽</button>${statusPopover}</span></th><th>成功率</th><th>差分包</th><th>任务完成时间</th><th><span class="table-rule-header">操作${ruleAnnotation("differential", "DIF-R04")}</span></th></tr></thead><tbody>${rows.map(task => `<tr><td>${esc(task.name)}</td><td class="cell-truncate" title="${esc(task.targetVersion)}">${esc(task.targetVersion)}</td><td title="${esc(task.sourceVersions.join(", "))}" class="cell-truncate">${esc(task.sourceVersions.join(", "))}</td><td><span class="tag ${task.status === "已完成" ? "success" : task.status === "差分失败" ? "danger" : "warning"}">${esc(task.status)}</span></td><td>${esc(task.successRate)}</td><td>${task.packageCount}</td><td>${esc(task.completedAt || "-")}</td><td><button class="link-btn" data-action="differential-task-detail" data-task-id="${esc(task.id)}">详情</button></td></tr>`).join("")}</tbody></table></div>${rows.length ? pagination(filtered.length, state.differentialTaskPage, "differential-task-page", "differentialTasks") : `<div class="empty-state differential-empty"><div><div class="empty-illustration">▤</div>暂无差分任务</div></div>`}</section>`;
   }
 
   function renderDifferentialPackages(identifier) {
@@ -1303,9 +1648,9 @@
     const rows = filtered.slice((state.differentialPackagePage - 1) * pageSize, state.differentialPackagePage * pageSize);
     const body = rows.map(group => {
       const expanded = state.expandedDifferentialPackages.includes(group.targetVersion);
-      return `<tr class="differential-summary-row"><td><button class="expand-btn" data-action="toggle-differential-package" data-target-version="${esc(group.targetVersion)}" aria-label="${expanded ? "收起" : "展开"}">${expanded ? "⌄" : "›"}</button></td><td>${esc(group.targetVersion)}</td><td>${group.items.length}</td><td>${esc(group.updatedAt)}</td></tr>${expanded ? `<tr class="differential-detail-row"><td colspan="4"><div class="differential-package-detail"><h4>支持升级到该版本的源固件明细（共 ${group.items.length} 个）</h4><div class="table-wrap"><table class="data-table differential-package-detail-table"><thead><tr><th>源版本</th><th>差分包大小（KB）</th><th>差分包名称</th><th>操作</th></tr></thead><tbody>${group.items.map(item => `<tr><td>${esc(item.sourceVersion)}</td><td>${esc(item.sizeKb)}</td><td title="${esc(item.name)}" class="cell-truncate">${esc(item.name)}</td><td><div class="cell-actions"><button class="link-btn" data-action="download-differential-package" data-package-id="${esc(item.id)}">差分包下载</button><button class="link-btn danger-link" data-action="delete-differential-package" data-package-id="${esc(item.id)}" data-target-version="${esc(group.targetVersion)}">删除</button></div></td></tr>`).join("")}</tbody></table></div></div></td></tr>` : ""}`;
+      return `<tr class="differential-summary-row"><td><span class="action-with-rules"><button class="expand-btn" data-action="toggle-differential-package" data-target-version="${esc(group.targetVersion)}" aria-label="${expanded ? "收起" : "展开"}">${expanded ? "⌄" : "›"}</button>${ruleAnnotation("differential", "DIF-R06")}</span></td><td>${esc(group.targetVersion)}</td><td>${group.items.length}</td><td>${esc(group.updatedAt)}</td></tr>${expanded ? `<tr class="differential-detail-row"><td colspan="4"><div class="differential-package-detail"><h4>${annotatedLabel(`支持升级到该版本的源固件明细（共 ${group.items.length} 个）`, [["differential", "DIF-R06"]])}</h4><div class="table-wrap"><table class="data-table differential-package-detail-table"><thead><tr><th>源版本</th><th>差分包大小（KB）</th><th>差分包名称</th><th>操作</th></tr></thead><tbody>${group.items.map(item => `<tr><td>${esc(item.sourceVersion)}</td><td>${esc(item.sizeKb)}</td><td title="${esc(item.name)}" class="cell-truncate">${esc(item.name)}</td><td><div class="cell-actions"><button class="link-btn" data-action="download-differential-package" data-package-id="${esc(item.id)}">差分包下载</button><span class="action-with-rules"><button class="link-btn danger-link" data-action="delete-differential-package" data-package-id="${esc(item.id)}" data-target-version="${esc(group.targetVersion)}">删除</button>${ruleAnnotations([["differential", "DIF-R07"], ["differential", "DIF-R08"]])}</span></div></td></tr>`).join("")}</tbody></table></div></div></td></tr>` : ""}`;
     }).join("");
-    return `<section class="section-block differential-section"><div class="differential-toolbar"><input class="field search-field differential-search" data-filter="differentialPackage" value="${esc(state.filters.differentialPackage)}" placeholder="请输入目标版本号" aria-label="目标版本号"></div><div class="table-wrap"><table class="data-table differential-package-table"><thead><tr><th class="expand-column"></th><th>目标版本</th><th>差分包数</th><th>更新时间</th></tr></thead><tbody>${body}</tbody></table></div>${rows.length ? pagination(filtered.length, state.differentialPackagePage, "differential-package-page", "differentialPackages") : `<div class="empty-state differential-empty"><div><div class="empty-illustration">▤</div>暂无差分包</div></div>`}</section>`;
+    return `<section class="section-block differential-section"><div class="differential-toolbar"><input class="field search-field differential-search" data-filter="differentialPackage" value="${esc(state.filters.differentialPackage)}" placeholder="请输入目标版本号" aria-label="目标版本号">${ruleAnnotation("differential", "DIF-R06")}</div><div class="table-wrap"><table class="data-table differential-package-table"><thead><tr><th class="expand-column"></th><th>目标版本</th><th>差分包数</th><th>更新时间</th></tr></thead><tbody>${body}</tbody></table></div>${rows.length ? pagination(filtered.length, state.differentialPackagePage, "differential-package-page", "differentialPackages") : `<div class="empty-state differential-empty"><div><div class="empty-illustration">▤</div>暂无差分包</div></div>`}</section>`;
   }
 
   function renderColumnPopover() {
@@ -1317,6 +1662,15 @@
     if (!notice) return "";
     const recallAction = canRecallDing(notice) ? `<button class="link-btn danger-link" data-action="recall-ding" data-notice-id="${esc(notice.id)}">${notice.recallStatus === "recall_failed" || notice.recallStatus === "partial_recalled" ? "重试撤回" : "撤回 DING"}</button>` : "";
     return `${recallAction}<button class="link-btn" data-action="view-ding-record" data-notice-id="${esc(notice.id)}">查看记录</button>`;
+  }
+
+  function renderNoCurrentRelease(identifier) {
+    const summary = identifier.lastDelisted;
+    if (!summary) return `<div class="no-current-release"><div><strong>暂无当前发布版本</strong><span>请从下方固件版本列表选择版本并发起发布审批</span></div><button class="btn small primary" data-action="focus-publishable-versions">选择版本发布</button></div>`;
+    const version = identifier.versions.find(item => item.version === summary.version);
+    const notice = db.dingNotices.find(item => item.id === summary.sourceNoticeId);
+    const dingAction = notice ? `<div class="delisted-ding-action"><span>原发布 DING：<strong>${esc(dingDisplayLabel(notice))}</strong></span>${notice.recallStatus === "recalling" ? `<span class="muted">正在撤回</span>` : renderDingRecordActions(notice)}${ruleAnnotation("delist", "DEL-R09")}</div>` : "";
+    return `<div class="no-current-release delisted-summary"><div class="no-current-main"><span class="empty-current-icon">!</span><div><strong>暂无当前发布版本</strong><span>最近下架 ${esc(summary.version)} · ${esc(summary.time)}</span><small>下架原因：${esc(summary.reasonType)} · ${esc(summary.reason)}</small></div></div><div class="no-current-actions"><span class="action-with-rules"><button class="btn small" data-action="version-detail" data-version="${esc(version?.version || summary.version)}">查看版本详情</button>${ruleAnnotation("delist", "DEL-R10")}</span><button class="btn small primary" data-action="focus-publishable-versions">选择版本发布</button></div>${dingAction}</div>`;
   }
 
   function renderLatest(identifier, version) {
@@ -1331,19 +1685,34 @@
     const sourceNotice = isRollback ? sourceDingForRollback(identifier, event) : null;
     const sourceEvent = isRollback ? sourcePublishEventForRollback(identifier, event) : null;
     const rollbackNotice = sourceNotice ? `<div class="rollback-ding-followup ${sourceNotice.recallStatus === "recalled" ? "resolved" : sourceNotice.recallStatus === "recall_failed" ? "error" : ""}"><div><span>原发布 DING</span><strong>${esc(dingDisplayLabel(sourceNotice))}</strong><small>${esc(sourceEvent?.toVersion || event.fromVersion)} 的发布通知；回滚不会自动发送或撤回 DING</small></div><div class="rollback-ding-actions">${sourceNotice.recallStatus === "recalling" ? `<span class="muted">正在撤回，请稍候</span>` : renderDingRecordActions(sourceNotice)}</div></div>` : "";
-    return `<div class="current-release-card"><div class="current-release-head"><div class="latest-version"><span class="file-mark">V</span><div><strong>${esc(version.version)}</strong><div class="muted">${isRollback ? `由 ${esc(event.fromVersion)} 回滚恢复` : previous ? `上一个发布版本 ${esc(previous.version)}` : "首次发布"}</div></div></div><div class="current-release-actions"><button class="btn small" data-action="version-detail" data-version="${esc(version.version)}">详情</button>${identifier.rollbackAvailable && previous ? `<button class="btn small danger" data-action="start-rollback" ${identifier.activeApproval ? "disabled" : ""}>撤销并回滚</button>` : `<button class="btn small" disabled title="当前没有可用的一次性回滚目标">不可回滚</button>`}</div></div><div class="current-release-grid"><div><span>生效时间</span><strong>${esc(event?.effectiveAt || version.published || version.updated)}</strong></div><div><span>APP 提醒方式</span><strong>${esc(reminderLabel(event?.reminderPolicy))}</strong></div><div><span>适用机型</span><strong>${esc(version.models)}</strong></div><div class="current-release-ding"><span>DING 状态</span><div><strong>${esc(dingLabel)}</strong>${dingAction}</div></div><div><span>文件大小</span><strong>${esc(version.size)} M</strong></div><div class="release-url"><span>下载地址</span><strong title="${esc(version.url)}">${esc(version.url)}</strong><div class="release-url-actions"><button class="link-btn" data-action="copy" data-copy="${esc(version.url)}" title="复制下载地址" aria-label="复制下载地址">▣</button><a class="link-btn" href="${esc(version.url)}" download title="下载固件" aria-label="下载固件">⇩</a></div></div></div>${rollbackNotice}</div>`;
+    const detailAction = `<span class="action-with-rules"><button class="btn small" data-action="version-detail" data-version="${esc(version.version)}">详情</button>${ruleAnnotation("detail", "DET-R03")}</span>`;
+    const rollbackAction = identifier.rollbackAvailable && previous
+      ? `<span class="action-with-rules"><button class="btn small danger" data-action="start-rollback" ${identifier.activeApproval ? "disabled" : ""}>撤销并回滚</button>${ruleAnnotations([["rollback", "RBK-R01"], ["rollback", "RBK-R02"]])}</span>`
+      : `<span class="action-with-rules"><button class="btn small" disabled title="当前没有可用的一次性回滚目标">不可回滚</button>${ruleAnnotation("rollback", "RBK-R01")}</span>`;
+    const delistAction = `<span class="action-with-rules"><button class="btn small danger-outline" data-action="start-delist" ${identifier.activeApproval ? "disabled" : ""}>下架</button>${ruleAnnotation("delist", "DEL-R01")}</span>`;
+    const pendingDelist = identifier.activeApproval?.type === "delist";
+    const dingRules = isRollback
+      ? ruleAnnotation("ding", "DING-R10")
+      : ruleAnnotation("ding", "DING-R06");
+    return `<div class="current-release-card"><div class="current-release-head"><div class="latest-version"><span class="file-mark">V</span><div><strong>${esc(version.version)}</strong><div class="muted">${pendingDelist ? "当前发布 · 下架审批中" : isRollback ? `由 ${esc(event.fromVersion)} 回滚恢复` : previous ? `上一个发布版本 ${esc(previous.version)}` : "首次发布"}</div></div></div><div class="current-release-actions">${detailAction}${pendingDelist ? `<span class="action-with-rules"><button class="btn small primary" data-action="view-active-approval">查看下架审批</button>${ruleAnnotation("delist", "DEL-R06")}</span>` : `${rollbackAction}${delistAction}`}</div></div><div class="current-release-grid"><div><span>生效时间</span><strong>${esc(event?.effectiveAt || version.published || version.updated)}</strong></div><div><span>APP 提醒方式</span><strong>${esc(reminderLabel(event?.reminderPolicy))}</strong></div><div><span>适用机型</span><strong>${esc(version.models)}</strong></div><div class="current-release-ding"><span>${annotatedLabel("DING 状态", isRollback ? [["rollback", "RBK-R09"]] : [["ding", "DING-R01"]])}</span><div><strong>${esc(dingLabel)}</strong>${dingAction}${dingRules}</div></div><div><span>文件大小</span><strong>${esc(version.size)} M</strong></div><div class="release-url"><span>下载地址</span><strong title="${esc(version.url)}">${esc(version.url)}</strong><div class="release-url-actions"><button class="link-btn" data-action="copy" data-copy="${esc(version.url)}" title="复制下载地址" aria-label="复制下载地址">▣</button><a class="link-btn" href="${esc(version.url)}" download title="下载固件" aria-label="下载固件">⇩</a></div></div></div>${rollbackNotice}</div>`;
   }
 
   function renderFirmwareTable(identifier) {
     const columns = state.columns;
     const pageSize = state.pageSizes.firmware;
     const rows = identifier.versions.slice((state.firmwarePage - 1) * pageSize, state.firmwarePage * pageSize);
-    const headers = [`<th style="width:150px">固件版本号</th>`, columns.url && `<th style="width:230px">下载地址</th>`, columns.size && `<th style="width:105px">文件大小（M）</th>`, columns.models && `<th style="width:125px">适用机型</th>`, columns.devices && `<th style="width:110px" title="符合该版本适用机型的绑定设备数">关联设备数</th>`, columns.features && `<th style="width:90px">功能集数</th>`, columns.creator && `<th style="width:120px">创建人</th>`, columns.note && `<th style="width:190px">平台发布说明</th>`, columns.updated && `<th style="width:170px">更新时间</th>`, `<th style="width:200px">操作</th>`].filter(Boolean).join("");
+    const headers = [`<th style="width:150px">固件版本号</th>`, columns.url && `<th style="width:230px">下载地址</th>`, columns.size && `<th style="width:105px">文件大小（M）</th>`, columns.models && `<th style="width:125px">适用机型</th>`, columns.devices && `<th style="width:145px" title="符合该版本适用机型的绑定设备数"><span class="table-rule-header">关联设备数${ruleAnnotation("identifier", "FID-R04")}</span></th>`, columns.features && `<th style="width:90px">功能集数</th>`, columns.creator && `<th style="width:120px">创建人</th>`, columns.note && `<th style="width:190px">平台发布说明</th>`, columns.updated && `<th style="width:390px"><span class="table-rule-header table-operation-rules">操作${ruleAnnotations([["detail", "DET-R03"], ["publish", "PUB-R01"], ["publish", "PUB-R02"], ["version", "VER-R05"], ["version", "VER-R08"]])}</span></th>`].filter(Boolean).join("");
     return `<div class="table-wrap firmware-table-wrap"><table class="data-table firmware-version-table ${state.density}"><thead><tr>${headers}</tr></thead><tbody>${rows.map(version => {
       const editable = canEditVersion(identifier, version);
       const publishable = versionPublishEligibility(identifier, version).allowed;
       const deletable = version.status === "unpublished";
-      return `<tr><td>${esc(version.version)}</td>${columns.url ? `<td><div class="cell-actions"><span class="cell-truncate" title="${esc(version.url)}">${esc(version.url)}</span><button class="link-btn" title="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button></div></td>` : ""}${columns.size ? `<td>${esc(version.size)}</td>` : ""}${columns.models ? `<td>${esc(version.models)}</td>` : ""}${columns.devices ? `<td>${formatDeviceCount(version.associatedDeviceCount)}</td>` : ""}${columns.features ? `<td>${version.features}</td>` : ""}${columns.creator ? `<td>${esc(version.creator)}</td>` : ""}${columns.note ? `<td class="cell-truncate" title="${esc(version.platformReleaseNotes)}">${esc(version.platformReleaseNotes)}</td>` : ""}${columns.updated ? `<td>${esc(version.updated)}</td>` : ""}<td><div class="cell-actions firmware-row-actions"><button class="link-btn" data-action="version-detail" data-version="${esc(version.version)}">详情</button>${publishable ? `<button class="link-btn" data-action="publish-version" data-version="${esc(version.version)}">发布</button>` : ""}${editable ? `<button class="link-btn" data-action="edit-version" data-version="${esc(version.version)}">编辑</button>` : ""}${deletable ? `<button class="link-btn danger-link" data-action="delete-version" data-version="${esc(version.version)}">删除</button>` : ""}</div></td></tr>`;
+      const detail = `<button class="link-btn" data-action="version-detail" data-version="${esc(version.version)}">详情</button>`;
+      const publish = publishable ? version.status === "delisted"
+        ? `<span class="action-with-rules"><button class="link-btn" data-action="publish-version" data-version="${esc(version.version)}">发布</button>${ruleAnnotation("delist", "DEL-R10")}</span>`
+        : `<button class="link-btn" data-action="publish-version" data-version="${esc(version.version)}">发布</button>` : "";
+      const edit = editable ? `<button class="link-btn" data-action="edit-version" data-version="${esc(version.version)}">编辑</button>` : "";
+      const remove = deletable ? `<button class="link-btn danger-link" data-action="delete-version" data-version="${esc(version.version)}">删除</button>` : "";
+      return `<tr><td>${esc(version.version)}</td>${columns.url ? `<td><div class="cell-actions"><span class="cell-truncate" title="${esc(version.url)}">${esc(version.url)}</span><button class="link-btn" title="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button></div></td>` : ""}${columns.size ? `<td>${esc(version.size)}</td>` : ""}${columns.models ? `<td>${esc(version.models)}</td>` : ""}${columns.devices ? `<td>${formatDeviceCount(version.associatedDeviceCount)}</td>` : ""}${columns.features ? `<td>${version.features}</td>` : ""}${columns.creator ? `<td>${esc(version.creator)}</td>` : ""}${columns.note ? `<td class="cell-truncate" title="${esc(version.platformReleaseNotes)}">${esc(version.platformReleaseNotes)}</td>` : ""}${columns.updated ? `<td>${esc(version.updated)}</td>` : ""}<td><div class="cell-actions firmware-row-actions">${detail}${publish}${edit}${remove}</div></td></tr>`;
     }).join("")}</tbody></table></div>`;
   }
 
@@ -1352,7 +1721,7 @@
     const filtered = db.modules.filter(item => item.model.toLowerCase().includes(query) || item.soc.toLowerCase().includes(query));
     const pageSize = state.pageSizes.modules;
     const rows = filtered.slice((state.modulePage - 1) * pageSize, state.modulePage * pageSize);
-    return `<section class="page plain-page">${pageHeader("模组型号")}<div class="filter-bar"><input class="field search-field" data-filter="module" value="${esc(state.filters.module)}" placeholder="请输入模组型号，按enter搜索" aria-label="搜索模组型号"></div><div class="table-wrap"><table class="data-table"><thead><tr><th>模组型号</th><th>SOC型号</th><th>关联固件数</th><th>FOTA工具版本</th><th>配置文件</th><th>创建时间</th></tr></thead><tbody>${rows.map(item => { const count = item.linkedIdentifiers.length; return `<tr><td>${esc(item.model)}</td><td>${esc(item.soc)}</td><td>${count ? `<button class="link-btn" data-action="module-firmware" data-model="${esc(item.model)}">${count}</button>` : "0"}</td><td>${esc(item.tool)}</td><td>${esc(item.config)}</td><td>${esc(item.created)}</td></tr>`; }).join("")}</tbody></table></div>${filtered.length ? pagination(filtered.length, state.modulePage, "module-page", "modules") : `<div class="empty-state"><div><div class="empty-illustration">▤</div>暂无数据</div></div>`}</section>`;
+    return `<section class="page plain-page">${pageHeader("模组型号")}<div class="filter-bar"><input class="field search-field" data-filter="module" value="${esc(state.filters.module)}" placeholder="请输入模组型号，按enter搜索" aria-label="搜索模组型号"></div><div class="table-wrap"><table class="data-table"><thead><tr><th>模组型号</th><th>SOC型号</th><th><span class="table-rule-header">关联固件数${ruleAnnotations([["identifier", "FID-R05"], ["identifier", "FID-R06"]])}</span></th><th>FOTA工具版本</th><th>配置文件</th><th>创建时间</th></tr></thead><tbody>${rows.map(item => { const count = item.linkedIdentifiers.length; return `<tr><td>${esc(item.model)}</td><td>${esc(item.soc)}</td><td>${count ? `<span class="action-with-rules"><button class="link-btn" data-action="module-firmware" data-model="${esc(item.model)}">${count}</button>${ruleAnnotation("identifier", "FID-R05")}</span>` : `<span class="action-with-rules">0${ruleAnnotation("identifier", "FID-R06")}</span>`}</td><td>${esc(item.tool)}</td><td>${esc(item.config)}</td><td>${esc(item.created)}</td></tr>`; }).join("")}</tbody></table></div>${filtered.length ? pagination(filtered.length, state.modulePage, "module-page", "modules") : `<div class="empty-state"><div><div class="empty-illustration">▤</div>暂无数据</div></div>`}</section>`;
   }
 
   function renderOperations() {
@@ -1360,7 +1729,7 @@
     const filtered = db.operations.filter(item => (!query || item.resource.toLowerCase().includes(query)) && (!state.filters.operationStart || item.time.slice(0, 10) >= state.filters.operationStart) && (!state.filters.operationEnd || item.time.slice(0, 10) <= state.filters.operationEnd));
     const pageSize = state.pageSizes.operations;
     const rows = filtered.slice((state.operationPage - 1) * pageSize, state.operationPage * pageSize);
-    return `<section class="page plain-page">${pageHeader("操作日志")}<div class="filter-bar"><input class="field search-field" data-draft="operation" value="${esc(state.draftFilters.operation ?? state.filters.operation)}" placeholder="请输入固件版本号" aria-label="固件版本号"><div class="date-range"><input class="date-field" type="date" data-draft="operationStart" value="${esc(state.draftFilters.operationStart ?? state.filters.operationStart)}" aria-label="开始日期"><span>至</span><input class="date-field" type="date" data-draft="operationEnd" value="${esc(state.draftFilters.operationEnd ?? state.filters.operationEnd)}" aria-label="结束日期"></div><button class="btn primary" data-action="query-operations">查询</button><button class="btn" data-action="reset-operations">重置</button></div><div class="table-wrap"><table class="data-table audit-table"><thead><tr><th>操作时间</th><th>操作人</th><th>角色</th><th>操作模块</th><th>操作动作</th><th>操作资源</th><th>结果</th><th>事件描述</th></tr></thead><tbody>${rows.map(item => `<tr><td>${esc(item.time)}</td><td>${esc(item.user)}</td><td>${esc(item.role)}</td><td>${esc(item.module)}</td><td>${esc(item.action)}</td><td>${esc(item.resource)}</td><td><span class="tag ${item.result === "成功" ? "success" : "danger"}">${esc(item.result)}</span></td><td class="audit-description">${esc(item.description)}</td></tr>`).join("")}</tbody></table></div>${pagination(filtered.length, state.operationPage, "operation-page", "operations")}</section>`;
+    return `<section class="page plain-page">${pageHeader("操作日志")}<div class="filter-bar"><input class="field search-field" data-draft="operation" value="${esc(state.draftFilters.operation ?? state.filters.operation)}" placeholder="请输入固件版本号" aria-label="固件版本号"><div class="date-range"><input class="date-field" type="date" data-draft="operationStart" value="${esc(state.draftFilters.operationStart ?? state.filters.operationStart)}" aria-label="开始日期"><span>至</span><input class="date-field" type="date" data-draft="operationEnd" value="${esc(state.draftFilters.operationEnd ?? state.filters.operationEnd)}" aria-label="结束日期"></div><span class="action-with-rules"><button class="btn primary" data-action="query-operations">查询</button>${ruleAnnotation("audit", "AUD-R06")}</span><button class="btn" data-action="reset-operations">重置</button></div><div class="table-wrap"><table class="data-table audit-table"><thead><tr><th>操作时间</th><th>操作人</th><th>角色</th><th>操作模块</th><th>操作动作</th><th>操作资源</th><th><span class="table-rule-header">结果${ruleAnnotation("audit", "AUD-R02")}</span></th><th><span class="table-rule-header">事件描述${ruleAnnotation("audit", "AUD-R03")}</span></th></tr></thead><tbody>${rows.map(item => `<tr><td>${esc(item.time)}</td><td>${esc(item.user)}</td><td>${esc(item.role)}</td><td>${esc(item.module)}</td><td>${esc(item.action)}</td><td>${esc(item.resource)}</td><td><span class="tag ${item.result === "成功" ? "success" : "danger"}">${esc(item.result)}</span></td><td class="audit-description">${esc(item.description)}</td></tr>`).join("")}</tbody></table></div>${pagination(filtered.length, state.operationPage, "operation-page", "operations")}</section>`;
   }
 
   function renderApprovals() {
@@ -1368,7 +1737,7 @@
     const filtered = db.approvals.filter(item => (!query || item.version.toLowerCase().includes(query)) && (!state.filters.approvalStart || item.submitTime.slice(0, 10) >= state.filters.approvalStart) && (!state.filters.approvalEnd || item.submitTime.slice(0, 10) <= state.filters.approvalEnd));
     const pageSize = state.pageSizes.approvals;
     const rows = filtered.slice((state.approvalPage - 1) * pageSize, state.approvalPage * pageSize);
-    return `<section class="page plain-page">${pageHeader("审批日志")}<div class="filter-bar"><input class="field search-field" data-draft="approval" value="${esc(state.draftFilters.approval ?? state.filters.approval)}" placeholder="固件版本号" aria-label="固件版本号"><div class="date-range"><input class="date-field" type="date" data-draft="approvalStart" value="${esc(state.draftFilters.approvalStart ?? state.filters.approvalStart)}" aria-label="开始日期"><span>至</span><input class="date-field" type="date" data-draft="approvalEnd" value="${esc(state.draftFilters.approvalEnd ?? state.filters.approvalEnd)}" aria-label="结束日期"></div><button class="btn primary" data-action="query-approvals">查询</button><button class="btn" data-action="reset-approvals">重置</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>固件版本号</th><th>审批类型</th><th>提交人</th><th>提交时间</th><th>审批人</th><th>审批状态</th><th>审批时间</th><th>说明</th></tr></thead><tbody>${rows.map(item => { const statusClass = item.status === "审批通过" ? "success" : /驳回|失效|过期/.test(item.status) ? "danger" : "warning"; return `<tr><td>${esc(item.version)}</td><td>${esc(item.event)}</td><td>${esc(item.submitter)}</td><td>${esc(item.submitTime)}</td><td>${esc(item.approver)}</td><td><span class="tag ${statusClass}">${esc(item.status)}</span></td><td>${esc(item.approveTime)}</td><td>${esc(item.note)}</td></tr>`; }).join("")}</tbody></table></div>${pagination(filtered.length, state.approvalPage, "approval-page", "approvals")}</section>`;
+    return `<section class="page plain-page">${pageHeader("审批日志")}<div class="filter-bar"><input class="field search-field" data-draft="approval" value="${esc(state.draftFilters.approval ?? state.filters.approval)}" placeholder="固件版本号" aria-label="固件版本号"><div class="date-range"><input class="date-field" type="date" data-draft="approvalStart" value="${esc(state.draftFilters.approvalStart ?? state.filters.approvalStart)}" aria-label="开始日期"><span>至</span><input class="date-field" type="date" data-draft="approvalEnd" value="${esc(state.draftFilters.approvalEnd ?? state.filters.approvalEnd)}" aria-label="结束日期"></div><span class="action-with-rules"><button class="btn primary" data-action="query-approvals">查询</button>${ruleAnnotation("audit", "AUD-R06")}</span><button class="btn" data-action="reset-approvals">重置</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>固件版本号</th><th>审批类型</th><th>提交人</th><th>提交时间</th><th>审批人</th><th><span class="table-rule-header">审批状态${ruleAnnotation("audit", "AUD-R05")}</span></th><th>审批时间</th><th>说明</th></tr></thead><tbody>${rows.map(item => { const statusClass = item.status === "审批通过" ? "success" : /驳回|失效|过期/.test(item.status) ? "danger" : "warning"; return `<tr><td>${esc(item.version)}</td><td>${esc(item.event)}</td><td>${esc(item.submitter)}</td><td>${esc(item.submitTime)}</td><td>${esc(item.approver)}</td><td><span class="tag ${statusClass}">${esc(item.status)}</span></td><td>${esc(item.approveTime)}</td><td>${esc(item.note)}</td></tr>`; }).join("")}</tbody></table></div>${pagination(filtered.length, state.approvalPage, "approval-page", "approvals")}</section>`;
   }
 
   function renderUsers() {
@@ -1379,16 +1748,16 @@
     const rows = filtered.slice((state.userPage - 1) * pageSize, state.userPage * pageSize);
     const draftLines = state.userLineDraft || lineFilters;
     const linePopover = state.popover === "userLine" ? `<div class="action-popover user-line-popover"><div class="user-line-options">${productLines.map(line => `<label class="check"><input type="checkbox" data-user-line-filter="${esc(line)}" ${draftLines.includes(line) ? "checked" : ""}>${esc(line)}</label>`).join("")}</div><div class="filter-popover-actions"><button class="btn small primary" data-action="apply-user-line-filter">筛选</button><button class="btn small" data-action="reset-user-line-filter">重置</button></div></div>` : "";
-    return `<section class="page plain-page">${pageHeader("用户列表")}<div class="filter-bar"><input class="field search-field" data-draft="user" value="${esc(state.draftFilters.user ?? state.filters.user)}" placeholder="请输入用户账号名称，按enter搜索" aria-label="用户账号名称"><button class="btn primary" data-action="query-users">查询</button><button class="btn" data-action="reset-users">重置</button></div><div class="user-table-area"><div class="table-wrap"><table class="data-table"><thead><tr><th style="width:190px">账号名称</th><th style="width:190px">关联角色</th><th>所属产线 <button class="table-filter-btn ${lineFilters.length ? "active" : ""}" data-action="user-line-filter" aria-label="按所属产线过滤">▽</button></th><th style="width:190px">创建时间</th><th style="width:170px">操作</th></tr></thead><tbody>${rows.map(item => `<tr><td>${esc(item.name)}</td><td>${esc(item.role)}</td><td class="cell-truncate" title="${esc(item.lines.join(" / "))}">${esc(item.lines.join(" / "))}</td><td>${esc(item.created)}</td><td><div class="cell-actions"><button class="link-btn" data-action="user-detail" data-user-index="${db.users.indexOf(item)}">详情</button><button class="link-btn" data-action="user-permissions" data-user-index="${db.users.indexOf(item)}">权限配置</button></div></td></tr>`).join("")}</tbody></table></div>${linePopover}</div>${pagination(filtered.length, state.userPage, "user-page", "users")}</section>`;
+    return `<section class="page plain-page">${pageHeader("用户列表")}<div class="filter-bar"><input class="field search-field" data-draft="user" value="${esc(state.draftFilters.user ?? state.filters.user)}" placeholder="请输入用户账号名称，按enter搜索" aria-label="用户账号名称"><button class="btn primary" data-action="query-users">查询</button><button class="btn" data-action="reset-users">重置</button></div><div class="user-table-area"><div class="table-wrap"><table class="data-table"><thead><tr><th style="width:190px">账号名称</th><th style="width:190px">关联角色</th><th>所属产线 <button class="table-filter-btn ${lineFilters.length ? "active" : ""}" data-action="user-line-filter" aria-label="按所属产线过滤">▽</button></th><th style="width:190px">创建时间</th><th style="width:245px">操作</th></tr></thead><tbody>${rows.map(item => `<tr><td>${esc(item.name)}</td><td>${esc(item.role)}</td><td class="cell-truncate" title="${esc(item.lines.join(" / "))}">${esc(item.lines.join(" / "))}</td><td>${esc(item.created)}</td><td><div class="cell-actions"><button class="link-btn" data-action="user-detail" data-user-index="${db.users.indexOf(item)}">详情</button><span class="action-with-rules"><button class="link-btn" data-action="user-permissions" data-user-index="${db.users.indexOf(item)}">权限配置</button>${ruleAnnotation("audit", "AUD-R04")}</span></div></td></tr>`).join("")}</tbody></table></div>${linePopover}</div>${pagination(filtered.length, state.userPage, "user-page", "users")}</section>`;
   }
 
   function renderRoles() {
     const role = activeRole();
     const associated = db.users.filter(user => user.role === role.name);
     const roleActions = role.default ? "" : `<div class="popover-wrap"><button class="btn small" data-action="role-more" aria-expanded="${state.popover === "role"}">••• 更多</button>${state.popover === "role" ? `<div class="action-popover compact-popover"><button data-action="edit-role">编辑</button><button class="danger-item" data-action="delete-role">删除</button></div>` : ""}</div>`;
-    const permissionActions = state.roleTab === "permissions" && !role.default ? `<div class="permission-toolbar"><button class="btn small" data-action="toggle-role-edit">${state.roleEditing ? "取消编辑" : "编辑权限"}</button></div>` : "";
+    const permissionActions = state.roleTab === "permissions" && !role.default ? `<div class="permission-toolbar"><span class="action-with-rules"><button class="btn small" data-action="toggle-role-edit">${state.roleEditing ? "取消编辑" : "编辑权限"}</button>${ruleAnnotations([["audit", "AUD-R01"], ["audit", "AUD-R04"]])}</span></div>` : "";
     const grantedCount = role.name === "系统管理员" ? permissionRows.flatMap(row => row.actions).length : Object.entries(role.permissions || {}).filter(([key, enabled]) => key.startsWith("action-") && enabled).length;
-    return `<section class="page tint-page">${pageHeader("角色权限")}<div class="role-layout"><aside class="role-panel"><h2 class="panel-heading">角色列表</h2><button class="btn panel-action" data-action="add-role">⊕ 新增角色</button><div class="role-list">${db.roles.map(item => `<button class="role-item ${item.name === role.name ? "active" : ""}" data-action="select-role" data-role="${esc(item.name)}">${esc(item.name)}${item.default ? `<span class="tag success">默认</span>` : ""}</button>`).join("")}</div></aside><div class="role-main"><div class="summary-band"><div class="summary-head"><h2>${esc(role.name)}</h2>${roleActions}</div><div class="meta-grid role-meta-grid"><span>数据范围：<strong>${esc(role.scope || "用户所属产线")}</strong></span><span>关联用户数：<strong>${associated.length}</strong></span><span>已授权操作：<strong>${grantedCount} 项</strong></span><span>创建时间：<strong>${esc(role.created)}</strong></span><span class="role-note">备注：<strong>${esc(role.note)}</strong></span></div></div><div class="tab-strip"><button class="tab ${state.roleTab === "permissions" ? "active" : ""}" data-action="role-tab" data-tab="permissions">角色权限</button><button class="tab ${state.roleTab === "users" ? "active" : ""}" data-action="role-tab" data-tab="users">关联用户</button></div><div class="role-tab-content">${permissionActions}${state.roleTab === "permissions" ? renderPermissionTable(role) : renderAssociatedUsers(associated)}${state.roleEditing ? `<div class="permission-save"><button class="btn" data-action="toggle-role-edit">取消</button><button class="btn primary" data-action="save-role-permissions">保存权限</button></div>` : ""}</div></div></div></section>`;
+    return `<section class="page tint-page">${pageHeader("角色权限")}<div class="role-layout"><aside class="role-panel"><h2 class="panel-heading">角色列表</h2><div class="panel-action-with-rule"><button class="btn panel-action" data-action="add-role">⊕ 新增角色</button>${ruleAnnotation("audit", "AUD-R04")}</div><div class="role-list">${db.roles.map(item => `<button class="role-item ${item.name === role.name ? "active" : ""}" data-action="select-role" data-role="${esc(item.name)}">${esc(item.name)}${item.default ? `<span class="tag success">默认</span>` : ""}</button>`).join("")}</div></aside><div class="role-main"><div class="summary-band"><div class="summary-head"><h2>${esc(role.name)}</h2><span class="action-with-rules">${roleActions}${roleActions ? ruleAnnotation("audit", "AUD-R04") : ""}</span></div><div class="meta-grid role-meta-grid"><span>数据范围：<strong>${esc(role.scope || "用户所属产线")}</strong></span><span>关联用户数：<strong>${associated.length}</strong></span><span>已授权操作：<strong>${grantedCount} 项</strong></span><span>创建时间：<strong>${esc(role.created)}</strong></span><span class="role-note">备注：<strong>${esc(role.note)}</strong></span></div></div><div class="tab-strip"><button class="tab ${state.roleTab === "permissions" ? "active" : ""}" data-action="role-tab" data-tab="permissions">角色权限</button><button class="tab ${state.roleTab === "users" ? "active" : ""}" data-action="role-tab" data-tab="users">关联用户</button></div><div class="role-tab-content">${permissionActions}${state.roleTab === "permissions" ? renderPermissionTable(role) : renderAssociatedUsers(associated)}${state.roleEditing ? `<div class="permission-save"><button class="btn" data-action="toggle-role-edit">取消</button><span class="action-with-rules"><button class="btn primary" data-action="save-role-permissions">保存权限</button>${ruleAnnotation("audit", "AUD-R04")}</span></div>` : ""}</div></div></div></section>`;
   }
 
   function renderPermissionTable(role, editable = state.roleEditing, prefix = "role") {
@@ -1417,12 +1786,48 @@
     return `<div class="overlay drawer-overlay ${animateCurrentDrawer ? "is-entering" : ""}" data-action="overlay-close"></div>${renderDrawer()}`;
   }
 
+  function frameRuleItems(title, frameType) {
+    const exact = {
+      "新增固件标识": [["identifier", "FID-R01"]],
+      "编辑固件标识": [["identifier", "FID-R02"]],
+      "DING 接收人模板": [["ding", "DING-R02"], ["ding", "DING-R03"]],
+      "确认发送 DING": [["ding", "DING-R05"], ["ding", "DING-R06"]],
+      "DING 发送记录": [["ding", "DING-R07"]],
+      "撤回原发布 DING": [["ding", "DING-R08"]],
+      "确认撤回原发布 DING": [["ding", "DING-R08"], ["ding", "DING-R09"]],
+      "新增差分任务": [["differential", "DIF-R02"], ["differential", "DIF-R03"]],
+      "提交固件发布审批": [["publish", "PUB-R03"], ["reminder", "REM-R01"]],
+      "撤销并回滚版本": [["rollback", "RBK-R03"], ["rollback", "RBK-R04"]],
+      "下架当前发布版本": [["delist", "DEL-R03"], ["delist", "DEL-R04"], ["delist", "DEL-R05"]],
+      "发布审批已提交": [["publish", "PUB-R05"]],
+      "回滚审批已提交": [["rollback", "RBK-R05"]],
+      "下架审批已提交": [["delist", "DEL-R06"], ["delist", "DEL-R07"]],
+      "固件版本下架成功": [["delist", "DEL-R08"], ["delist", "DEL-R09"]],
+      "删除固件版本": [["version", "VER-R08"]],
+      "警告提示": [["differential", "DIF-R07"], ["differential", "DIF-R08"]],
+      "新增角色": [["audit", "AUD-R04"]],
+      "编辑角色": [["audit", "AUD-R04"]],
+      "编辑功能关联": [["version", "VER-R03"]],
+      "维护 APP 更新说明": [["locale", "LOC-R07"]],
+      "新增固件版本号": [["version", "VER-R01"], ["version", "VER-R04"]],
+      "编辑固件版本号": [["version", "VER-R05"], ["version", "VER-R07"]],
+      "固件版本详情": [["detail", "DET-R03"], ["detail", "DET-R04"]],
+      "差分任务详情": [["differential", "DIF-R04"]],
+      "用户详情": [["audit", "AUD-R07"]],
+      "权限配置": [["audit", "AUD-R04"]]
+    };
+    if (exact[title]) return exact[title];
+    if (title.startsWith("发送") && title.endsWith(" DING")) return [["ding", "DING-R02"], ["ding", "DING-R04"]];
+    if (title.endsWith("关联固件列表")) return [["identifier", "FID-R05"]];
+    return frameType === "drawer" ? [] : [];
+  }
+
   function modalFrame(title, body, footer = "", wide = false, nested = false) {
-    return `<section class="modal ${wide ? "wide" : ""} ${body.includes('class="ding-config"') ? "ding-modal" : ""} ${body.includes('class="app-reminder-layout"') ? "release-modal" : ""} ${nested ? "nested-modal" : ""} ${animateCurrentModal ? "is-entering" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header class="dialog-header"><h2>${esc(title)}</h2><button class="close-btn" data-action="${nested ? "close-modal" : "close-overlay"}" aria-label="关闭">×</button></header><div class="dialog-body">${body}</div>${footer ? `<footer class="dialog-footer">${footer}</footer>` : ""}</section>`;
+    return `<section class="modal ${wide ? "wide" : ""} ${body.includes('class="ding-config"') ? "ding-modal" : ""} ${body.includes('class="app-reminder-layout"') ? "release-modal" : ""} ${nested ? "nested-modal" : ""} ${animateCurrentModal ? "is-entering" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header class="dialog-header"><div class="frame-title-with-rules"><h2>${esc(title)}</h2>${ruleAnnotations(frameRuleItems(title, "modal"))}</div><button class="close-btn" data-action="${nested ? "close-modal" : "close-overlay"}" aria-label="关闭">×</button></header><div class="dialog-body">${body}</div>${footer ? `<footer class="dialog-footer">${footer}</footer>` : ""}</section>`;
   }
 
   function drawerFrame(title, body, footer = "", narrow = false) {
-    return `<section class="drawer ${narrow ? "narrow" : ""} ${animateCurrentDrawer ? "is-entering" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header class="drawer-header"><h2>${esc(title)}</h2><button class="close-btn" data-action="close-overlay" aria-label="关闭">×</button></header><div class="drawer-body">${body}</div>${footer ? `<footer class="drawer-footer">${footer}</footer>` : ""}</section>`;
+    return `<section class="drawer ${narrow ? "narrow" : ""} ${animateCurrentDrawer ? "is-entering" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header class="drawer-header"><div class="frame-title-with-rules"><h2>${esc(title)}</h2>${ruleAnnotations(frameRuleItems(title, "drawer"))}</div><button class="close-btn" data-action="close-overlay" aria-label="关闭">×</button></header><div class="drawer-body">${body}</div>${footer ? `<footer class="drawer-footer">${footer}</footer>` : ""}</section>`;
   }
 
   function errorFor(name) {
@@ -1434,23 +1839,24 @@
   }
 
   function renderAppReminderPreview(modal, version) {
-    const locales = Object.keys(version.appReleaseNotes || {});
-    const activeLocale = locales.includes(modal.previewLocale) ? modal.previewLocale : locales[0] || "zh-CN";
-    const note = appNoteForLocale(version, activeLocale);
-    const limit = appNoteLimit(activeLocale);
+    const notes = normalizeAppNotes(version.appReleaseNotes || {});
+    const activeLocale = defaultLocaleIds.includes(modal.previewLocale) ? modal.previewLocale : "zh";
+    const previewNote = appNoteForLocale(version, activeLocale);
+    const note = previewNote.content;
+    const limit = appNoteLimit(previewNote.sourceLocale);
     const policy = modal.reminderPolicy || "unselected";
-    const useChineseUi = activeLocale.toLowerCase().startsWith("zh");
+    const useChineseUi = activeLocale === "zh" || activeLocale === "zh_FT";
     const ui = useChineseUi ? {
       appTitle: "观看台", deviceName: "无GPS", strong: "发现新的固件版本，请尽快升级", forced: "发现新固件", update: "立即升级", choose: "选择提醒方式后查看效果"
     } : {
       appTitle: "Devices", deviceName: "No GPS", strong: "New firmware available. Update soon", forced: "New firmware available", update: "Update now", choose: "Select a reminder type to preview"
     };
-    const localeOptions = locales.map(locale => `<option value="${esc(locale)}" ${locale === activeLocale ? "selected" : ""}>${esc(localeName(locale))} · ${esc(locale)}</option>`).join("");
+    const localeOptions = localeCatalog.map(item => `<option value="${esc(item.locale)}" ${item.locale === activeLocale ? "selected" : ""}>${esc(item.label)} · ${esc(item.locale)}${!notes[item.locale] && item.locale !== "en" ? "（英文兜底）" : ""}</option>`).join("");
     const strongBanner = policy === "strong" ? `<div class="app-strong-banner"><span>${esc(ui.strong)}</span><b>›</b></div>` : "";
     const forcedDialog = policy === "forced-dialog" ? `<div class="app-forced-layer"><div class="app-forced-dialog"><strong>${esc(ui.forced)}</strong><p>${esc(previewSnippet(note, useChineseUi ? 52 : 96))}</p><span class="app-update-button">${esc(ui.update)}</span></div></div>` : "";
     const chooseHint = policy === "unselected" ? `<div class="app-preview-prompt">${esc(ui.choose)}</div>` : "";
     const policyHint = policy === "none" ? "无主动提示，仅保留设备设置入口" : policy === "weak" ? "设置入口红点" : policy === "strong" ? "设备卡片升级横幅" : policy === "forced-dialog" ? "持续升级弹窗" : "待选择";
-    return `<aside class="app-simulator"><div class="app-simulator-head"><div><strong>APP 效果预览</strong><span>${esc(policyHint)}</span></div><select class="select" data-modal-field="previewLocale" aria-label="切换APP预览语言">${localeOptions}</select></div><div class="app-phone"><div class="app-phone-notch"></div><div class="app-phone-screen"><div class="app-status"><strong>17:14</strong><span>▮▮▮ 4G <b>86%</b></span></div><div class="app-screen-head"><strong>${esc(ui.appTitle)}</strong><span>◉　⌕　☷　▣</span></div><div class="app-device-card"><div class="app-device-main"><img src="assets/app-device-camera.png" alt="摄像机设备"><span><strong>${esc(ui.deviceName)}</strong><small>DCDG0012000GUFQ</small></span><b>›</b></div><div class="app-device-actions"><span>•••</span><span>SIM</span><span class="app-setting-icon">⚙${policy === "weak" ? `<i></i>` : ""}</span><span>♲</span></div>${strongBanner}${forcedDialog}</div>${chooseHint}<div class="app-bottom-nav"><span>▧<small>相册</small></span><strong>⌂</strong><span>♟<small>个人中心</small></span></div></div></div><div class="app-preview-copy"><div><strong>版本发布说明</strong><span class="${note.length > limit ? "over-limit" : ""}">${note.length} / ${limit}</span></div><p>${esc(note || "暂未配置当前语言的版本发布说明")}</p></div><small class="app-preview-disclaimer">仅预览提醒样式，不代表 APP 已分发或设备已执行升级</small></aside>`;
+    return `<aside class="app-simulator"><div class="app-simulator-head"><div><strong>${annotatedLabel("APP 效果预览", [["reminder", "REM-R03"]])}</strong><span>${esc(policyHint)}</span></div><span class="action-with-rules"><select class="select" data-modal-field="previewLocale" aria-label="切换APP预览语言">${localeOptions}</select>${ruleAnnotations([["reminder", "REM-R04"], ["concurrency", "CON-R11"]])}</span></div><div class="app-phone"><div class="app-phone-notch"></div><div class="app-phone-screen"><div class="app-status"><strong>17:14</strong><span>▮▮▮ 4G <b>86%</b></span></div><div class="app-screen-head"><strong>${esc(ui.appTitle)}</strong><span>◉　⌕　☷　▣</span></div><div class="app-device-card"><div class="app-device-main"><img src="assets/app-device-camera.png" alt="摄像机设备"><span><strong>${esc(ui.deviceName)}</strong><small>DCDG0012000GUFQ</small></span><b>›</b></div><div class="app-device-actions"><span>•••</span><span>SIM</span><span class="app-setting-icon">⚙${policy === "weak" ? `<i></i>` : ""}</span><span>♲</span></div>${strongBanner}${forcedDialog}</div>${chooseHint}<div class="app-bottom-nav"><span>▧<small>相册</small></span><strong>⌂</strong><span>♟<small>个人中心</small></span></div></div></div><div class="app-preview-copy"><div><strong>版本发布说明${previewNote.fallback ? `<em>英文兜底</em>` : ""}</strong><span class="${note.length > limit ? "over-limit" : ""}">${note.length} / ${limit}</span></div><p>${esc(note || "暂未配置版本发布说明")}</p></div><small class="app-preview-disclaimer">仅预览提醒样式，不代表 APP 已分发或设备已执行升级</small></aside>`;
   }
 
   function renderReleaseSnapshot(current, target) {
@@ -1467,7 +1873,7 @@
       const previous = currentConfigs.get(config.key);
       return !previous || previous.value !== config.value || previous.version !== config.version;
     }).length;
-    return `<section class="publish-snapshot"><div class="publish-snapshot-head"><div><h3>发布内容快照</h3><span>提交后与提醒策略一起进入审批快照</span></div><strong>功能集 ${targetConfigs.length} 项 · ${changedCount} 项变化</strong></div><div class="publish-summary-grid"><span>预计影响设备<strong>${formatDeviceCount(target.associatedDeviceCount)} 台</strong></span><span>适用机型<strong>${esc(target.models)}</strong></span><span>平台发布说明<strong>${esc(target.platformReleaseNotes)}</strong></span></div><div class="feature-snapshot"><div class="feature-snapshot-head"><span>功能集能力</span><strong>当前版本 → 目标版本</strong><em>结果</em></div>${rows.join("") || `<div class="feature-snapshot-empty">目标版本暂未配置功能集能力</div>`}</div></section>`;
+    return `<section class="publish-snapshot"><div class="publish-snapshot-head"><div><h3>${annotatedLabel("发布内容快照", [["publish", "PUB-R04"]])}</h3><span>提交后与提醒策略一起进入审批快照</span></div><strong>功能集 ${targetConfigs.length} 项 · ${changedCount} 项变化</strong></div><div class="publish-summary-grid"><span>${annotatedLabel("预计影响设备", [["identifier", "FID-R04"]])}<strong>${formatDeviceCount(target.associatedDeviceCount)} 台</strong></span><span>适用机型<strong>${esc(target.models)}</strong></span><span>平台发布说明<strong>${esc(target.platformReleaseNotes)}</strong></span></div><div class="feature-snapshot"><div class="feature-snapshot-head"><span>功能集能力</span><strong>当前版本 → 目标版本</strong><em>结果</em></div>${rows.join("") || `<div class="feature-snapshot-empty">目标版本暂未配置功能集能力</div>`}</div></section>`;
   }
 
   function renderDingConfiguration(modal) {
@@ -1475,7 +1881,7 @@
     const count = dingRecipientCount(modal);
     const memberList = selectedMembers.length ? selectedMembers.map(member => `<div class="ding-selected-member"><span class="ding-member-avatar">${esc(member.name.slice(0, 1))}</span><span><strong>${esc(member.name)}</strong><small>${esc(member.role || "成员")}</small></span><button type="button" data-action="remove-ding-member" data-member-id="${esc(member.id)}" title="移除${esc(member.name)}" aria-label="移除${esc(member.name)}">×</button></div>`).join("") : `<div class="ding-selected-empty">暂未选择接收成员</div>`;
     const previewTitle = modal.type === "dingDefaults" ? "接收人模板预览" : "最终 DING 消息预览";
-    return `<div class="ding-config"><div class="ding-scope-grid"><section class="ding-tree-panel"><div class="ding-tree-heading"><div><h4>选择接收范围</h4><span>可按组织、部门或成员选择</span></div><button type="button" class="link-btn" data-action="clear-ding-members" ${count ? "" : "disabled"}>清空</button></div><div class="ding-tree-search"><span>⌕</span><input class="field" data-ding-tree-query value="${esc(modal.dingTreeQuery || "")}" placeholder="搜索部门或成员" aria-label="搜索钉钉组织成员"></div><div class="ding-tree" role="tree">${dingOrganizationTree.map(node => renderDingTreeNode(node, modal)).join("") || `<div class="ding-tree-empty">没有匹配的部门或成员</div>`}</div>${errorFor("dingScopes")}</section><aside class="ding-preview"><div class="ding-selected-heading"><div><span>已选成员</span><strong>${count} 人</strong></div><small>成员已按账号去重</small></div><div class="ding-selected-list">${memberList}</div><div class="ding-message-preview"><div class="ding-message-preview-head"><span>${previewTitle}</span><small>发送时保存接收人快照</small></div><strong>[固件发布] ${esc(activeIdentifier().id)} ${esc(modal.version || modal.targetVersion || "")}</strong><p>${esc(modal.platformReleaseNotes || "发送时自动读取对应版本的平台发布说明")}</p></div></aside></div></div>`;
+    return `<div class="ding-config"><div class="ding-scope-grid"><section class="ding-tree-panel"><div class="ding-tree-heading"><div><h4>${annotatedLabel("选择接收范围", [["ding", "DING-R03"]])}</h4><span>可按组织、部门或成员选择</span></div><button type="button" class="link-btn" data-action="clear-ding-members" ${count ? "" : "disabled"}>清空</button></div><div class="ding-tree-search"><span>⌕</span><input class="field" data-ding-tree-query value="${esc(modal.dingTreeQuery || "")}" placeholder="搜索部门或成员" aria-label="搜索钉钉组织成员"></div><div class="ding-tree" role="tree">${dingOrganizationTree.map(node => renderDingTreeNode(node, modal)).join("") || `<div class="ding-tree-empty">没有匹配的部门或成员</div>`}</div>${errorFor("dingScopes")}</section><aside class="ding-preview"><div class="ding-selected-heading"><div><span>已选成员</span><strong>${count} 人</strong></div><small>成员已按账号去重</small></div><div class="ding-selected-list">${memberList}</div><div class="ding-message-preview"><div class="ding-message-preview-head"><span>${annotatedLabel(previewTitle, [["ding", "DING-R04"]])}</span><small>发送时保存接收人快照</small></div><strong>[固件发布] ${esc(activeIdentifier().id)} ${esc(modal.version || modal.targetVersion || "")}</strong><p>${esc(modal.platformReleaseNotes || "发送时自动读取对应版本的平台发布说明")}</p></div></aside></div></div>`;
   }
 
   function renderDingSendModal(modal) {
@@ -1487,9 +1893,9 @@
     const featureSummary = (version.featureConfigs || []).map(item => `${item.name}：${item.label} V${item.version}`).join("；") || "未配置功能集能力";
     if (modal.confirmStep) {
       const recipients = resolveDingRecipients(modal.dingScopes || []);
-      return modalFrame("确认发送 DING", `<div class="ding-final-confirm"><div class="confirm-icon">!</div><h3>请再次确认本次 DING</h3><p>发送任务创建后不可重试或补发；发送成功后可由有权限人员独立撤回。</p><div class="ding-confirm-grid"><span>事件类型<strong>${typeLabel}</strong></span><span>版本变化<strong>${esc(event.fromVersion || "首次发布")} → ${esc(event.toVersion)}</strong></span><span>生效时间<strong>${esc(event.effectiveAt)}</strong></span><span>实际接收人<strong>${recipients.length} 人</strong></span></div><div class="ding-confirm-recipients"><span>接收人快照</span><p>${esc(recipients.join("、"))}</p></div><div class="ding-confirm-message"><strong>[固件${typeLabel}] ${esc(identifier.id)} ${esc(event.toVersion)}</strong><p>${esc(version.platformReleaseNotes)}</p><small>${esc(featureSummary)}</small></div></div>`, `<button class="btn" data-action="back-ding-send">返回修改</button><button class="btn primary" data-action="confirm-ding-send">确认并发送</button>`, true);
+      return modalFrame("确认发送 DING", `<div class="ding-final-confirm"><div class="confirm-icon">!</div><h3>${annotatedLabel("请再次确认本次 DING", [["ding", "DING-R05"]])}</h3><p>发送任务创建后不可重试或补发；发送成功后可由有权限人员独立撤回。</p><div class="ding-confirm-grid"><span>事件类型<strong>${typeLabel}</strong></span><span>版本变化<strong>${esc(event.fromVersion || "首次发布")} → ${esc(event.toVersion)}</strong></span><span>生效时间<strong>${esc(event.effectiveAt)}</strong></span><span>实际接收人<strong>${recipients.length} 人</strong></span></div><div class="ding-confirm-recipients"><span>接收人快照</span><p>${esc(recipients.join("、"))}</p></div><div class="ding-confirm-message"><strong>[固件${typeLabel}] ${esc(identifier.id)} ${esc(event.toVersion)}</strong><p>${esc(version.platformReleaseNotes)}</p><small>${esc(featureSummary)}</small></div></div>`, `<button class="btn" data-action="back-ding-send">返回修改</button><span class="action-with-rules"><button class="btn primary" data-action="confirm-ding-send">确认并发送</button>${ruleAnnotations([["ding", "DING-R05"], ["ding", "DING-R06"]])}</span>`, true);
     }
-    return modalFrame(`发送${typeLabel} DING`, `<div class="ding-send-context"><div><span>生效事件</span><strong>${typeLabel}</strong></div><div><span>版本变化</span><strong>${esc(event.fromVersion || "首次发布")} → ${esc(event.toVersion)}</strong></div><div><span>生效时间</span><strong>${esc(event.effectiveAt)}</strong></div><div><span>功能集</span><strong>${version.featureConfigs?.length || 0} 项能力</strong></div></div><div class="ding-send-note"><span>平台发布说明</span><p>${esc(version.platformReleaseNotes)}</p></div><div class="ding-feature-summary"><span>功能集信息</span><p>${esc(featureSummary)}</p></div>${renderDingConfiguration(modal)}<div class="ding-once-warning">该发布事件仅可创建一次 DING 发送任务；发送成功或失败后均不可重试或补发。发送成功后可按权限独立撤回。</div>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" data-action="review-ding-send">下一步：确认发送</button>`, true);
+    return modalFrame(`发送${typeLabel} DING`, `<div class="ding-send-context"><div><span>${annotatedLabel("生效事件", [["ding", "DING-R04"]])}</span><strong>${typeLabel}</strong></div><div><span>版本变化</span><strong>${esc(event.fromVersion || "首次发布")} → ${esc(event.toVersion)}</strong></div><div><span>生效时间</span><strong>${esc(event.effectiveAt)}</strong></div><div><span>功能集</span><strong>${version.featureConfigs?.length || 0} 项能力</strong></div></div><div class="ding-send-note"><span>平台发布说明</span><p>${esc(version.platformReleaseNotes)}</p></div><div class="ding-feature-summary"><span>功能集信息</span><p>${esc(featureSummary)}</p></div>${renderDingConfiguration(modal)}<div class="ding-once-warning">${annotatedLabel("单次发送限制", [["ding", "DING-R06"], ["ding", "DING-R07"]])}：该发布事件仅可创建一次 DING 发送任务；发送成功或失败后均不可重试或补发。发送成功后可按权限独立撤回。</div>`, `<button class="btn" data-action="close-overlay">取消</button><span class="action-with-rules"><button class="btn primary" data-action="review-ding-send">下一步：确认发送</button>${ruleAnnotation("ding", "DING-R05")}</span>`, true);
   }
 
   function renderDingRecordModal(modal) {
@@ -1499,7 +1905,7 @@
     const recallDetails = notice.recallStatus !== "not_requested" ? `<div class="ding-recall-audit"><div><span>撤回状态</span><strong>${esc(dingRecallLabel(notice))}</strong></div><div><span>撤回人</span><strong>${esc(notice.recalledBy)}</strong></div><div><span>撤回时间</span><strong>${esc(notice.recalledAt)}</strong></div><div><span>撤回原因</span><strong>${esc(notice.recallReason || "-")}</strong></div>${notice.recallFailureReason ? `<p>${esc(notice.recallFailureReason)}</p>` : ""}</div>` : "";
     const terminalNote = ["sent", "partial_failed"].includes(notice.status) ? "发送任务不支持重发或补发；撤回只影响钉钉消息，不改变固件发布和回滚状态。" : "发送任务已终态，不支持重试或补发。";
     const closeAction = state.drawer ? "close-modal" : "close-overlay";
-    return modalFrame("DING 发送记录", `<div class="ding-record-detail"><div class="ding-record-status ${notice.status} ${notice.recallStatus}"><span>当前状态</span><strong>${esc(dingDisplayLabel(notice))}</strong></div><div class="ding-confirm-grid"><span>通知类型<strong>发布 DING</strong></span><span>固件版本<strong>${esc(notice.version)}</strong></span><span>发送结果<strong>${esc(statusLabel)}</strong></span><span>发送时间<strong>${esc(notice.sentAt)}</strong></span></div><div class="ding-confirm-recipients"><span>实际接收人快照 · ${notice.recipients.length} 人</span><p>${esc(notice.recipients.join("、") || "-")}</p></div><div class="ding-confirm-message"><span>消息快照</span><p>${esc(notice.messageSnapshot)}</p></div>${recallDetails}<div class="ding-terminal-note">${terminalNote}</div></div>`, `<button class="btn" data-action="${closeAction}">关闭</button>${canRecallDing(notice) ? `<button class="btn danger" data-action="recall-ding" data-notice-id="${esc(notice.id)}">${notice.recallStatus === "recall_failed" || notice.recallStatus === "partial_recalled" ? "重试撤回" : "撤回 DING"}</button>` : ""}`, true, Boolean(state.drawer));
+    return modalFrame("DING 发送记录", `${ruleContextBar(["ding"])}<div class="ding-record-detail"><div class="ding-record-status ${notice.status} ${notice.recallStatus}"><span>当前状态</span><strong>${esc(dingDisplayLabel(notice))}</strong></div><div class="ding-confirm-grid"><span>通知类型<strong>发布 DING</strong></span><span>固件版本<strong>${esc(notice.version)}</strong></span><span>发送结果<strong>${esc(statusLabel)}</strong></span><span>发送时间<strong>${esc(notice.sentAt)}</strong></span></div><div class="ding-confirm-recipients"><span>实际接收人快照 · ${notice.recipients.length} 人</span><p>${esc(notice.recipients.join("、") || "-")}</p></div><div class="ding-confirm-message"><span>消息快照</span><p>${esc(notice.messageSnapshot)}</p></div>${recallDetails}<div class="ding-terminal-note">${terminalNote}</div></div>`, `<button class="btn" data-action="${closeAction}">关闭</button>${canRecallDing(notice) ? `<button class="btn danger" data-action="recall-ding" data-notice-id="${esc(notice.id)}">${notice.recallStatus === "recall_failed" || notice.recallStatus === "partial_recalled" ? "重试撤回" : "撤回 DING"}</button>` : ""}`, true, Boolean(state.drawer));
   }
 
   function renderDingRecallModal(modal) {
@@ -1509,20 +1915,31 @@
     if (!notice) return modalFrame("撤回 DING", `<div class="empty-state"><div>原发布 DING 记录不存在</div></div>`, `<button class="btn" data-action="${dismissAction}">关闭</button>`, false, nested);
     if (!canRecallDing(notice)) return modalFrame("撤回 DING", `<div class="empty-state"><div>当前 DING 状态不允许撤回</div></div>`, `<button class="btn" data-action="${dismissAction}">关闭</button>`, false, nested);
     if (modal.confirmStep) {
-      return modalFrame("确认撤回原发布 DING", `<div class="ding-final-confirm ding-recall-confirm"><div class="confirm-icon">!</div><h3>确认撤回这条发布通知？</h3><p>撤回后不能恢复，但已阅读的内容无法从接收人的认知中消除。</p><div class="ding-confirm-grid"><span>固件版本<strong>${esc(notice.version)}</strong></span><span>实际接收人<strong>${notice.recipients.length} 人</strong></span><span>发送时间<strong>${esc(notice.sentAt)}</strong></span><span>撤回尝试<strong>第 ${notice.recallAttempts + 1} 次</strong></span></div><div class="ding-confirm-message"><span>撤回原因</span><p>${esc(modal.reason)}</p></div><div class="ding-once-warning">本操作只撤回钉钉消息，不会撤销固件发布、回滚结果、审批记录或 APP 提醒策略。</div></div>`, `<button class="btn" data-action="back-ding-recall">返回修改</button><button class="btn danger" data-action="confirm-ding-recall">确认撤回</button>`, true, nested);
+      return modalFrame("确认撤回原发布 DING", `${ruleContextBar(["ding", "concurrency"])}<div class="ding-final-confirm ding-recall-confirm"><div class="confirm-icon">!</div><h3>确认撤回这条发布通知？</h3><p>撤回后不能恢复，但已阅读的内容无法从接收人的认知中消除。</p><div class="ding-confirm-grid"><span>固件版本<strong>${esc(notice.version)}</strong></span><span>实际接收人<strong>${notice.recipients.length} 人</strong></span><span>发送时间<strong>${esc(notice.sentAt)}</strong></span><span>撤回尝试<strong>第 ${notice.recallAttempts + 1} 次</strong></span></div><div class="ding-confirm-message"><span>撤回原因</span><p>${esc(modal.reason)}</p></div><div class="ding-once-warning">本操作只撤回钉钉消息，不会撤销固件发布、回滚结果、审批记录或 APP 提醒策略。</div></div>`, `<button class="btn" data-action="back-ding-recall">返回修改</button><button class="btn danger" data-action="confirm-ding-recall">确认撤回</button>`, true, nested);
     }
-    return modalFrame("撤回原发布 DING", `<div class="ding-recall-summary"><div><span>固件版本</span><strong>${esc(notice.version)}</strong></div><div><span>发送状态</span><strong>${esc(({ sent: "发送成功", partial_failed: "部分失败" })[notice.status] || notice.status)}</strong></div><div><span>发送时间</span><strong>${esc(notice.sentAt)}</strong></div><div><span>接收人数</span><strong>${notice.recipients.length} 人</strong></div></div><div class="ding-confirm-message"><span>原消息快照</span><p>${esc(notice.messageSnapshot)}</p></div><div class="form-field required ding-recall-reason"><label>撤回原因</label><textarea class="textarea" data-modal-field="reason" maxlength="300" placeholder="请说明撤回原因，例如版本已回滚、通知内容有误或接收范围错误">${esc(modal.reason || "")}</textarea>${errorFor("recallReason")}<div class="helper align-right">${(modal.reason || "").length} / 300</div></div><div class="rollback-risk">撤回不会影响已经完成的固件发布或回滚；已阅读的接收人仍可能知道原通知内容。</div>`, `<button class="btn" data-action="${dismissAction}">取消</button><button class="btn danger" data-action="review-ding-recall">下一步：确认撤回</button>`, true, nested);
+    return modalFrame("撤回原发布 DING", `${ruleContextBar(["ding", "concurrency"])}<div class="ding-recall-summary"><div><span>固件版本</span><strong>${esc(notice.version)}</strong></div><div><span>发送状态</span><strong>${esc(({ sent: "发送成功", partial_failed: "部分失败" })[notice.status] || notice.status)}</strong></div><div><span>发送时间</span><strong>${esc(notice.sentAt)}</strong></div><div><span>接收人数</span><strong>${notice.recipients.length} 人</strong></div></div><div class="ding-confirm-message"><span>原消息快照</span><p>${esc(notice.messageSnapshot)}</p></div><div class="form-field required ding-recall-reason"><label>撤回原因</label><textarea class="textarea" data-modal-field="reason" maxlength="300" placeholder="请说明撤回原因，例如版本已回滚、通知内容有误或接收范围错误">${esc(modal.reason || "")}</textarea>${errorFor("recallReason")}<div class="helper align-right">${(modal.reason || "").length} / 300</div></div><div class="rollback-risk">撤回不会影响已经完成的固件发布或回滚；已阅读的接收人仍可能知道原通知内容。</div>`, `<button class="btn" data-action="${dismissAction}">取消</button><button class="btn danger" data-action="review-ding-recall">下一步：确认撤回</button>`, true, nested);
   }
 
   function renderRollbackResultModal(modal) {
     return modalFrame("固件回滚成功", `<div class="approval-submit-result rollback-result"><div class="approval-result-icon">✓</div><h3>${esc(modal.version)} 已恢复为当前发布版本</h3></div>`, `<button class="btn primary" data-action="close-overlay">完成</button>`, true);
   }
 
+  function renderDelistResultModal(modal) {
+    const notice = db.dingNotices.find(item => item.id === modal.noticeId);
+    const dingFollowup = notice ? `<div class="delist-result-ding"><div><span>原发布 DING</span><strong>${esc(dingDisplayLabel(notice))}</strong></div>${notice.recallStatus === "recalling" ? `<span class="muted">正在撤回</span>` : renderDingRecordActions(notice)}</div>` : "";
+    return modalFrame("固件版本下架成功", `<div class="approval-submit-result delist-result"><div class="approval-result-icon">✓</div><h3>${esc(modal.version)} 已停止作为当前发布版本</h3><p>当前状态为“暂无当前发布版本”，固件包和已升级设备不受影响。</p>${dingFollowup}</div>`, `<button class="btn primary" data-action="close-overlay">完成</button>`, true);
+  }
+
   function renderApprovalSimulation(modal) {
     const approval = approvalById(modal.approvalId);
-    const rollback = approval.event === "撤销并回滚固件版本";
-    const dingBoundary = rollback ? "回滚事件不会触发 DING。" : "发布成功后可在当前发布版本中独立发送一次 DING。";
-    return modalFrame(rollback ? "回滚审批已提交" : "发布审批已提交", `<div class="approval-submit-result"><div class="approval-result-icon">✓</div><h3>审批单已进入钉钉审批</h3><p>当前发布版本保持不变，审批通过后平台会重新校验快照并执行${rollback ? "回滚" : "发布"}事务。${dingBoundary}</p><div class="approval-snapshot"><span>审批事件<strong>${esc(approval.event)}</strong></span><span>目标版本<strong>${esc(approval.version)}</strong></span><span>APP 提醒<strong>${esc(reminderLabel(approval.reminderPolicy))}</strong></span><span>APP 说明<strong>${Object.keys(approval.appReleaseNotes || {}).length} 种语言</strong></span><span>功能集<strong>${(approval.featureConfigs || []).length} 项能力</strong></span><span>提交人<strong>${esc(approval.submitter)}</strong></span><span>提交时间<strong>${esc(approval.submitTime)}</strong></span></div><div class="prototype-simulation-note">原型审批模拟</div></div>`, `<button class="btn danger" data-action="simulate-approval-reject">模拟审批驳回</button><button class="btn primary" data-action="simulate-approval-approve">模拟审批通过</button>`, true);
+    const rollback = approval.type === "rollback";
+    const delist = approval.type === "delist";
+    const dingBoundary = delist ? "下架不会自动发送或撤回 DING。" : rollback ? "回滚事件不会触发 DING。" : "发布成功后可在当前发布版本中独立发送一次 DING。";
+    const actionLabel = delist ? "下架" : rollback ? "回滚" : "发布";
+    const snapshot = delist
+      ? `<div class="approval-snapshot"><span>审批事件<strong>${esc(approval.event)}</strong></span><span>下架版本<strong>${esc(approval.version)}</strong></span><span>关联设备快照<strong>${formatDeviceCount(approval.associatedDeviceCount)} 台</strong></span><span>适用机型<strong>${esc(approval.models)}</strong></span><span>下架原因<strong>${esc(approval.reasonType)}</strong></span><span>提交人<strong>${esc(approval.submitter)}</strong></span><span>提交时间<strong>${esc(approval.submitTime)}</strong></span><span>具体说明<strong>${esc(approval.reason)}</strong></span></div>`
+      : `<div class="approval-snapshot"><span>审批事件<strong>${esc(approval.event)}</strong></span><span>目标版本<strong>${esc(approval.version)}</strong></span><span>APP 提醒<strong>${esc(reminderLabel(approval.reminderPolicy))}</strong></span><span>APP 说明<strong>${Object.keys(approval.appReleaseNotes || {}).length} 种语言</strong></span><span>功能集<strong>${(approval.featureConfigs || []).length} 项能力</strong></span><span>提交人<strong>${esc(approval.submitter)}</strong></span><span>提交时间<strong>${esc(approval.submitTime)}</strong></span></div>`;
+    return modalFrame(delist ? "下架审批已提交" : rollback ? "回滚审批已提交" : "发布审批已提交", `${ruleContextBar([delist ? "delist" : rollback ? "rollback" : "publish", "concurrency"])}<div class="approval-submit-result"><div class="approval-result-icon">✓</div><h3>审批单已进入钉钉审批</h3><p>当前发布版本保持不变，审批通过后平台会重新校验快照并执行${actionLabel}事务。${dingBoundary}</p>${snapshot}<div class="prototype-simulation-note">原型审批模拟</div></div>`, `<button class="btn danger" data-action="simulate-approval-reject">模拟审批驳回</button><button class="btn primary" data-action="simulate-approval-approve">模拟审批通过</button>`, true);
   }
 
   function renderModal() {
@@ -1530,14 +1947,14 @@
     if (modal.type === "addIdentifier") {
       const modelOptions = [...new Set(db.identifiers.map(item => item.models).filter(Boolean))];
       const draft = modal.draft || { id: "", product: "IPC", models: "" };
-      return modalFrame("新增固件标识", `<form id="add-identifier-form"><div class="notice">关联绑定机型后不支持二次编辑，请谨慎操作。<span class="notice-help">找不到机型？可直接输入</span></div><div class="form-grid single"><div class="form-field required"><label for="identifier-id">固件标识</label><input id="identifier-id" class="field" name="id" data-modal-draft="id" value="${esc(draft.id)}" placeholder="固件标识为xx.xx.xx，如1.0.0" autocomplete="off">${errorFor("id")}</div><div class="form-field required"><label for="identifier-product">所属产线</label><select id="identifier-product" class="select" name="product" data-modal-draft="product">${productLines.map(line => `<option ${line === draft.product ? "selected" : ""}>${line}</option>`).join("")}</select></div><div class="form-field required"><label for="identifier-models">关联机型</label><input id="identifier-models" class="field" name="models" data-modal-draft="models" value="${esc(draft.models)}" list="identifier-model-options" placeholder="请选择关联机型"><datalist id="identifier-model-options">${modelOptions.map(model => `<option value="${esc(model)}">`).join("")}</datalist>${errorFor("models")}</div></div></form>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" type="submit" form="add-identifier-form">确认</button>`);
+      return modalFrame("新增固件标识", `${ruleContextBar(["identifier"])}<form id="add-identifier-form"><div class="notice">关联绑定机型后不支持二次编辑，请谨慎操作。<span class="notice-help">找不到机型？可直接输入</span></div><div class="form-grid single"><div class="form-field required"><label for="identifier-id">固件标识</label><input id="identifier-id" class="field" name="id" data-modal-draft="id" value="${esc(draft.id)}" placeholder="固件标识为xx.xx.xx，如1.0.0" autocomplete="off">${errorFor("id")}</div><div class="form-field required"><label for="identifier-product">所属产线</label><select id="identifier-product" class="select" name="product" data-modal-draft="product">${productLines.map(line => `<option ${line === draft.product ? "selected" : ""}>${line}</option>`).join("")}</select></div><div class="form-field required"><label for="identifier-models">关联机型</label><input id="identifier-models" class="field" name="models" data-modal-draft="models" value="${esc(draft.models)}" list="identifier-model-options" placeholder="请选择关联机型"><datalist id="identifier-model-options">${modelOptions.map(model => `<option value="${esc(model)}">`).join("")}</datalist>${errorFor("models")}</div></div></form>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" type="submit" form="add-identifier-form">确认</button>`);
     }
     if (modal.type === "editIdentifier") {
       const item = activeIdentifier();
-      return modalFrame("编辑固件标识", `<form id="edit-identifier-form"><div class="notice">关联机型创建后不可二次编辑。</div><div class="form-grid"><div class="form-field"><label>固件标识</label><input class="field" value="${esc(item.id)}" disabled></div><div class="form-field required"><label>所属产线</label><select class="select" name="product">${productLines.map(line => `<option ${line === item.product ? "selected" : ""}>${line}</option>`).join("")}</select></div><div class="form-field required"><label>关联机型</label><input class="field" value="${esc(item.models)}" disabled></div><div class="form-field"><label>网络类型</label><select class="select" name="network"><option ${item.network === "仅4G" ? "selected" : ""}>仅4G</option><option ${item.network === "WiFi" ? "selected" : ""}>WiFi</option><option ${item.network === "4G + WiFi" ? "selected" : ""}>4G + WiFi</option></select></div><div class="form-field"><label>电量类型</label><select class="select" name="power"><option ${item.power === "常电" ? "selected" : ""}>常电</option><option ${item.power === "低功耗" ? "selected" : ""}>低功耗</option></select></div><div class="form-field"><label>架构类型</label><select class="select" name="architecture"><option ${item.architecture === "新架构" ? "selected" : ""}>新架构</option><option ${item.architecture === "旧架构" ? "selected" : ""}>旧架构</option></select></div></div></form>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" type="submit" form="edit-identifier-form">保存</button>`, true);
+      return modalFrame("编辑固件标识", `${ruleContextBar(["identifier"])}<form id="edit-identifier-form"><div class="notice">关联机型创建后不可二次编辑。</div><div class="form-grid"><div class="form-field"><label>固件标识</label><input class="field" value="${esc(item.id)}" disabled></div><div class="form-field required"><label>所属产线</label><select class="select" name="product">${productLines.map(line => `<option ${line === item.product ? "selected" : ""}>${line}</option>`).join("")}</select></div><div class="form-field required"><label>关联机型</label><input class="field" value="${esc(item.models)}" disabled></div><div class="form-field"><label>网络类型</label><select class="select" name="network"><option ${item.network === "仅4G" ? "selected" : ""}>仅4G</option><option ${item.network === "WiFi" ? "selected" : ""}>WiFi</option><option ${item.network === "4G + WiFi" ? "selected" : ""}>4G + WiFi</option></select></div><div class="form-field"><label>电量类型</label><select class="select" name="power"><option ${item.power === "常电" ? "selected" : ""}>常电</option><option ${item.power === "低功耗" ? "selected" : ""}>低功耗</option></select></div><div class="form-field"><label>架构类型</label><select class="select" name="architecture"><option ${item.architecture === "新架构" ? "selected" : ""}>新架构</option><option ${item.architecture === "旧架构" ? "selected" : ""}>旧架构</option></select></div></div></form>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" type="submit" form="edit-identifier-form">保存</button>`, true);
     }
     if (modal.type === "dingDefaults") {
-      return modalFrame("DING 接收人模板", `<div class="notice">模板只在独立发送发布 DING 时预填接收人，不会随发布或回滚自动发送；发送前仍需确认实际接收范围。</div>${renderDingConfiguration(modal)}`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" data-action="save-ding-defaults">保存接收人模板</button>`, true);
+      return modalFrame("DING 接收人模板", `${ruleContextBar(["ding"])}<div class="notice">模板只在独立发送发布 DING 时预填接收人，不会随发布或回滚自动发送；发送前仍需确认实际接收范围。</div>${renderDingConfiguration(modal)}`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" data-action="save-ding-defaults">保存接收人模板</button>`, true);
     }
     if (modal.type === "sendDing") {
       return renderDingSendModal(modal);
@@ -1551,19 +1968,22 @@
     if (modal.type === "rollbackResult") {
       return renderRollbackResultModal(modal);
     }
+    if (modal.type === "delistResult") {
+      return renderDelistResultModal(modal);
+    }
     if (modal.type === "addDifferentialTask") {
       const identifier = activeIdentifier();
       const targetVersion = modal.targetVersion || "";
       const availableSources = identifier.versions.filter(version => version.version !== targetVersion);
       const sourceSummary = (modal.sourceVersions || []).length ? modal.sourceVersions.join(", ") : "请选择源版本";
       const sourceOptions = modal.sourceOpen ? `<div class="differential-source-dropdown">${availableSources.map(version => `<label class="check"><input type="checkbox" data-differential-source="${esc(version.version)}" ${(modal.sourceVersions || []).includes(version.version) ? "checked" : ""}>${esc(version.version)}</label>`).join("") || `<span class="muted">没有可选的源版本</span>`}</div>` : "";
-      return modalFrame("新增差分任务", `<form id="differential-task-form" class="differential-task-form"><div class="form-field required"><label for="differential-task-name">差分任务名称</label><div class="field-control"><input id="differential-task-name" class="field" name="name" data-modal-field="name" maxlength="50" value="${esc(modal.name || "")}" placeholder="如：xx旧版本升级至xx新版本包的差分任务" autocomplete="off">${errorFor("differentialTaskName")}<div class="helper align-right">${(modal.name || "").length} / 50</div></div></div><div class="form-field required"><label for="differential-target-version">目标版本</label><div class="field-control"><select id="differential-target-version" class="select" name="targetVersion" data-modal-field="targetVersion"><option value="">请选择目标版本</option>${identifier.versions.map(version => `<option value="${esc(version.version)}" ${version.version === targetVersion ? "selected" : ""}>${esc(version.version)}</option>`).join("")}</select>${errorFor("differentialTargetVersion")}</div></div><div class="form-field required"><label>源版本</label><div class="field-control differential-source-control"><button class="multi-select-trigger ${(modal.sourceVersions || []).length ? "has-value" : ""}" type="button" data-action="toggle-differential-sources" aria-expanded="${Boolean(modal.sourceOpen)}"><span title="${esc(sourceSummary)}">${esc(sourceSummary)}</span><span class="select-chevron">⌄</span></button>${sourceOptions}${errorFor("differentialSourceVersions")}</div></div><div class="form-field"><label for="differential-module-model">模组型号</label><div class="field-control"><input id="differential-module-model" class="field" value="${esc(identifier.models)}" placeholder="根据固件标识自动带出" disabled></div></div></form>`, `<button class="btn" data-action="close-overlay">取 消</button><button class="btn primary" type="submit" form="differential-task-form">确 认</button>`);
+      return modalFrame("新增差分任务", `${ruleContextBar(["differential"])}<form id="differential-task-form" class="differential-task-form"><div class="form-field required"><label for="differential-task-name">差分任务名称</label><div class="field-control"><input id="differential-task-name" class="field" name="name" data-modal-field="name" maxlength="50" value="${esc(modal.name || "")}" placeholder="如：xx旧版本升级至xx新版本包的差分任务" autocomplete="off">${errorFor("differentialTaskName")}<div class="helper align-right">${(modal.name || "").length} / 50</div></div></div><div class="form-field required"><label for="differential-target-version">目标版本</label><div class="field-control"><select id="differential-target-version" class="select" name="targetVersion" data-modal-field="targetVersion"><option value="">请选择目标版本</option>${identifier.versions.map(version => `<option value="${esc(version.version)}" ${version.version === targetVersion ? "selected" : ""}>${esc(version.version)}</option>`).join("")}</select>${errorFor("differentialTargetVersion")}</div></div><div class="form-field required"><label>源版本</label><div class="field-control differential-source-control"><button class="multi-select-trigger ${(modal.sourceVersions || []).length ? "has-value" : ""}" type="button" data-action="toggle-differential-sources" aria-expanded="${Boolean(modal.sourceOpen)}"><span title="${esc(sourceSummary)}">${esc(sourceSummary)}</span><span class="select-chevron">⌄</span></button>${sourceOptions}${errorFor("differentialSourceVersions")}</div></div><div class="form-field"><label for="differential-module-model">模组型号</label><div class="field-control"><input id="differential-module-model" class="field" value="${esc(identifier.models)}" placeholder="根据固件标识自动带出" disabled></div></div></form>`, `<button class="btn" data-action="close-overlay">取 消</button><button class="btn primary" type="submit" form="differential-task-form">确 认</button>`);
     }
     if (modal.type === "publish") {
       const identifier = activeIdentifier();
       const targetVersion = findVersion(modal.version);
       const current = currentVersion(identifier);
-      return modalFrame("提交固件发布审批", `<div class="release-impact"><div><span>当前发布版本</span><strong>${esc(current?.version || "-")}</strong></div><div class="impact-arrow">→</div><div><span>目标发布版本</span><strong>${esc(targetVersion.version)}</strong></div></div><div class="app-reminder-layout"><div class="publish-primary-column"><section class="app-reminder-choice"><div class="section-label required">APP 提醒方式</div>${renderReminderOptions(modal.reminderPolicy)}${errorFor("reminderPolicy")}</section>${renderReleaseSnapshot(current, targetVersion)}<div class="approval-boundary-note">本审批只决定版本发布与 APP 提醒策略，不包含 DING 通知。发布生效后可在固件列表的当前发布版本中独立发送一次 DING。</div></div>${renderAppReminderPreview(modal, targetVersion)}</div>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" data-action="confirm-publish">提交发布审批</button>`, true);
+      return modalFrame("提交固件发布审批", `<div class="release-impact"><div><span>当前发布版本</span><strong>${esc(current?.version || "-")}</strong></div><div class="impact-arrow">→</div><div><span>${annotatedLabel("目标发布版本", [["publish", "PUB-R03"]])}</span><strong>${esc(targetVersion.version)}</strong></div></div><div class="app-reminder-layout"><div class="publish-primary-column"><section class="app-reminder-choice"><div class="field-rule-row"><div class="section-label required">APP 提醒方式</div>${ruleAnnotations([["reminder", "REM-R01"], ["reminder", "REM-R03"]])}</div>${renderReminderOptions(modal.reminderPolicy)}${errorFor("reminderPolicy")}</section>${renderReleaseSnapshot(current, targetVersion)}<div class="approval-boundary-note">${annotatedLabel("通知边界", [["publish", "PUB-R10"], ["ding", "DING-R01"]])}：本审批只决定版本发布与 APP 提醒策略，不包含 DING 通知。发布生效后可在固件列表的当前发布版本中独立发送一次 DING。</div></div>${renderAppReminderPreview(modal, targetVersion)}</div>`, `<button class="btn" data-action="close-overlay">取消</button><span class="action-with-rules"><button class="btn primary" data-action="confirm-publish">提交发布审批</button>${ruleAnnotations([["publish", "PUB-R03"], ["concurrency", "CON-R01"]])}</span>`, true);
     }
     if (modal.type === "rollback") {
       const identifier = activeIdentifier();
@@ -1571,7 +1991,15 @@
       const targetVersion = rollbackTarget(identifier);
       const currentLocales = Object.keys(current.appReleaseNotes || {});
       const targetLocales = Object.keys(targetVersion.appReleaseNotes || {});
-      return modalFrame("撤销并回滚版本", `<div class="rollback-heading"><strong>当前版本 ${esc(current.version)} 将被撤销</strong><span>审批通过后恢复至唯一回滚目标 ${esc(targetVersion.version)}</span></div><div class="rollback-compare"><div class="compare-head"><span>对比项</span><strong>当前发布版本</strong><strong>回滚目标版本</strong><span>变化</span></div>${[["固件版本号", current.version, targetVersion.version, "切换目标"], ["版本状态", "当前发布", "历史发布", "恢复生效"], ["适用机型", current.models, targetVersion.models, current.models === targetVersion.models ? "无变化" : "存在差异"], ["功能集配置", `${current.featureConfigs.length} 项`, `${targetVersion.featureConfigs.length} 项`, current.featureConfigs.length === targetVersion.featureConfigs.length ? "无变化" : "存在差异"], ["APP 说明", `${currentLocales.length} 种语言`, `${targetLocales.length} 种语言`, sameValues(currentLocales, targetLocales) ? "无变化" : "覆盖变化"]].map(row => `<div class="compare-row"><span>${esc(row[0])}</span><strong>${esc(row[1])}</strong><strong>${esc(row[2])}</strong><em class="${row[3].includes("差异") || row[3].includes("变化") ? "changed" : ""}">${esc(row[3])}</em></div>`).join("")}</div><div class="form-field required"><label>本次 APP 提醒方式</label>${renderReminderOptions(modal.reminderPolicy)}${errorFor("reminderPolicy")}</div><div class="form-field required"><label>回滚原因</label><textarea class="textarea" data-modal-field="reason" maxlength="500" placeholder="请说明问题表现、影响范围、回滚原因及后续处理计划">${esc(modal.reason || "")}</textarea>${errorFor("rollbackReason")}<div class="helper align-right">${(modal.reason || "").length} / 500</div></div>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" data-action="confirm-rollback">提交回滚审批</button>`, true);
+      return modalFrame("撤销并回滚版本", `<div class="rollback-heading"><strong>${annotatedLabel(`当前版本 ${current.version} 将被撤销`, [["rollback", "RBK-R01"], ["rollback", "RBK-R02"]])}</strong><span>审批通过后恢复至唯一回滚目标 ${esc(targetVersion.version)}</span></div><div class="rollback-compare"><div class="compare-head"><span>${annotatedLabel("对比项", [["rollback", "RBK-R03"]])}</span><strong>当前发布版本</strong><strong>回滚目标版本</strong><span>变化</span></div>${[["固件版本号", current.version, targetVersion.version, "切换目标"], ["版本状态", "当前发布", "历史发布", "恢复生效"], ["适用机型", current.models, targetVersion.models, current.models === targetVersion.models ? "无变化" : "存在差异"], ["功能集配置", `${current.featureConfigs.length} 项`, `${targetVersion.featureConfigs.length} 项`, current.featureConfigs.length === targetVersion.featureConfigs.length ? "无变化" : "存在差异"], ["APP 说明", `${currentLocales.length} 种语言`, `${targetLocales.length} 种语言`, sameValues(currentLocales, targetLocales) ? "无变化" : "覆盖变化"]].map(row => `<div class="compare-row"><span>${esc(row[0])}</span><strong>${esc(row[1])}</strong><strong>${esc(row[2])}</strong><em class="${row[3].includes("差异") || row[3].includes("变化") ? "changed" : ""}">${esc(row[3])}</em></div>`).join("")}</div><div class="form-field required"><div class="field-rule-row"><label>本次 APP 提醒方式</label>${ruleAnnotations([["reminder", "REM-R02"], ["reminder", "REM-R03"]])}</div>${renderReminderOptions(modal.reminderPolicy)}${errorFor("reminderPolicy")}</div><div class="form-field required"><div class="field-rule-row"><label>回滚原因</label>${ruleAnnotation("rollback", "RBK-R03")}</div><textarea class="textarea" data-modal-field="reason" maxlength="500" placeholder="请说明问题表现、影响范围、回滚原因及后续处理计划">${esc(modal.reason || "")}</textarea>${errorFor("rollbackReason")}<div class="helper align-right">${(modal.reason || "").length} / 500</div></div>`, `<button class="btn" data-action="close-overlay">取消</button><span class="action-with-rules"><button class="btn primary" data-action="confirm-rollback">提交回滚审批</button>${ruleAnnotations([["rollback", "RBK-R04"], ["concurrency", "CON-R01"]])}</span>`, true);
+    }
+    if (modal.type === "delist") {
+      const identifier = activeIdentifier();
+      const current = currentVersion(identifier);
+      const event = activeRelease(identifier);
+      const notice = dingRecordForEvent(event);
+      if (!current || !event) return modalFrame("下架当前发布版本", `<div class="empty-state"><div>当前发布版本已变化，请关闭后刷新</div></div>`, `<button class="btn" data-action="close-overlay">关闭</button>`);
+      return modalFrame("下架当前发布版本", `<div class="delist-impact-grid"><div><span>当前发布版本</span><strong>${esc(current.version)}</strong></div><div><span>适用机型</span><strong>${esc(current.models)}</strong></div><div><span>关联设备数</span><strong>${formatDeviceCount(current.associatedDeviceCount)} 台</strong></div><div><span>生效时间</span><strong>${esc(event.effectiveAt || current.published || current.updated)}</strong></div><div><span>原发布 DING</span><strong>${esc(dingDisplayLabel(notice))}</strong></div><div><span>下架后状态</span><strong>暂无当前发布版本</strong></div></div><div class="delist-boundary"><strong>${annotatedLabel("下架结果边界", [["delist", "DEL-R03"], ["delist", "DEL-R09"]])}</strong><span>停止将该版本作为当前发布版本；不删除固件包，不影响已升级设备，不自动停止 OTA 已有任务，也不自动发送或撤回 DING。</span></div><div class="form-field required"><div class="field-rule-row"><label>下架原因类型</label>${ruleAnnotation("delist", "DEL-R04")}</div><div class="delist-reason-options">${delistReasonTypes.map(reason => `<label class="delist-reason-option ${modal.reasonType === reason ? "selected" : ""}"><input type="radio" name="delistReasonType" data-modal-field="reasonType" value="${esc(reason)}" ${modal.reasonType === reason ? "checked" : ""}><span>${esc(reason)}</span></label>`).join("")}</div>${errorFor("delistReasonType")}</div><div class="form-field required"><label>具体说明</label><textarea class="textarea" data-modal-field="reason" maxlength="500" placeholder="请说明问题表现、影响范围及后续处理计划">${esc(modal.reason || "")}</textarea>${errorFor("delistReason")}<div class="helper align-right">${(modal.reason || "").length} / 500（至少 10 字）</div></div>`, `<button class="btn" data-action="close-overlay">取消</button><span class="action-with-rules"><button class="btn danger" data-action="confirm-delist">提交下架审批</button>${ruleAnnotations([["delist", "DEL-R05"], ["concurrency", "CON-R01"]])}</span>`, true);
     }
     if (modal.type === "approvalSimulation") {
       return renderApprovalSimulation(modal);
@@ -1601,7 +2029,7 @@
     }
     if (modal.type === "editAppNotes") {
       const notes = appNoteDraft(modal.notesDraft);
-      return modalFrame("维护 APP 更新说明", `<div class="revision-warning">已发布文案修改无需重新审批，但会生成不可覆盖的修订记录并立即失效 APP 升级检查缓存。默认语言固定展示，未配置的选填语言由 APP 使用英文说明兜底。</div>${renderAppNoteEditor(notes, modal.activeLocale || "zh-CN", "revision")}<div class="form-field required revision-reason-field"><label>修改原因</label><textarea class="textarea" data-revision-reason maxlength="200" placeholder="请说明翻译修正、措辞优化或其他修改原因">${esc(modal.reason || "")}</textarea>${errorFor("revisionReason")}</div>`, `<button class="btn" data-action="close-modal">取消</button><button class="btn primary" data-action="save-app-notes">保存修订</button>`, true, true);
+      return modalFrame("维护 APP 更新说明", `${ruleContextBar(["locale"])}<div class="revision-warning">已发布文案修改无需重新审批，但会生成不可覆盖的修订记录并立即失效 APP 升级检查缓存。未配置的选填语言由 APP 使用英文说明兜底。</div>${renderAppNoteEditor(notes, modal.activeLocale || "zh", "revision")}<div class="form-field required revision-reason-field"><label>修改原因</label><textarea class="textarea" data-revision-reason maxlength="200" placeholder="请说明翻译修正、措辞优化或其他修改原因">${esc(modal.reason || "")}</textarea>${errorFor("revisionReason")}</div>`, `<button class="btn" data-action="close-modal">取消</button><button class="btn primary" data-action="save-app-notes">保存修订</button>`, true, true);
     }
     if (modal.type === "deleteRole") {
       return modalFrame("删除角色", `<div class="confirm-icon">!</div><p class="confirm-copy">确定删除角色【${esc(activeRole().name)}】吗？</p>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn danger" data-action="confirm-delete-role">删除</button>`);
@@ -1615,7 +2043,7 @@
   function renderRoleFormModal(title, role) {
     const editing = Boolean(role);
     const draft = state.modal.draft || { name: role?.name || "", code: role?.code || "", note: role?.note === "-" ? "" : role?.note || "" };
-    return modalFrame(title, `<form id="${editing ? "edit-role-form" : "add-role-form"}"><div class="form-grid single"><div class="form-field required"><label>角色名称</label><input class="field" name="name" data-modal-draft="name" maxlength="20" value="${esc(draft.name)}" placeholder="请输入角色名称">${errorFor("roleName")}<div class="helper align-right">${draft.name.length} / 20</div></div><div class="form-field required"><label>角色编码</label><input class="field" name="code" data-modal-draft="code" maxlength="20" value="${esc(draft.code)}" ${editing ? "disabled" : ""} placeholder="请输入角色英文编码">${errorFor("roleCode")}<div class="helper align-right">${draft.code.length} / 20</div></div><div class="form-field"><label>备注</label><textarea class="textarea" name="note" data-modal-draft="note" maxlength="200" placeholder="请输入备注">${esc(draft.note)}</textarea><div class="helper align-right">${draft.note.length} / 200</div></div></div></form>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" type="submit" form="${editing ? "edit-role-form" : "add-role-form"}">${editing ? "保存" : "确认"}</button>`);
+    return modalFrame(title, `${ruleContextBar(["audit"])}<form id="${editing ? "edit-role-form" : "add-role-form"}"><div class="form-grid single"><div class="form-field required"><label>角色名称</label><input class="field" name="name" data-modal-draft="name" maxlength="20" value="${esc(draft.name)}" placeholder="请输入角色名称">${errorFor("roleName")}<div class="helper align-right">${draft.name.length} / 20</div></div><div class="form-field required"><label>角色编码</label><input class="field" name="code" data-modal-draft="code" maxlength="20" value="${esc(draft.code)}" ${editing ? "disabled" : ""} placeholder="请输入角色英文编码">${errorFor("roleCode")}<div class="helper align-right">${draft.code.length} / 20</div></div><div class="form-field"><label>备注</label><textarea class="textarea" name="note" data-modal-draft="note" maxlength="200" placeholder="请输入备注">${esc(draft.note)}</textarea><div class="helper align-right">${draft.note.length} / 200</div></div></div></form>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" type="submit" form="${editing ? "edit-role-form" : "add-role-form"}">${editing ? "保存" : "确认"}</button>`);
   }
 
   function renderFeaturePicker() {
@@ -1625,7 +2053,7 @@
     const filtered = availableFeatures.filter(feature => !query || feature.name.toLowerCase().includes(query));
     const selectedIds = modal.selectedIds || [];
     const selected = availableFeatures.filter(feature => selectedIds.includes(feature.id));
-    return modalFrame("编辑功能关联", `<div class="feature-picker"><div class="feature-picker-main"><div class="picker-toolbar"><label class="check"><input type="checkbox" data-action="toggle-all-features" ${filtered.length && filtered.every(item => selectedIds.includes(item.id)) ? "checked" : ""}>${selectedIds.length}/${availableFeatures.length}项</label><input class="field" data-feature-search value="${esc(modal.query || "")}" placeholder="请输入功能名称，按enter搜索"></div><div class="feature-option-list">${filtered.map(feature => `<label class="feature-option"><input type="checkbox" data-feature-choice="${feature.id}" ${selectedIds.includes(feature.id) ? "checked" : ""}><span class="feature-image-placeholder">${esc(feature.imageLabel)}</span><strong>${esc(feature.name)}</strong></label>`).join("") || `<div class="empty-state compact-empty"><div>无搜索数据</div></div>`}</div></div><aside class="feature-selected"><h3>已选功能（${selected.length}）</h3>${selected.map(feature => `<div class="selected-feature"><span class="feature-image-placeholder">${esc(feature.imageLabel)}</span><span>${esc(feature.name)}</span><button class="link-btn danger-link" data-action="unselect-feature" data-feature-id="${feature.id}">移除</button></div>`).join("") || `<div class="empty-state compact-empty"><div>暂无数据</div></div>`}</aside></div>`, `<button class="btn" data-action="close-modal">取消</button><button class="btn primary" data-action="confirm-feature-picker">确定</button>`, true, true);
+    return modalFrame("编辑功能关联", `${ruleContextBar(["version"])}<div class="feature-picker"><div class="feature-picker-main"><div class="picker-toolbar"><label class="check"><input type="checkbox" data-action="toggle-all-features" ${filtered.length && filtered.every(item => selectedIds.includes(item.id)) ? "checked" : ""}>${selectedIds.length}/${availableFeatures.length}项</label><input class="field" data-feature-search value="${esc(modal.query || "")}" placeholder="请输入功能名称，按enter搜索"></div><div class="feature-option-list">${filtered.map(feature => `<label class="feature-option"><input type="checkbox" data-feature-choice="${feature.id}" ${selectedIds.includes(feature.id) ? "checked" : ""}><span class="feature-image-placeholder">${esc(feature.imageLabel)}</span><strong>${esc(feature.name)}</strong></label>`).join("") || `<div class="empty-state compact-empty"><div>无搜索数据</div></div>`}</div></div><aside class="feature-selected"><h3>已选功能（${selected.length}）</h3>${selected.map(feature => `<div class="selected-feature"><span class="feature-image-placeholder">${esc(feature.imageLabel)}</span><span>${esc(feature.name)}</span><button class="link-btn danger-link" data-action="unselect-feature" data-feature-id="${feature.id}">移除</button></div>`).join("") || `<div class="empty-state compact-empty"><div>暂无数据</div></div>`}</aside></div>`, `<button class="btn" data-action="close-modal">取消</button><button class="btn primary" data-action="confirm-feature-picker">确定</button>`, true, true);
   }
 
   function availableAssociatedFeatures() {
@@ -1651,28 +2079,25 @@
   function renderDifferentialTaskDetail(taskId) {
     const task = activeIdentifier().differentialTasks.find(item => item.id === taskId);
     if (!task) return "";
-    return drawerFrame("差分任务详情", `<div class="differential-task-summary"><div><strong>${esc(task.name)}</strong><span class="tag ${task.status === "已完成" ? "success" : task.status === "差分失败" ? "danger" : "warning"}">${esc(task.status)}</span></div><p><span>创建时间：</span>${esc(task.createdAt)}</p></div><div class="drawer-section differential-task-table-section"><div class="table-wrap"><table class="data-table differential-task-detail-table"><thead><tr><th>源版本</th><th>目标版本</th><th>模组型号</th><th>差分状态</th><th>失败原因</th><th>操作</th></tr></thead><tbody>${task.items.map(item => `<tr><td>${esc(item.sourceVersion)}</td><td>${esc(item.targetVersion)}</td><td>${esc(item.moduleModel)}</td><td><span class="tag ${item.status === "已完成" ? "success" : item.status === "差分失败" ? "danger" : "warning"}">${esc(item.status)}</span></td><td>${esc(item.failureReason || "-")}</td><td>${item.status === "已完成" ? `<button class="link-btn" data-action="download-differential-package" data-package-name="${esc(item.packageName)}">差分包下载</button>` : "-"}</td></tr>`).join("")}</tbody></table></div></div>`);
+    return drawerFrame("差分任务详情", `${ruleContextBar(["differential"])}<div class="differential-task-summary"><div><strong>${esc(task.name)}</strong><span class="tag ${task.status === "已完成" ? "success" : task.status === "差分失败" ? "danger" : "warning"}">${esc(task.status)}</span></div><p><span>创建时间：</span>${esc(task.createdAt)}</p></div><div class="drawer-section differential-task-table-section"><div class="table-wrap"><table class="data-table differential-task-detail-table"><thead><tr><th>源版本</th><th>目标版本</th><th>模组型号</th><th>差分状态</th><th>失败原因</th><th>操作</th></tr></thead><tbody>${task.items.map(item => `<tr><td>${esc(item.sourceVersion)}</td><td>${esc(item.targetVersion)}</td><td>${esc(item.moduleModel)}</td><td><span class="tag ${item.status === "已完成" ? "success" : item.status === "差分失败" ? "danger" : "warning"}">${esc(item.status)}</span></td><td>${esc(item.failureReason || "-")}</td><td>${item.status === "已完成" ? `<button class="link-btn" data-action="download-differential-package" data-package-name="${esc(item.packageName)}">差分包下载</button>` : "-"}</td></tr>`).join("")}</tbody></table></div></div>`);
   }
 
   function renderAppNoteEditor(notes, activeLocale, mode = "version") {
-    const selectedLocale = activeLocale in notes ? activeLocale : "zh-CN";
+    const selectedLocale = defaultLocaleIds.includes(activeLocale) ? activeLocale : "zh";
     const selectedContent = notes[selectedLocale] || "";
     const revision = mode === "revision";
-    const availableLocales = localeCatalog.filter(item => !item.default && !(item.locale in notes));
     const configuredCount = configuredDefaultLocaleCount(notes);
     const selectAction = revision ? "select-revision-locale" : "select-locale";
     const inputAttribute = revision ? "data-revision-locale" : "data-app-note";
-    const removeAction = revision ? "remove-revision-locale" : "remove-locale";
-    const addChange = revision ? "add-revision-locale" : "add-locale";
     const errorPrefix = revision ? "revision" : "locale";
-    const list = Object.keys(notes).map(locale => {
-      const required = isRequiredLocale(locale);
-      const configured = Boolean(String(notes[locale] || "").trim());
+    const list = localeCatalog.map(item => {
+      const required = isRequiredLocale(item.locale);
+      const configured = Boolean(String(notes[item.locale] || "").trim());
       const stateLabel = required ? "必填" : configured ? "已配置" : "未配置";
       const stateClass = required ? "required" : configured ? "configured" : "optional";
-      return `<button type="button" class="locale-item ${locale === selectedLocale ? "active" : ""}" data-action="${selectAction}" data-locale="${esc(locale)}"><span>${esc(localeName(locale))}</span><small>${esc(locale)}</small><em class="${stateClass}">${stateLabel}</em></button>`;
+      return `<button type="button" class="locale-item ${item.locale === selectedLocale ? "active" : ""}" data-action="${selectAction}" data-locale="${esc(item.locale)}"><span>${esc(item.label)}</span><small>${esc(item.locale)}</small><em class="${stateClass}">${stateLabel}</em></button>`;
     }).join("");
-    return `<div class="section-bar app-note-section-bar"><div><h3>APP 固件版本更新说明</h3><span class="subtle">简体中文和英文固定必填；已配置 ${configuredCount} / ${defaultLocaleIds.length} 种默认语言；中日韩80字，其他语言160字符</span></div>${availableLocales.length ? `<select class="select locale-add-select" data-change="${addChange}"><option value="">＋ 添加语言</option>${availableLocales.map(item => `<option value="${item.locale}">${esc(item.label)} · ${item.locale}</option>`).join("")}</select>` : ""}</div>${errorFor(revision ? "revisionRequired" : "appNotes")}<div class="locale-editor ${revision ? "revision-locale-editor" : ""}"><aside class="locale-list" aria-label="APP 更新说明语言">${list}</aside><div class="locale-writing"><div class="locale-writing-head"><div><strong>${esc(localeName(selectedLocale))}</strong><span>Locale：${esc(selectedLocale)} · ${isRequiredLocale(selectedLocale) ? "必填" : "选填"}</span></div>${isDefaultLocale(selectedLocale) ? "" : `<button type="button" class="link-btn danger-link" data-action="${removeAction}" data-locale="${esc(selectedLocale)}">删除语言</button>`}</div><textarea class="textarea locale-textarea" ${inputAttribute}="${esc(selectedLocale)}" maxlength="${appNoteLimit(selectedLocale)}" placeholder="${isRequiredLocale(selectedLocale) ? "请输入面向 APP 用户的固件更新说明" : "选填；未配置时 APP 使用英文更新说明"}">${esc(selectedContent)}</textarea>${errorFor(`${errorPrefix}-${selectedLocale}`)}<div class="helper align-right">${selectedContent.length} / ${appNoteLimit(selectedLocale)}</div></div></div>`;
+    return `<div class="section-bar app-note-section-bar"><div><h3>${annotatedLabel("APP 固件版本更新说明", [["locale", "LOC-R01"], ["locale", "LOC-R02"]])}</h3><span class="subtle">已配置 ${configuredCount} / ${defaultLocaleIds.length}；简体中文、英文必填</span></div></div>${errorFor(revision ? "revisionRequired" : "appNotes")}<div class="locale-editor ${revision ? "revision-locale-editor" : ""}"><div class="locale-list-wrap"><div class="locale-list-rule">${ruleAnnotations([["locale", "LOC-R01"], ["locale", "LOC-R04"]])}</div><aside class="locale-list" aria-label="APP 更新说明语言">${list}</aside></div><div class="locale-writing"><div class="locale-writing-head"><div><strong>${esc(localeName(selectedLocale))}</strong><span>语言码：${esc(selectedLocale)} · ${isRequiredLocale(selectedLocale) ? "必填" : "选填"}</span></div>${ruleAnnotations([["locale", "LOC-R03"], ["locale", "LOC-R05"], ["locale", "LOC-R06"]])}</div><textarea class="textarea locale-textarea" ${inputAttribute}="${esc(selectedLocale)}" maxlength="${appNoteLimit(selectedLocale)}" placeholder="${isRequiredLocale(selectedLocale) ? "请输入面向 APP 用户的固件更新说明" : "选填；未配置时 APP 使用英文更新说明"}">${esc(selectedContent)}</textarea>${errorFor(`${errorPrefix}-${selectedLocale}`)}<div class="helper align-right">${selectedContent.length} / ${appNoteLimit(selectedLocale)}</div></div></div>`;
   }
 
   function renderVersionFormDrawer(title, version) {
@@ -1682,7 +2107,7 @@
     const generatedVersion = formDraft.version;
     const associatedFeatures = state.drawer?.associatedFeatures || [];
     const appReleaseNotes = appNoteDraft(state.drawer.appReleaseNotes || version?.appReleaseNotes);
-    const activeLocale = state.drawer.activeLocale || "zh-CN";
+    const activeLocale = state.drawer.activeLocale || "zh";
     const configurable = editing || Boolean(upload);
     const existingConfigs = version?.featureConfigs || [];
     const uploadName = editing ? version.url.split("/").pop() : upload?.name;
@@ -1696,23 +2121,23 @@
       return `<div class="capability-card"><div><div class="capability-name">${esc(item.name)} <span title="${esc(item.hint)}">ⓘ</span></div><div class="capability-hint">${esc(item.hint)}</div></div><div class="capability-control"><button class="btn small" type="button" data-action="capability-help" data-capability="${item.key}">版本说明</button><select class="select" name="capability-${item.key}" aria-label="${esc(item.name)}">${item.options.map(option => `<option value="${esc(option.value)}" ${option.value === selected ? "selected" : ""}>${esc(option.label)}</option>`).join("")}</select></div>${helpOpen ? `<div class="capability-description"><strong>版本 ${esc(selectedOption.version)}</strong><span>${esc(selectedOption.description)}</span></div>` : ""}</div>`;
     }).join("") : "";
     const md5Field = editing ? "" : `<div class="form-field required"><label>MD5值</label><input class="field" value="${esc(upload?.md5 || "")}" readonly placeholder="上传文件后自动生成"></div>`;
-    const editNotice = editing ? `<div class="edit-scope-notice"><strong>本次保存将生成修订记录 R${Number(version.recordVersion || 1) + 1}</strong><span>固件版本号与固件包作为历史引用保持不变；可维护适用机型、功能集、发布说明和关联功能。</span></div>` : "";
+    const editNotice = editing ? `<div class="edit-scope-notice"><strong>${annotatedLabel(`本次保存将生成修订记录 R${Number(version.recordVersion || 1) + 1}`, [["version", "VER-R07"]])}</strong><span>${annotatedLabel("固件版本号与固件包保持不变", [["version", "VER-R06"]])}；可维护适用机型、功能集、发布说明和关联功能。</span></div>` : "";
     const formBody = `${editNotice}<form id="version-form">
       <input type="hidden" name="mode" value="${editing ? "edit" : "add"}">
       <input type="hidden" name="version" value="${esc(generatedVersion)}">
       <div class="form-grid">
         <div class="form-field required"><label>固件标识</label><input class="field" value="${esc(activeIdentifier().id)}" disabled placeholder="固件标识"></div>
-        <div class="form-field required"><label>固件版本号</label><input class="field" value="${esc(generatedVersion)}" disabled placeholder="上传文件后自动生成">${errorFor("version")}</div>
-        <div class="form-field required"><label>上传固件包</label>${uploadCard}${errorFor("file")}</div>
+        <div class="form-field required"><div class="field-rule-row"><label>固件版本号</label>${editing ? ruleAnnotation("version", "VER-R06") : ""}</div><input class="field" value="${esc(generatedVersion)}" disabled placeholder="上传文件后自动生成">${errorFor("version")}</div>
+        <div class="form-field required"><div class="field-rule-row"><label>上传固件包</label>${ruleAnnotation("version", "VER-R01")}</div>${uploadCard}${errorFor("file")}</div>
         ${md5Field}
         <div class="form-field required"><label>适用机型</label><input class="field" name="models" data-version-draft="models" maxlength="100" value="${esc(formDraft.models)}" placeholder="请输入适用机型">${errorFor("models")}<div class="helper align-right">${formDraft.models.length} / 100</div></div>
       </div>
-      <div class="drawer-section capability-section"><h3>功能集</h3>${configurable ? `<div class="capability-notice">● 提示：当前固件版本【${esc(generatedVersion)}】支持以下功能集配置；请直接选择对应版本后提交。</div><div class="capability-list">${capabilityCards}</div>${errorFor("capabilities")}` : ""}</div>
-      <div class="drawer-section"><div class="form-field required"><label>平台发布说明</label><textarea class="textarea release-note-textarea" name="platformNote" data-version-draft="note" maxlength="500" placeholder="请填写主要变更、修复问题、影响范围、测试情况和已知风险">${esc(formDraft.note)}</textarea>${errorFor("platformNote")}<div class="helper align-right">${formDraft.note.length} / 500</div></div></div>
+      <div class="drawer-section capability-section"><h3>${annotatedLabel("功能集", [["version", "VER-R02"]])}</h3>${configurable ? `<div class="capability-notice">● 提示：当前固件版本【${esc(generatedVersion)}】支持以下功能集配置；请直接选择对应版本后提交。</div><div class="capability-list">${capabilityCards}</div>${errorFor("capabilities")}` : ""}</div>
+      <div class="drawer-section"><div class="form-field required"><div class="field-rule-row"><label>平台发布说明</label>${ruleAnnotation("version", "VER-R04")}</div><textarea class="textarea release-note-textarea" name="platformNote" data-version-draft="note" maxlength="500" placeholder="请填写主要变更、修复问题、影响范围、测试情况和已知风险">${esc(formDraft.note)}</textarea>${errorFor("platformNote")}<div class="helper align-right">${formDraft.note.length} / 500</div></div></div>
       <div class="drawer-section">${renderAppNoteEditor(appReleaseNotes, activeLocale)}</div>
-      <div class="drawer-section"><div class="section-bar"><h3>关联功能</h3><button class="btn primary small" type="button" data-action="add-associated-feature">＋ 添加功能</button></div><div class="table-wrap"><table class="data-table associated-table"><thead><tr><th>功能项名称</th><th>功能示意图</th><th>操作</th></tr></thead><tbody>${associatedFeatures.map((feature, index) => `<tr><td>${esc(feature.name)}</td><td><span class="feature-image-placeholder">${esc(feature.imageLabel || "功能")}</span></td><td><button class="link-btn danger-link" type="button" data-action="remove-associated-feature" data-feature-index="${index}">删除</button></td></tr>`).join("")}</tbody></table></div>${associatedFeatures.length ? "" : `<div class="empty-state compact-empty"><div><div class="empty-illustration">▤</div>暂无数据</div></div>`}</div>
+      <div class="drawer-section"><div class="section-bar"><h3>${annotatedLabel("关联功能", [["version", "VER-R03"]])}</h3><span class="action-with-rules"><button class="btn primary small" type="button" data-action="add-associated-feature">＋ 添加功能</button>${ruleAnnotation("version", "VER-R03")}</span></div><div class="table-wrap"><table class="data-table associated-table"><thead><tr><th>功能项名称</th><th>功能示意图</th><th>操作</th></tr></thead><tbody>${associatedFeatures.map((feature, index) => `<tr><td>${esc(feature.name)}</td><td><span class="feature-image-placeholder">${esc(feature.imageLabel || "功能")}</span></td><td><button class="link-btn danger-link" type="button" data-action="remove-associated-feature" data-feature-index="${index}">删除</button></td></tr>`).join("")}</tbody></table></div>${associatedFeatures.length ? "" : `<div class="empty-state compact-empty"><div><div class="empty-illustration">▤</div>暂无数据</div></div>`}</div>
     </form>`;
-    return drawerFrame(title, formBody, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" type="submit" form="version-form" ${configurable ? "" : "disabled"}>${editing ? "保存" : "确认创建"}</button>`);
+    return drawerFrame(title, formBody, `<button class="btn" data-action="close-overlay">取消</button><span class="action-with-rules"><button class="btn primary" type="submit" form="version-form" ${configurable ? "" : "disabled"}>${editing ? "保存" : "确认创建"}</button>${ruleAnnotation("version", editing ? "VER-R07" : "VER-R04")}</span>`);
   }
 
   function renderVersionDetail(version) {
@@ -1740,18 +2165,18 @@
       tabContent = notices.length ? `<div class="table-wrap"><table class="data-table detail-content-table ding-record-table"><thead><tr><th>通知类型</th><th>发送结果</th><th>撤回状态</th><th>实际接收人快照</th><th>发送时间</th><th>操作</th></tr></thead><tbody>${notices.map(notice => `<tr><td>发布 DING</td><td><span class="tag ${notice.status === "sent" ? "success" : ["failed", "partial_failed"].includes(notice.status) ? "danger" : "warning"}">${esc(({ sending: "发送中", sent: "发送成功", failed: "发送失败", partial_failed: "部分失败" })[notice.status] || notice.status)}</span>${notice.failureReason ? `<small class="ding-failure">${esc(notice.failureReason)}</small>` : ""}</td><td><span class="tag ${notice.recallStatus === "recalled" ? "success" : notice.recallStatus === "recall_failed" ? "danger" : ""}">${esc(dingRecallLabel(notice))}</span></td><td>${esc(notice.recipients.join(" / ") || "-")}</td><td>${esc(notice.sentAt)}</td><td><div class="cell-actions">${canRecallDing(notice) ? `<button class="link-btn danger-link" data-action="recall-ding" data-notice-id="${esc(notice.id)}">${notice.recallStatus === "recall_failed" ? "重试撤回" : "撤回"}</button>` : ""}<button class="link-btn" data-action="view-ding-record" data-notice-id="${esc(notice.id)}">查看</button></div></td></tr>`).join("")}</tbody></table></div>` : `<div class="empty-state"><div><div class="empty-illustration">▤</div>暂无 DING 记录</div></div>`;
     }
     const event = releaseEventsForVersion(version)[0];
-    return drawerFrame("固件版本详情", `<div class="detail-hero"><h3>${esc(version.version)} <span class="tag ${version.status === "current" ? "success" : version.status === "withdrawn" ? "danger" : ""}">${esc(versionStatusLabel(version.status))}</span></h3><div class="detail-note"><span>平台发布说明</span><strong>${esc(version.platformReleaseNotes)}</strong></div><div class="detail-stats four"><div class="detail-stat"><span>适用机型</span><strong>${esc(version.models)}</strong></div><div class="detail-stat"><span>APP 提醒方式</span><strong>${esc(reminderLabel(event?.reminderPolicy) || version.reminder || "不提醒")}</strong></div><div class="detail-stat"><span>APP 说明</span><strong>${Object.keys(version.appReleaseNotes || {}).length} 种语言</strong></div><div class="detail-stat"><span>生效时间</span><strong>${esc(event?.effectiveAt || version.published || "未发布")}</strong></div></div></div><div class="drawer-section detail-basic-section"><h3>基础信息</h3><table class="info-list detail-info-list"><tr><td>固件版本号</td><td>${esc(version.version)}</td></tr><tr><td>固件标识</td><td>${esc(activeIdentifier().id)}</td></tr><tr><td>文件大小</td><td>${esc(version.size)} M</td></tr><tr><td>固件包下载地址</td><td><div class="detail-url"><span>${esc(version.url)}</span><button class="link-btn" title="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button></div></td></tr><tr><td>创建时间</td><td>${esc(version.created || version.updated)}</td></tr><tr><td>创建人</td><td>${esc(version.creator)}</td></tr></table></div><div class="tab-strip detail-tabs"><button class="tab ${tab === "features" ? "active" : ""}" data-action="detail-tab" data-tab="features">功能集配置</button><button class="tab ${tab === "appNotes" ? "active" : ""}" data-action="detail-tab" data-tab="appNotes">APP 更新说明</button><button class="tab ${tab === "related" ? "active" : ""}" data-action="detail-tab" data-tab="related">关联功能</button><button class="tab ${tab === "releases" ? "active" : ""}" data-action="detail-tab" data-tab="releases">发布记录</button><button class="tab ${tab === "approvals" ? "active" : ""}" data-action="detail-tab" data-tab="approvals">审批日志</button><button class="tab ${tab === "ding" ? "active" : ""}" data-action="detail-tab" data-tab="ding">DING 记录</button></div><div class="detail-tab-content">${tabContent}</div>`);
+    return drawerFrame("固件版本详情", `${ruleContextBar(["detail", tab === "appNotes" ? "locale" : tab === "ding" ? "ding" : "detail"])}<div class="detail-hero"><h3>${esc(version.version)} <span class="tag ${version.status === "current" ? "success" : version.status === "withdrawn" ? "danger" : ""}">${esc(versionStatusLabel(version.status))}</span></h3><div class="detail-note"><span>平台发布说明</span><strong>${esc(version.platformReleaseNotes)}</strong></div><div class="detail-stats four"><div class="detail-stat"><span>适用机型</span><strong>${esc(version.models)}</strong></div><div class="detail-stat"><span>APP 提醒方式</span><strong>${esc(reminderLabel(event?.reminderPolicy) || version.reminder || "不提醒")}</strong></div><div class="detail-stat"><span>APP 说明</span><strong>${Object.keys(version.appReleaseNotes || {}).length} 种语言</strong></div><div class="detail-stat"><span>生效时间</span><strong>${esc(event?.effectiveAt || version.published || "未发布")}</strong></div></div></div><div class="drawer-section detail-basic-section"><h3>基础信息</h3><table class="info-list detail-info-list"><tr><td>固件版本号</td><td>${esc(version.version)}</td></tr><tr><td>固件标识</td><td>${esc(activeIdentifier().id)}</td></tr><tr><td>文件大小</td><td>${esc(version.size)} M</td></tr><tr><td>固件包下载地址</td><td><div class="detail-url"><span>${esc(version.url)}</span><button class="link-btn" title="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button></div></td></tr><tr><td>创建时间</td><td>${esc(version.created || version.updated)}</td></tr><tr><td>创建人</td><td>${esc(version.creator)}</td></tr></table></div><div class="tab-strip detail-tabs"><button class="tab ${tab === "features" ? "active" : ""}" data-action="detail-tab" data-tab="features">功能集配置</button><button class="tab ${tab === "appNotes" ? "active" : ""}" data-action="detail-tab" data-tab="appNotes">APP 更新说明</button><button class="tab ${tab === "related" ? "active" : ""}" data-action="detail-tab" data-tab="related">关联功能</button><button class="tab ${tab === "releases" ? "active" : ""}" data-action="detail-tab" data-tab="releases">发布记录</button><button class="tab ${tab === "approvals" ? "active" : ""}" data-action="detail-tab" data-tab="approvals">审批日志</button><button class="tab ${tab === "ding" ? "active" : ""}" data-action="detail-tab" data-tab="ding">DING 记录</button></div><div class="detail-tab-content">${tabContent}</div>`);
   }
 
   function renderUserDetail(user) {
     const changeLogs = user.changeLogs || [];
-    return drawerFrame("用户详情", `<div class="detail-hero"><h3>${esc(user.name)}　<span class="tag blue">${esc(user.role)}</span></h3></div><div class="drawer-section"><h3>所属产线</h3><div class="table-wrap"><table class="data-table detail-content-table"><thead><tr><th>产线</th><th>是否审批人</th></tr></thead><tbody>${user.lines.map(line => `<tr><td>${esc(line)}</td><td><label class="toggle"><input type="checkbox" ${user.approverLines.includes(line) ? "checked" : ""} disabled><span></span></label></td></tr>`).join("")}</tbody></table></div></div><div class="form-grid" style="margin-top:20px"><div class="form-field"><label>创建时间</label><strong>${esc(user.created)}</strong></div><div class="form-field"><label>备注</label><strong>${esc(user.note || "-")}</strong></div></div><div class="drawer-section"><h3>权限范围</h3>${renderPermissionTable(db.roles.find(role => role.name === user.role) || db.roles[0], false, "detail")}</div><div class="drawer-section"><h3>变更日志</h3><div class="table-wrap"><table class="data-table detail-content-table"><thead><tr><th>变更时间</th><th>变更人</th><th>变更动作</th><th>变更内容</th></tr></thead><tbody>${changeLogs.map(log => `<tr><td>${esc(log.time)}</td><td>${esc(log.operator)}</td><td>${esc(log.action)}</td><td>${esc(log.content)}</td></tr>`).join("")}</tbody></table></div>${changeLogs.length ? "" : `<div class="empty-state compact-empty"><div><div class="empty-illustration">▤</div>暂无数据</div></div>`}</div>`);
+    return drawerFrame("用户详情", `${ruleContextBar(["audit"])}<div class="detail-hero"><h3>${esc(user.name)}　<span class="tag blue">${esc(user.role)}</span></h3></div><div class="drawer-section"><h3>所属产线</h3><div class="table-wrap"><table class="data-table detail-content-table"><thead><tr><th>产线</th><th>是否审批人</th></tr></thead><tbody>${user.lines.map(line => `<tr><td>${esc(line)}</td><td><label class="toggle"><input type="checkbox" ${user.approverLines.includes(line) ? "checked" : ""} disabled><span></span></label></td></tr>`).join("")}</tbody></table></div></div><div class="form-grid" style="margin-top:20px"><div class="form-field"><label>创建时间</label><strong>${esc(user.created)}</strong></div><div class="form-field"><label>备注</label><strong>${esc(user.note || "-")}</strong></div></div><div class="drawer-section"><h3>权限范围</h3>${renderPermissionTable(db.roles.find(role => role.name === user.role) || db.roles[0], false, "detail")}</div><div class="drawer-section"><h3>变更日志</h3><div class="table-wrap"><table class="data-table detail-content-table"><thead><tr><th>变更时间</th><th>变更人</th><th>变更动作</th><th>变更内容</th></tr></thead><tbody>${changeLogs.map(log => `<tr><td>${esc(log.time)}</td><td>${esc(log.operator)}</td><td>${esc(log.action)}</td><td>${esc(log.content)}</td></tr>`).join("")}</tbody></table></div>${changeLogs.length ? "" : `<div class="empty-state compact-empty"><div><div class="empty-illustration">▤</div>暂无数据</div></div>`}</div>`);
   }
 
   function renderUserPermissions(user) {
     const draft = state.drawer.userDraft || { lines: [...user.lines], approverLines: [...user.approverLines], note: user.note, role: user.role };
     const selectedRole = db.roles.find(role => role.name === draft.role) || db.roles[0];
-    return drawerFrame("权限配置", `<form id="user-permissions-form"><div class="drawer-section" style="margin-top:0"><h3>基本信息</h3><div class="form-grid single"><div class="form-field required"><label>账号名称</label><input class="field" value="${esc(user.name)}" disabled placeholder="请输入账号名称"></div><div class="form-field required"><label>所属产线</label><div class="check-grid line-tags">${productLines.map(line => `<label class="check"><input type="checkbox" data-user-line="${esc(line)}" ${draft.lines.includes(line) ? "checked" : ""}>${esc(line)}</label>`).join("")}</div><div class="table-wrap"><table class="data-table detail-content-table"><thead><tr><th>产线</th><th>是否审批人</th></tr></thead><tbody>${draft.lines.map(line => `<tr><td>${esc(line)}</td><td><label class="toggle"><input type="checkbox" data-approver-line="${esc(line)}" ${draft.approverLines.includes(line) ? "checked" : ""}><span></span></label></td></tr>`).join("")}</tbody></table></div></div><div class="form-field"><label>备注</label><textarea class="textarea" data-user-note maxlength="200" placeholder="请输入备注说明信息，例如成员职责">${esc(draft.note)}</textarea><div class="helper align-right">${draft.note.length} / 200</div></div><div class="form-field required"><label>关联角色</label><select class="select" name="role" data-change="permission-role">${db.roles.map(role => `<option ${role.name === selectedRole.name ? "selected" : ""}>${esc(role.name)}</option>`).join("")}</select></div></div></div><div class="drawer-section"><h3>角色权限预览</h3>${renderPermissionTable(selectedRole, false, "user")}</div></form>`, `<button class="btn" data-action="close-overlay">取 消</button><button class="btn primary" type="submit" form="user-permissions-form">完 成</button>`);
+    return drawerFrame("权限配置", `${ruleContextBar(["audit"])}<form id="user-permissions-form"><div class="drawer-section" style="margin-top:0"><h3>基本信息</h3><div class="form-grid single"><div class="form-field required"><label>账号名称</label><input class="field" value="${esc(user.name)}" disabled placeholder="请输入账号名称"></div><div class="form-field required"><label>所属产线</label><div class="check-grid line-tags">${productLines.map(line => `<label class="check"><input type="checkbox" data-user-line="${esc(line)}" ${draft.lines.includes(line) ? "checked" : ""}>${esc(line)}</label>`).join("")}</div><div class="table-wrap"><table class="data-table detail-content-table"><thead><tr><th>产线</th><th>是否审批人</th></tr></thead><tbody>${draft.lines.map(line => `<tr><td>${esc(line)}</td><td><label class="toggle"><input type="checkbox" data-approver-line="${esc(line)}" ${draft.approverLines.includes(line) ? "checked" : ""}><span></span></label></td></tr>`).join("")}</tbody></table></div></div><div class="form-field"><label>备注</label><textarea class="textarea" data-user-note maxlength="200" placeholder="请输入备注说明信息，例如成员职责">${esc(draft.note)}</textarea><div class="helper align-right">${draft.note.length} / 200</div></div><div class="form-field required"><label>关联角色</label><select class="select" name="role" data-change="permission-role">${db.roles.map(role => `<option ${role.name === selectedRole.name ? "selected" : ""}>${esc(role.name)}</option>`).join("")}</select></div></div></div><div class="drawer-section"><h3>角色权限预览</h3>${renderPermissionTable(selectedRole, false, "user")}</div></form>`, `<button class="btn" data-action="close-overlay">取 消</button><button class="btn primary" type="submit" form="user-permissions-form">完 成</button>`);
   }
 
   function closeOverlay() {
@@ -1767,6 +2192,9 @@
     if (!routes[route]) return;
     state.profileOpen = false;
     state.popover = null;
+    state.rulePanel = null;
+    state.ruleId = null;
+    state.ruleAnchor = null;
     state.groups[routes[route].group] = true;
     document.body.classList.remove("nav-open");
     if (location.hash !== `#/${route}`) location.hash = `#/${route}`;
@@ -1830,41 +2258,49 @@
       return null;
     }
     const isRollback = type === "rollback";
-    const target = isRollback ? rollbackTarget(identifier) : findVersion(config.version);
+    const isDelist = type === "delist";
     const current = currentVersion(identifier);
-    const sourceEvent = isRollback ? activeRelease(identifier) : null;
-    const sourceNotice = isRollback ? dingRecordForEvent(sourceEvent) : null;
-    const flowId = releaseId(isRollback ? "FLOW-ROLLBACK" : "FLOW-PUB");
+    const target = isDelist ? current : isRollback ? rollbackTarget(identifier) : findVersion(config.version);
+    const sourceEvent = isRollback || isDelist ? activeRelease(identifier) : null;
+    const sourceNotice = isRollback || isDelist ? dingRecordForEvent(sourceEvent) : null;
+    if (!target || (isDelist && (!current || !sourceEvent))) {
+      toast(isDelist ? "当前没有可下架的正式发布版本" : "审批目标版本不存在", "warning");
+      return null;
+    }
+    const flowId = releaseId(isDelist ? "FLOW-DELIST" : isRollback ? "FLOW-ROLLBACK" : "FLOW-PUB");
     const approval = {
       id: releaseId("APR"),
       version: target.version,
-      event: isRollback ? "撤销并回滚固件版本" : "发布当前固件版本",
+      event: isDelist ? "下架当前发布版本" : isRollback ? "撤销并回滚固件版本" : "发布当前固件版本",
       submitter: "汤彦珊",
       submitTime: now(),
       approver: "-",
       status: "审批中",
       approveTime: "-",
-      note: isRollback ? config.reason : target.platformReleaseNotes,
+      note: isDelist ? `${config.reasonType}：${config.reason}` : isRollback ? config.reason : target.platformReleaseNotes,
       type,
       firmwareId: identifier.id,
       fromVersion: current?.version || null,
-      toVersion: target.version,
-      reminderPolicy: config.reminderPolicy,
+      toVersion: isDelist ? null : target.version,
+      reminderPolicy: isDelist ? null : config.reminderPolicy,
       platformReleaseNotes: target.platformReleaseNotes,
       appReleaseNotes: clone(target.appReleaseNotes || {}),
       featureConfigs: clone(target.featureConfigs || []),
       reason: config.reason || "",
+      reasonType: config.reasonType || "",
+      models: target.models,
+      associatedDeviceCount: target.associatedDeviceCount,
       snapshotRecordVersion: target.recordVersion,
-      previousTargetStatus: isRollback ? null : target.status,
+      previousTargetStatus: isRollback || isDelist ? null : target.status,
       sourceReleaseId: sourceEvent?.id || null,
-      sourceNoticeId: sourceNotice?.id || null
-      , flowId
+      sourceNoticeId: sourceNotice?.id || null,
+      flowId
     };
     db.approvals.unshift(approval);
     identifier.activeApproval = { approvalId: approval.id, type, version: target.version };
-    if (!isRollback) target.status = "approval";
-    addOperation(isRollback ? "固件回滚" : "固件申请", "提交审批", target.version);
-    addLifecycleEvent(identifier, { flowId, flowType: isRollback ? "rollback" : "publish", flowStatus: "pending", fromVersion: current?.version || null, toVersion: target.version, stage: "approval", title: isRollback ? "提交回滚审批" : "提交发布审批", operator: approval.submitter, result: "success", summary: `审批快照已锁定，目标版本 ${target.version}` });
+    if (!isRollback && !isDelist) target.status = "approval";
+    addOperation(isDelist ? "固件下架" : isRollback ? "固件回滚" : "固件申请", "提交审批", target.version, "汤彦珊", "成功", isDelist ? `${config.reasonType}；当前版本在审批期间继续生效` : "");
+    addLifecycleEvent(identifier, { flowId, flowType: isDelist ? "delist" : isRollback ? "rollback" : "publish", flowStatus: "pending", fromVersion: current?.version || null, toVersion: isDelist ? null : target.version, stage: "approval", title: isDelist ? "提交下架审批" : isRollback ? "提交回滚审批" : "提交发布审批", operator: approval.submitter, result: "success", summary: isDelist ? `已锁定 ${target.version} R${target.recordVersion} 及影响范围快照，审批期间当前版本继续生效` : `审批快照已锁定，目标版本 ${target.version}` });
     state.expandedLifecycleFlows = [flowId];
     persist();
     return approval;
@@ -1873,10 +2309,38 @@
   function executeApprovedRelease(approval) {
     const identifier = db.identifiers.find(item => item.id === approval.firmwareId);
     if (!identifier || identifier.activeApproval?.approvalId !== approval.id) return { ok: false, message: "审批已失效，当前固件状态已发生变化" };
-    const target = identifier.versions.find(version => version.version === approval.toVersion);
     const current = currentVersion(identifier);
-    if (!target || target.recordVersion !== approval.snapshotRecordVersion) return { ok: false, message: "目标版本已发生变化，原审批快照失效" };
     const stamp = now();
+    if (approval.type === "delist") {
+      const target = identifier.versions.find(version => version.version === approval.fromVersion);
+      const sourceEvent = activeRelease(identifier);
+      if (!target || current?.version !== approval.fromVersion || target.status !== "current") return { ok: false, message: "当前发布版本已变化，原下架审批失效" };
+      if (Number(target.recordVersion) !== Number(approval.snapshotRecordVersion)) return { ok: false, message: "当前版本记录已发生变化，原下架审批快照失效" };
+      if (!sourceEvent || sourceEvent.id !== approval.sourceReleaseId || sourceEvent.status !== "active") return { ok: false, message: "当前发布事件已变化，原下架审批失效" };
+      addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: "delist", flowStatus: "completed", fromVersion: target.version, toVersion: null, stage: "approval", title: "下架审批通过", time: stamp, operator: "IPC 产品线负责人", operatorType: "钉钉审批", result: "success", summary: "审批回调、当前版本及影响范围快照复检通过" });
+      target.status = "delisted";
+      target.latest = false;
+      sourceEvent.status = "delisted";
+      sourceEvent.rollbackAvailable = false;
+      setLifecycleFlowStatus(identifier, sourceEvent.flowId, "delisted");
+      const delistEvent = { id: releaseId("DELIST"), flowId: approval.flowId, action: "delist", fromVersion: target.version, toVersion: null, status: "delisted", effectiveAt: stamp, operator: approval.submitter, approvalId: approval.id, reasonType: approval.reasonType, reason: approval.reason, sourceReleaseId: sourceEvent.id, sourceNoticeId: approval.sourceNoticeId || null };
+      identifier.releaseEvents.unshift(delistEvent);
+      identifier.currentVersion = null;
+      identifier.rollbackTargetVersion = null;
+      identifier.rollbackAvailable = false;
+      identifier.activeApproval = null;
+      identifier.lastDelisted = { version: target.version, time: stamp, reasonType: approval.reasonType, reason: approval.reason, sourceReleaseId: sourceEvent.id, sourceNoticeId: approval.sourceNoticeId || null, approvalId: approval.id };
+      approval.status = "审批通过";
+      approval.approver = "IPC 产品线负责人";
+      approval.approveTime = stamp;
+      addOperation("固件下架", "下架生效", target.version, "发布服务", "成功", `${approval.reasonType}；当前发布版本已清空，固件包保留`);
+      addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: "delist", flowStatus: "completed", fromVersion: target.version, toVersion: null, stage: "delist", title: "停止提供当前发布版本", time: stamp, operator: "发布服务", operatorType: "系统", result: "success", summary: `${target.version} → 暂无当前发布版本；固件包与已升级设备不受影响` });
+      addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: "delist", flowStatus: "completed", fromVersion: target.version, toVersion: null, stage: "cache", title: "升级检查缓存失效", time: stamp, operator: "发布服务", operatorType: "系统", result: "success", summary: "新发起的升级检查不再返回该版本；OTA 已有任务不在本平台承诺停止" });
+      persist();
+      return { ok: true, version: target.version, type: "delist", sourceNoticeId: approval.sourceNoticeId || null };
+    }
+    const target = identifier.versions.find(version => version.version === approval.toVersion);
+    if (!target || target.recordVersion !== approval.snapshotRecordVersion) return { ok: false, message: "目标版本已发生变化，原审批快照失效" };
     addLifecycleEvent(identifier, { flowId: approval.flowId || releaseId("FLOW"), flowType: approval.type === "rollback" ? "rollback" : "publish", flowStatus: "active", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: approval.type === "rollback" ? "回滚审批通过" : "发布审批通过", time: stamp, operator: "IPC 产品线负责人", operatorType: "钉钉审批", result: "success", summary: "审批回调与版本快照校验通过" });
     if (approval.type === "publish") {
       if (target.status !== "approval" || current?.version !== approval.fromVersion) return { ok: false, message: "当前发布版本已变化，原发布审批失效" };
@@ -1942,9 +2406,9 @@
     approval.status = "审批驳回";
     approval.approver = "IPC 产品线负责人";
     approval.approveTime = now();
-    approval.note = approval.reason || "当前发布风险未确认，审批驳回";
-    addOperation(approval.type === "rollback" ? "固件回滚" : "固件申请", "审批驳回", approval.version);
-    if (identifier) addLifecycleEvent(identifier, { flowId: approval.flowId || releaseId("FLOW"), flowType: approval.type === "rollback" ? "rollback" : "publish", flowStatus: "rejected", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: approval.type === "rollback" ? "回滚审批驳回" : "发布审批驳回", operator: "IPC 产品线负责人", operatorType: "钉钉审批", result: "rejected", summary: approval.note });
+    approval.note = approval.type === "delist" ? `${approval.reasonType}：${approval.reason}` : approval.reason || "当前发布风险未确认，审批驳回";
+    addOperation(approval.type === "delist" ? "固件下架" : approval.type === "rollback" ? "固件回滚" : "固件申请", "审批驳回", approval.version, "彭冬柏", "成功", approval.note);
+    if (identifier) addLifecycleEvent(identifier, { flowId: approval.flowId || releaseId("FLOW"), flowType: approval.type === "delist" ? "delist" : approval.type === "rollback" ? "rollback" : "publish", flowStatus: "rejected", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: approval.type === "delist" ? "下架审批驳回" : approval.type === "rollback" ? "回滚审批驳回" : "发布审批驳回", operator: "IPC 产品线负责人", operatorType: "钉钉审批", result: "rejected", summary: approval.note });
     persist();
   }
 
@@ -1960,6 +2424,7 @@
     }
     const target = event.target.closest("[data-action]");
     if (!target) {
+      if (state.rulePanel && !event.target.closest(".rule-popover")) dismissRulePopover();
       if (state.popover && !event.target.closest(".action-popover")) {
         state.popover = null;
         renderShell();
@@ -1967,8 +2432,33 @@
       return;
     }
     const action = target.dataset.action;
+    if (state.rulePanel && action !== "open-rule-panel" && action !== "close-rule-panel") dismissRulePopover();
     const popoverToggles = ["identifier-actions", "density-menu", "column-settings", "role-more", "user-line-filter", "role-user-line-filter"];
     if (state.popover && !popoverToggles.includes(action) && !event.target.closest(".action-popover")) state.popover = null;
+
+    if (action === "open-rule-panel") {
+      const context = target.dataset.ruleContext;
+      const ruleId = target.dataset.ruleId || prototypeRuleCatalog[context]?.rules[0]?.[0];
+      if (!findPrototypeRule(context, ruleId)) return;
+      const anchorRect = target.getBoundingClientRect();
+      app.querySelectorAll(".rule-annotation.active").forEach(item => {
+        item.classList.remove("active");
+        item.setAttribute("aria-expanded", "false");
+      });
+      state.rulePanel = context;
+      state.ruleId = ruleId;
+      state.ruleAnchor = calculateRulePopoverPosition(anchorRect);
+      target.classList.add("active");
+      target.setAttribute("aria-expanded", "true");
+      app.querySelector(".rule-popover")?.remove();
+      app.querySelector(".app-shell")?.insertAdjacentHTML("beforeend", renderRulePanel());
+      positionRulePopover(anchorRect);
+      return;
+    }
+    if (action === "close-rule-panel") {
+      dismissRulePopover();
+      return;
+    }
 
     if (action === "toggle-nav") {
       document.body.classList.toggle("nav-open");
@@ -2241,6 +2731,11 @@
       toast("固件数据已刷新");
       return;
     }
+    if (action === "focus-publishable-versions") {
+      app.querySelector(".firmware-version-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      toast("请在版本列表中选择需要发布的版本", "warning");
+      return;
+    }
     if (action === "add-differential-task") {
       const identifier = activeIdentifier();
       if (identifier.product !== "4G模组") return;
@@ -2315,7 +2810,7 @@
     if (action === "add-version") {
       state.upload = null;
       state.errors = {};
-      state.drawer = { type: "addVersion", formDraft: { version: "", models: "", note: "" }, capabilitySelections: {}, associatedFeatures: [], appReleaseNotes: appNoteDraft(), activeLocale: "zh-CN" };
+      state.drawer = { type: "addVersion", formDraft: { version: "", models: "", note: "" }, capabilitySelections: {}, associatedFeatures: [], appReleaseNotes: appNoteDraft(), activeLocale: "zh" };
       renderShell();
       return;
     }
@@ -2337,7 +2832,7 @@
         capabilitySelections: Object.fromEntries((version.featureConfigs || []).map(config => [config.key, config.value])),
         associatedFeatures: clone(version.associatedFeatures || []),
         appReleaseNotes: appNoteDraft(version.appReleaseNotes),
-        activeLocale: "zh-CN"
+        activeLocale: "zh"
       };
       renderShell();
       return;
@@ -2356,14 +2851,7 @@
       if (activeIdentifier().activeApproval) { toast("审批期间版本文案已锁定", "warning"); return; }
       const version = findVersion(target.dataset.version);
       state.errors = {};
-      state.modal = { type: "editAppNotes", version: version.version, notesDraft: appNoteDraft(version.appReleaseNotes), activeLocale: "zh-CN", reason: "" };
-      renderShell();
-      return;
-    }
-    if (action === "remove-revision-locale") {
-      const locale = target.dataset.locale;
-      if (!isDefaultLocale(locale)) delete state.modal.notesDraft[locale];
-      state.modal.activeLocale = "zh-CN";
+      state.modal = { type: "editAppNotes", version: version.version, notesDraft: appNoteDraft(version.appReleaseNotes), activeLocale: "zh", reason: "" };
       renderShell();
       return;
     }
@@ -2379,7 +2867,7 @@
         if (!appNoteWithinLimit(locale, content)) state.errors[`revision-${locale}`] = `${locale} 更新说明不能超过 ${appNoteLimit(locale)} 个字符`;
         if (/<\/?[a-z][\s\S]*>|<script/i.test(content)) state.errors[`revision-${locale}`] = "更新说明不允许包含 HTML 或脚本内容";
       });
-      if (!notes["zh-CN"] || !notes["en-US"]) state.errors.revisionRequired = "请完成简体中文和英文更新说明";
+      if (!notes.zh || !notes.en) state.errors.revisionRequired = "请完成简体中文和英文更新说明";
       if (!String(state.modal.reason || "").trim()) state.errors.revisionReason = "请填写修改原因";
       if (Object.keys(state.errors).length) {
         const firstLocaleError = Object.keys(state.errors).find(key => key.startsWith("revision-") && key !== "revisionRequired" && key !== "revisionReason");
@@ -2413,10 +2901,10 @@
           renderShell();
           return;
         }
-        toast("当前固件标识已有发布或回滚审批", "warning");
+        toast("当前固件标识已有发布、回滚或下架审批", "warning");
         return;
       }
-      if (!version.appReleaseNotes?.["zh-CN"] || !version.appReleaseNotes?.["en-US"]) {
+      if (!version.appReleaseNotes?.zh || !version.appReleaseNotes?.en) {
         toast("目标版本缺少有效的中英文 APP 更新说明，请先编辑版本", "warning");
         return;
       }
@@ -2426,7 +2914,7 @@
         return;
       }
       state.errors = {};
-      state.modal = { type: "publish", version: target.dataset.version, reminderPolicy: "", previewLocale: "zh-CN", platformReleaseNotes: version.platformReleaseNotes };
+      state.modal = { type: "publish", version: target.dataset.version, reminderPolicy: "", previewLocale: "zh", platformReleaseNotes: version.platformReleaseNotes };
       renderShell();
       return;
     }
@@ -2440,15 +2928,43 @@
       renderShell();
       return;
     }
+    if (action === "start-delist") {
+      const identifier = activeIdentifier();
+      const current = currentVersion(identifier);
+      const event = activeRelease(identifier);
+      if (!current || !event || current.status !== "current") { toast("当前没有可下架的正式发布版本", "warning"); return; }
+      if (identifier.activeApproval) { toast("当前固件标识已有发布、回滚或下架审批", "warning"); return; }
+      const notice = dingRecordForEvent(event);
+      if (notice?.status === "sending") { toast("原发布 DING 正在发送，请等待发送结果后再发起下架", "warning"); return; }
+      if (notice?.recallStatus === "recalling") { toast("原发布 DING 正在撤回，请等待撤回结果后再发起下架", "warning"); return; }
+      state.errors = {};
+      state.modal = { type: "delist", version: current.version, reasonType: "", reason: "", sourceReleaseId: event.id };
+      renderShell();
+      return;
+    }
+    if (action === "confirm-delist") {
+      state.errors = {};
+      const reason = String(state.modal.reason || "").trim();
+      if (!state.modal.reasonType) state.errors.delistReasonType = "请选择下架原因类型";
+      if (reason.length < 10) state.errors.delistReason = "具体说明至少填写 10 个字符";
+      if (reason.length > 500) state.errors.delistReason = "具体说明不能超过 500 个字符";
+      if (Object.keys(state.errors).length) { renderShell(); return; }
+      state.modal.reason = reason;
+      const approval = submitReleaseApproval("delist", state.modal);
+      if (!approval) return;
+      state.modal = { type: "approvalSimulation", approvalId: approval.id };
+      renderShell();
+      return;
+    }
     if (action === "start-rollback") {
       const identifier = activeIdentifier();
       const targetVersion = rollbackTarget(identifier);
-      if (identifier.activeApproval) { toast("当前固件标识已有发布或回滚审批", "warning"); return; }
+      if (identifier.activeApproval) { toast("当前固件标识已有发布、回滚或下架审批", "warning"); return; }
       if (!identifier.rollbackAvailable || !targetVersion) { toast("当前发布事件没有可用的一次性回滚目标", "warning"); return; }
       const activeNotice = dingRecordForEvent(activeRelease(identifier));
       if (activeNotice?.status === "sending") { toast("原发布 DING 正在发送，请等待发送结果后再发起回滚", "warning"); return; }
       if (activeNotice?.recallStatus === "recalling") { toast("原发布 DING 正在撤回，请等待撤回结果后再发起回滚", "warning"); return; }
-      if (!targetVersion.appReleaseNotes?.["zh-CN"] || !targetVersion.appReleaseNotes?.["en-US"]) { toast("回滚目标缺少有效的中英文 APP 更新说明", "warning"); return; }
+      if (!targetVersion.appReleaseNotes?.zh || !targetVersion.appReleaseNotes?.en) { toast("回滚目标缺少有效的中英文 APP 更新说明", "warning"); return; }
       const overLimitLocale = Object.entries(targetVersion.appReleaseNotes || {}).find(([locale, content]) => !appNoteWithinLimit(locale, content));
       if (overLimitLocale) { toast(`回滚目标 ${overLimitLocale[0]} 更新说明超过 ${appNoteLimit(overLimitLocale[0])} 个字符`, "warning"); return; }
       state.errors = {};
@@ -2481,13 +2997,22 @@
         restorePublishApprovalTarget(approval);
         approval.status = "已失效";
         approval.approveTime = now();
+        approval.note = result.message;
+        const invalidIdentifier = db.identifiers.find(item => item.id === approval.firmwareId);
+        addOperation(approval.type === "delist" ? "固件下架" : approval.type === "rollback" ? "固件回滚" : "固件申请", "审批执行失效", approval.version, "发布服务", "阻止", result.message);
+        if (invalidIdentifier) addLifecycleEvent(invalidIdentifier, { flowId: approval.flowId, flowType: approval.type === "delist" ? "delist" : approval.type === "rollback" ? "rollback" : "publish", flowStatus: "failed", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: "审批执行失效", operator: "发布服务", operatorType: "系统", result: "failed", summary: result.message });
         activeIdentifier().activeApproval = null;
         persist();
         closeOverlay();
         toast(result.message, "error");
         return;
       }
-      if (result.type === "rollback") {
+      if (result.type === "delist") {
+        state.modal = { type: "delistResult", version: result.version, noticeId: result.sourceNoticeId };
+        state.drawer = null;
+        state.errors = {};
+        renderShell();
+      } else if (result.type === "rollback") {
         state.modal = { type: "rollbackResult", version: result.version, noticeId: result.sourceNoticeId };
         state.drawer = null;
         state.errors = {};
@@ -2502,7 +3027,7 @@
       const approval = approvalById(state.modal.approvalId);
       rejectReleaseApproval(approval);
       closeOverlay();
-      toast("审批已驳回，当前发布版本保持不变", "warning");
+      toast(approval?.type === "delist" ? "下架审批已驳回，当前发布版本继续生效" : "审批已驳回，当前发布版本保持不变", "warning");
       return;
     }
     if (action === "delete-version") {
@@ -2571,15 +3096,6 @@
     }
     if (action === "select-revision-locale") {
       state.modal.activeLocale = target.dataset.locale;
-      renderShell();
-      return;
-    }
-    if (action === "remove-locale") {
-      const locale = target.dataset.locale;
-      if (isDefaultLocale(locale)) return;
-      delete state.drawer.appReleaseNotes[locale];
-      state.drawer.activeLocale = "zh-CN";
-      delete state.errors[`locale-${locale}`];
       renderShell();
       return;
     }
@@ -2914,18 +3430,6 @@
       renderShell();
       return;
     }
-    if (target.dataset.change === "add-locale" && target.value && state.drawer?.appReleaseNotes) {
-      state.drawer.appReleaseNotes[target.value] = "";
-      state.drawer.activeLocale = target.value;
-      renderShell();
-      return;
-    }
-    if (target.dataset.change === "add-revision-locale" && target.value && state.modal?.notesDraft) {
-      state.modal.notesDraft[target.value] = "";
-      state.modal.activeLocale = target.value;
-      renderShell();
-      return;
-    }
     if (target.dataset.column) {
       state.columns[target.dataset.column] = target.checked;
       renderShell();
@@ -3168,7 +3672,7 @@
         if (!appNoteWithinLimit(locale, content)) state.errors[`locale-${locale}`] = `${locale} 更新说明不能超过 ${appNoteLimit(locale)} 个字符`;
         if (/<\/?[a-z][\s\S]*>|<script/i.test(content)) state.errors[`locale-${locale}`] = "更新说明不允许包含 HTML 或脚本内容";
       });
-      if (!appReleaseNotes["zh-CN"] || !appReleaseNotes["en-US"] || Object.keys(state.errors).some(key => key.startsWith("locale-"))) state.errors.appNotes = "请完成必填语言并修正 APP 更新说明";
+      if (!appReleaseNotes.zh || !appReleaseNotes.en || Object.keys(state.errors).some(key => key.startsWith("locale-"))) state.errors.appNotes = "请完成必填语言并修正 APP 更新说明";
       if (Object.keys(state.errors).length) {
         const firstLocaleError = Object.keys(state.errors).find(key => key.startsWith("locale-"));
         if (firstLocaleError) state.drawer.activeLocale = firstLocaleError.slice("locale-".length);
@@ -3285,6 +3789,10 @@
 
   window.addEventListener("keydown", event => {
     if (event.key !== "Escape") return;
+    if (state.rulePanel) {
+      dismissRulePopover();
+      return;
+    }
     if (state.modal && state.drawer) {
       state.modal = null;
       state.errors = {};

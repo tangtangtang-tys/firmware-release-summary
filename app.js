@@ -753,6 +753,7 @@
   }
 
   let db = loadData();
+  const defaultAuditRange = recentDateRange();
   let state = {
     route: routeFromHash(),
     groups: { device: true, logs: true, users: true },
@@ -779,7 +780,7 @@
     userPage: 1,
     pageSizes: { firmware: 20, differentialTasks: 20, differentialPackages: 20, modules: 20, operations: 20, approvals: 20, users: 20 },
     columns: { url: true, size: true, models: true, devices: true, features: true, creator: true, note: true, updated: true },
-    filters: { firmware: "", product: "IPC", lifecycleQuery: "", lifecycleRange: "7d", lifecycleStart: "", lifecycleEnd: "", differentialTask: "", differentialTaskStatus: "", differentialPackage: "", module: "", operation: "", approval: "", user: "", userLines: [], roleUserLines: [], operationStart: "2026-07-14", operationEnd: "2026-07-21", approvalStart: "2026-07-14", approvalEnd: "2026-07-21" },
+    filters: { firmware: "", product: "IPC", lifecycleQuery: "", lifecycleRange: "7d", lifecycleStart: "", lifecycleEnd: "", differentialTask: "", differentialTaskStatus: "", differentialPackage: "", module: "", operation: "", approval: "", user: "", userLines: [], roleUserLines: [], operationStart: defaultAuditRange.start, operationEnd: defaultAuditRange.end, approvalStart: defaultAuditRange.start, approvalEnd: defaultAuditRange.end },
     draftFilters: {},
     upload: null,
     errors: {},
@@ -907,6 +908,13 @@
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   }
 
+  function recentDateRange(days = 7) {
+    const end = new Date();
+    const start = new Date(end);
+    start.setDate(start.getDate() - Math.max(0, days - 1));
+    return { start: formatLocalDate(start), end: formatLocalDate(end) };
+  }
+
   function persist() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); } catch (_error) { /* local preview remains functional */ }
   }
@@ -947,6 +955,46 @@
       return { allowed: false, reason: "当前正式发布版本无需重复发布" };
     }
     return { allowed: true, reason: "" };
+  }
+
+  function publishableVersions(identifier) {
+    const lastDelistedVersion = identifier.lastDelisted?.version;
+    return identifier.versions
+      .filter(version => versionPublishEligibility(identifier, version).allowed)
+      .sort((left, right) => {
+        const leftIsLastDelisted = left.version === lastDelistedVersion;
+        const rightIsLastDelisted = right.version === lastDelistedVersion;
+        if (leftIsLastDelisted !== rightIsLastDelisted) return leftIsLastDelisted ? -1 : 1;
+        return String(right.updated || "").localeCompare(String(left.updated || ""));
+      });
+  }
+
+  function beginPublishVersion(identifier, version) {
+    const eligibility = versionPublishEligibility(identifier, version);
+    if (!eligibility.allowed) {
+      toast(eligibility.reason, "warning");
+      return false;
+    }
+    if (identifier.activeApproval) {
+      if (identifier.activeApproval.type === "publish" && identifier.activeApproval.version === version.version) {
+        state.modal = { type: "approvalSimulation", approvalId: identifier.activeApproval.approvalId };
+        return true;
+      }
+      toast("当前固件标识已有发布、回滚或下架审批", "warning");
+      return false;
+    }
+    if (!version.appReleaseNotes?.zh || !version.appReleaseNotes?.en) {
+      toast("目标版本缺少有效的中英文 APP 更新说明，请先编辑版本", "warning");
+      return false;
+    }
+    const overLimitLocale = Object.entries(version.appReleaseNotes || {}).find(([locale, content]) => !appNoteWithinLimit(locale, content));
+    if (overLimitLocale) {
+      toast(`${overLimitLocale[0]} 更新说明超过 ${appNoteLimit(overLimitLocale[0])} 个字符，请先维护文案`, "warning");
+      return false;
+    }
+    state.errors = {};
+    state.modal = { type: "publish", version: version.version, reminderPolicy: "", previewLocale: "zh", platformReleaseNotes: version.platformReleaseNotes };
+    return true;
   }
 
   function filteredIdentifiers() {
@@ -1701,7 +1749,7 @@
     const columns = state.columns;
     const pageSize = state.pageSizes.firmware;
     const rows = identifier.versions.slice((state.firmwarePage - 1) * pageSize, state.firmwarePage * pageSize);
-    const headers = [`<th style="width:150px">固件版本号</th>`, columns.url && `<th style="width:230px">下载地址</th>`, columns.size && `<th style="width:105px">文件大小（M）</th>`, columns.models && `<th style="width:125px">适用机型</th>`, columns.devices && `<th style="width:145px" title="符合该版本适用机型的绑定设备数"><span class="table-rule-header">关联设备数${ruleAnnotation("identifier", "FID-R04")}</span></th>`, columns.features && `<th style="width:90px">功能集数</th>`, columns.creator && `<th style="width:120px">创建人</th>`, columns.note && `<th style="width:190px">平台发布说明</th>`, columns.updated && `<th style="width:390px"><span class="table-rule-header table-operation-rules">操作${ruleAnnotations([["detail", "DET-R03"], ["publish", "PUB-R01"], ["publish", "PUB-R02"], ["version", "VER-R05"], ["version", "VER-R08"]])}</span></th>`].filter(Boolean).join("");
+    const headers = [`<th style="width:150px">固件版本号</th>`, columns.url && `<th style="width:230px">下载地址</th>`, columns.size && `<th style="width:105px">文件大小（M）</th>`, columns.models && `<th style="width:125px">适用机型</th>`, columns.devices && `<th style="width:145px" title="符合该版本适用机型的绑定设备数"><span class="table-rule-header">关联设备数${ruleAnnotation("identifier", "FID-R04")}</span></th>`, columns.features && `<th style="width:90px">功能集数</th>`, columns.creator && `<th style="width:120px">创建人</th>`, columns.note && `<th style="width:190px">平台发布说明</th>`, columns.updated && `<th style="width:170px">更新时间</th>`, `<th style="width:220px"><span class="table-rule-header table-operation-rules">操作${ruleAnnotations([["detail", "DET-R03"], ["publish", "PUB-R01"], ["publish", "PUB-R02"], ["version", "VER-R05"], ["version", "VER-R08"]])}</span></th>`].filter(Boolean).join("");
     return `<div class="table-wrap firmware-table-wrap"><table class="data-table firmware-version-table ${state.density}"><thead><tr>${headers}</tr></thead><tbody>${rows.map(version => {
       const editable = canEditVersion(identifier, version);
       const publishable = versionPublishEligibility(identifier, version).allowed;
@@ -1796,6 +1844,7 @@
       "撤回原发布 DING": [["ding", "DING-R08"]],
       "确认撤回原发布 DING": [["ding", "DING-R08"], ["ding", "DING-R09"]],
       "新增差分任务": [["differential", "DIF-R02"], ["differential", "DIF-R03"]],
+      "选择发布版本": [["publish", "PUB-R01"], ["publish", "PUB-R02"], ["delist", "DEL-R10"]],
       "提交固件发布审批": [["publish", "PUB-R03"], ["reminder", "REM-R01"]],
       "撤销并回滚版本": [["rollback", "RBK-R03"], ["rollback", "RBK-R04"]],
       "下架当前发布版本": [["delist", "DEL-R03"], ["delist", "DEL-R04"], ["delist", "DEL-R05"]],
@@ -1978,6 +2027,20 @@
       const sourceSummary = (modal.sourceVersions || []).length ? modal.sourceVersions.join(", ") : "请选择源版本";
       const sourceOptions = modal.sourceOpen ? `<div class="differential-source-dropdown">${availableSources.map(version => `<label class="check"><input type="checkbox" data-differential-source="${esc(version.version)}" ${(modal.sourceVersions || []).includes(version.version) ? "checked" : ""}>${esc(version.version)}</label>`).join("") || `<span class="muted">没有可选的源版本</span>`}</div>` : "";
       return modalFrame("新增差分任务", `${ruleContextBar(["differential"])}<form id="differential-task-form" class="differential-task-form"><div class="form-field required"><label for="differential-task-name">差分任务名称</label><div class="field-control"><input id="differential-task-name" class="field" name="name" data-modal-field="name" maxlength="50" value="${esc(modal.name || "")}" placeholder="如：xx旧版本升级至xx新版本包的差分任务" autocomplete="off">${errorFor("differentialTaskName")}<div class="helper align-right">${(modal.name || "").length} / 50</div></div></div><div class="form-field required"><label for="differential-target-version">目标版本</label><div class="field-control"><select id="differential-target-version" class="select" name="targetVersion" data-modal-field="targetVersion"><option value="">请选择目标版本</option>${identifier.versions.map(version => `<option value="${esc(version.version)}" ${version.version === targetVersion ? "selected" : ""}>${esc(version.version)}</option>`).join("")}</select>${errorFor("differentialTargetVersion")}</div></div><div class="form-field required"><label>源版本</label><div class="field-control differential-source-control"><button class="multi-select-trigger ${(modal.sourceVersions || []).length ? "has-value" : ""}" type="button" data-action="toggle-differential-sources" aria-expanded="${Boolean(modal.sourceOpen)}"><span title="${esc(sourceSummary)}">${esc(sourceSummary)}</span><span class="select-chevron">⌄</span></button>${sourceOptions}${errorFor("differentialSourceVersions")}</div></div><div class="form-field"><label for="differential-module-model">模组型号</label><div class="field-control"><input id="differential-module-model" class="field" value="${esc(identifier.models)}" placeholder="根据固件标识自动带出" disabled></div></div></form>`, `<button class="btn" data-action="close-overlay">取 消</button><button class="btn primary" type="submit" form="differential-task-form">确 认</button>`);
+    }
+    if (modal.type === "selectPublishVersion") {
+      const identifier = activeIdentifier();
+      const versions = publishableVersions(identifier);
+      const activeApproval = identifier.activeApproval;
+      const rows = versions.map(version => {
+        const blocked = Boolean(activeApproval && (activeApproval.type !== "publish" || activeApproval.version !== version.version));
+        const approvalTarget = activeApproval?.type === "publish" && activeApproval.version === version.version;
+        const recentlyDelisted = identifier.lastDelisted?.version === version.version;
+        return `<label class="publish-version-option ${modal.selectedVersion === version.version ? "selected" : ""} ${blocked ? "disabled" : ""}"><input type="radio" name="publishVersion" data-modal-field="selectedVersion" value="${esc(version.version)}" ${modal.selectedVersion === version.version ? "checked" : ""} ${blocked ? "disabled" : ""}><span class="publish-version-copy"><span class="publish-version-head"><strong>${esc(version.version)}</strong><em>${approvalTarget ? "发布审批中" : recentlyDelisted ? "最近下架" : versionStatusLabel(version.status)}</em></span><span class="publish-version-meta"><span>适用机型 <strong>${esc(version.models || "-")}</strong></span><span>关联设备 <strong>${formatDeviceCount(version.associatedDeviceCount)} 台</strong></span><span>更新时间 <strong>${esc(version.updated || "-")}</strong></span></span><small>${esc(version.platformReleaseNotes || "暂无平台发布说明")}</small></span></label>`;
+      }).join("");
+      const approvalNote = activeApproval ? `<div class="approval-lock-note"><strong>当前已有${activeApproval.type === "publish" ? "发布" : activeApproval.type === "rollback" ? "回滚" : "下架"}审批</strong><span>${activeApproval.type === "publish" ? `只能继续处理版本 ${esc(activeApproval.version)} 的已有审批，不能重复创建审批单。` : "审批结束前不能发起新的版本发布。"}</span></div>` : "";
+      const body = versions.length ? `<div class="publish-version-picker"><div class="publish-version-picker-head"><div><strong>请选择要正式发布的固件版本</strong><span>当前发布版本：${esc(currentVersion(identifier)?.version || "暂无")}</span></div><span>共 ${versions.length} 个可发布版本</span></div>${approvalNote}<div class="publish-version-list">${rows}</div></div>` : `<div class="empty-state"><div><div class="empty-illustration">▤</div>当前没有可发布的固件版本</div></div>`;
+      return modalFrame("选择发布版本", body, `<button class="btn" data-action="close-overlay">取消</button><span class="action-with-rules"><button class="btn primary" data-action="continue-publish-selection" ${modal.selectedVersion ? "" : "disabled"}>下一步：配置发布</button>${ruleAnnotation("publish", "PUB-R02")}</span>`, true);
     }
     if (modal.type === "publish") {
       const identifier = activeIdentifier();
@@ -2341,9 +2404,9 @@
     }
     const target = identifier.versions.find(version => version.version === approval.toVersion);
     if (!target || target.recordVersion !== approval.snapshotRecordVersion) return { ok: false, message: "目标版本已发生变化，原审批快照失效" };
-    addLifecycleEvent(identifier, { flowId: approval.flowId || releaseId("FLOW"), flowType: approval.type === "rollback" ? "rollback" : "publish", flowStatus: "active", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: approval.type === "rollback" ? "回滚审批通过" : "发布审批通过", time: stamp, operator: "IPC 产品线负责人", operatorType: "钉钉审批", result: "success", summary: "审批回调与版本快照校验通过" });
     if (approval.type === "publish") {
-      if (target.status !== "approval" || current?.version !== approval.fromVersion) return { ok: false, message: "当前发布版本已变化，原发布审批失效" };
+      if (target.status !== "approval" || (current?.version || null) !== (approval.fromVersion || null)) return { ok: false, message: "当前发布版本已变化，原发布审批失效" };
+      addLifecycleEvent(identifier, { flowId: approval.flowId || releaseId("FLOW"), flowType: "publish", flowStatus: "active", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: "发布审批通过", time: stamp, operator: "IPC 产品线负责人", operatorType: "钉钉审批", result: "success", summary: "审批回调与版本快照校验通过" });
       identifier.versions.forEach(version => { version.latest = false; if (version.status === "current") version.status = "historical"; });
       target.status = "current";
       target.latest = true;
@@ -2364,6 +2427,7 @@
       addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: "publish", flowStatus: "active", fromVersion: current?.version || null, toVersion: target.version, stage: "release", title: "当前发布版本切换", time: stamp, operator: "发布服务", operatorType: "系统", result: "success", summary: `${current?.version || "首次发布"} -> ${target.version}，生成 ${event.id}` });
     } else {
       if (!identifier.rollbackAvailable || current?.version !== approval.fromVersion || identifier.rollbackTargetVersion !== target.version) return { ok: false, message: "唯一回滚目标已变化，原回滚审批失效" };
+      addLifecycleEvent(identifier, { flowId: approval.flowId || releaseId("FLOW"), flowType: "rollback", flowStatus: "active", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: "回滚审批通过", time: stamp, operator: "IPC 产品线负责人", operatorType: "钉钉审批", result: "success", summary: "审批回调与版本快照校验通过" });
       current.status = "withdrawn";
       current.latest = false;
       target.status = "current";
@@ -2732,8 +2796,19 @@
       return;
     }
     if (action === "focus-publishable-versions") {
-      app.querySelector(".firmware-version-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      toast("请在版本列表中选择需要发布的版本", "warning");
+      const identifier = activeIdentifier();
+      const versions = publishableVersions(identifier);
+      if (!versions.length) {
+        toast("当前没有可发布的固件版本", "warning");
+        return;
+      }
+      const approvalTarget = identifier.activeApproval?.type === "publish"
+        ? versions.find(version => version.version === identifier.activeApproval.version)
+        : null;
+      const preferred = approvalTarget || versions.find(version => version.version === identifier.lastDelisted?.version) || versions[0];
+      state.errors = {};
+      state.modal = { type: "selectPublishVersion", selectedVersion: preferred?.version || "" };
+      renderShell();
       return;
     }
     if (action === "add-differential-task") {
@@ -2890,32 +2965,17 @@
     if (action === "publish-version") {
       const identifier = activeIdentifier();
       const version = findVersion(target.dataset.version);
-      const eligibility = versionPublishEligibility(identifier, version);
-      if (!eligibility.allowed) {
-        toast(eligibility.reason, "warning");
+      if (beginPublishVersion(identifier, version)) renderShell();
+      return;
+    }
+    if (action === "continue-publish-selection") {
+      const identifier = activeIdentifier();
+      const version = findVersion(state.modal?.selectedVersion);
+      if (!version) {
+        toast("请选择需要发布的固件版本", "warning");
         return;
       }
-      if (identifier.activeApproval) {
-        if (identifier.activeApproval.type === "publish" && identifier.activeApproval.version === version.version) {
-          state.modal = { type: "approvalSimulation", approvalId: identifier.activeApproval.approvalId };
-          renderShell();
-          return;
-        }
-        toast("当前固件标识已有发布、回滚或下架审批", "warning");
-        return;
-      }
-      if (!version.appReleaseNotes?.zh || !version.appReleaseNotes?.en) {
-        toast("目标版本缺少有效的中英文 APP 更新说明，请先编辑版本", "warning");
-        return;
-      }
-      const overLimitLocale = Object.entries(version.appReleaseNotes || {}).find(([locale, content]) => !appNoteWithinLimit(locale, content));
-      if (overLimitLocale) {
-        toast(`${overLimitLocale[0]} 更新说明超过 ${appNoteLimit(overLimitLocale[0])} 个字符，请先维护文案`, "warning");
-        return;
-      }
-      state.errors = {};
-      state.modal = { type: "publish", version: target.dataset.version, reminderPolicy: "", previewLocale: "zh", platformReleaseNotes: version.platformReleaseNotes };
-      renderShell();
+      if (beginPublishVersion(identifier, version)) renderShell();
       return;
     }
     if (action === "confirm-publish") {
@@ -3148,9 +3208,10 @@
       return;
     }
     if (action === "reset-operations") {
+      const range = recentDateRange();
       state.filters.operation = "";
-      state.filters.operationStart = "2026-07-14";
-      state.filters.operationEnd = "2026-07-21";
+      state.filters.operationStart = range.start;
+      state.filters.operationEnd = range.end;
       delete state.draftFilters.operation;
       delete state.draftFilters.operationStart;
       delete state.draftFilters.operationEnd;
@@ -3173,9 +3234,10 @@
       return;
     }
     if (action === "reset-approvals") {
+      const range = recentDateRange();
       state.filters.approval = "";
-      state.filters.approvalStart = "2026-07-14";
-      state.filters.approvalEnd = "2026-07-21";
+      state.filters.approvalStart = range.start;
+      state.filters.approvalEnd = range.end;
       delete state.draftFilters.approval;
       delete state.draftFilters.approvalStart;
       delete state.draftFilters.approvalEnd;

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const STORAGE_KEY = "firmware-release-replica-v14-current-version-delisting";
+  const STORAGE_KEY = "firmware-release-replica-v16";
   const routes = {
     firmware: { title: "固件列表", group: "device" },
     modules: { title: "模组型号", group: "device" },
@@ -14,7 +14,7 @@
   const productLines = ["IPC", "车载", "NVR", "AI玩具", "婴儿看护", "4G模组", "BK系列"];
   const demoBoundDeviceCounts = { "23.110.211": 528, "25.922.219": 1264 };
   const permissionRows = [
-    { menu: "固件管理", page: "固件列表", actions: ["查看固件标识列表", "编辑固件标识", "新增固件标识", "发布固件版本", "回滚固件版本", "下架当前发布版本", "维护APP更新说明", "管理DING接收人模板", "发送DING", "撤回DING", "查看发布日志", "查看DING记录", "删除固件标识", "查看版本列表", "新增固件版本", "编辑固件版本", "删除固件版本", "查看在线差分", "新建差分任务", "查看差分包", "下载差分包", "删除差分文件"] },
+    { menu: "固件管理", page: "固件列表", actions: ["查看固件标识列表", "编辑固件标识", "新增固件标识", "发布固件版本", "回滚固件版本", "下架当前发布版本", "维护APP更新说明", "查看发布日志", "删除固件标识", "查看版本列表", "新增固件版本", "编辑固件版本", "删除固件版本", "查看在线差分", "新建差分任务", "查看差分包", "下载差分包", "删除差分文件"] },
     { menu: "固件管理", page: "模组型号", actions: ["查看模组型号"] },
     { menu: "日志管理", page: "操作日志", actions: ["查看操作日志"] },
     { menu: "日志管理", page: "审批日志", actions: ["查看审批日志"] },
@@ -410,7 +410,7 @@
         ["PUB-R07", "执行发布", "结果", "同一事务切换唯一当前版本并生成发布事件和回滚目标", "始终只有一个当前正式版本"],
         ["PUB-R08", "执行失败", "异常", "整体回退且当前版本不变，不自动重试", "不产生双当前或半条事件"],
         ["PUB-R09", "审批驳回或失效", "状态", "恢复目标提交前真实状态并解除锁定", "历史、已撤回和未发布状态不被误改"],
-        ["PUB-R10", "发布完成", "结果", "DING 不自动发送，仅开放独立入口", "发布事务与通知结果解耦"]
+        ["PUB-R10", "发布完成", "结果", "返回唯一当前版本、提醒策略和发布事件", "发布结果完整且可追溯"]
       ]
     },
     rollback: {
@@ -419,31 +419,14 @@
       fr: "FR-09、FR-12、FR-13、FR-19、FR-20",
       rules: [
         ["RBK-R01", "展示回滚入口", "状态", "仅当前正常发布事件存在唯一前序且未回滚时展示", "不能任意选择历史版本或连续回滚"],
-        ["RBK-R02", "点击撤销并回滚", "前置", "无发布或回滚审批，原 DING 不处于进行中", "避免版本与通知并发冲突"],
+        ["RBK-R02", "点击撤销并回滚", "前置", "当前版本存在唯一前序版本且无有效审批", "避免重复审批或错误选择目标"],
         ["RBK-R03", "填写回滚信息", "交互", "展示关键差异，重新选择提醒并填写最多 500 字原因", "明确恢复目标和影响"],
         ["RBK-R04", "提交回滚", "权限", "所有回滚统一创建钉钉审批", "高风险切换具有审批依据"],
         ["RBK-R05", "审批期间", "状态", "当前版本继续生效，同一标识发布与回滚锁定", "线上状态在审批结束前不变化"],
         ["RBK-R06", "审批通过", "前置", "复检当前指针、唯一目标、固件包和审批快照", "条件变化时不执行错误恢复"],
         ["RBK-R07", "执行回滚", "结果", "原子恢复前序版本，问题版本标记已撤回并关闭入口", "形成唯一可追溯的恢复结果"],
         ["RBK-R08", "执行失败", "异常", "整体回退且当前版本不变，不自动重试", "不留下部分恢复状态"],
-        ["RBK-R09", "回滚完成", "结果", "回滚 DING 固定不适用，不自动处置原 DING", "回滚结果不受通知服务影响"]
-      ]
-    },
-    ding: {
-      title: "独立 DING 通知规则",
-      code: "DING",
-      fr: "FR-05、FR-12、FR-13、FR-20",
-      rules: [
-        ["DING-R01", "展示发送入口", "状态", "仅当前正常发布事件且未创建任务时展示", "回滚、历史和已替代事件不可发送"],
-        ["DING-R02", "打开发送弹窗", "数据", "接收模板只负责预填，不代表默认开启", "每次发送确认实际接收人"],
-        ["DING-R03", "选择接收范围", "交互", "通过组织树选择组织、部门或成员", "范围可理解、调整和核对"],
-        ["DING-R04", "发送预览", "数据", "自动读取发布事件、平台说明和功能点版本快照", "消息与已生效发布事实一致"],
-        ["DING-R05", "确认发送", "前置", "展示版本、生效时间、人数、接收人和消息并二次确认", "降低误发风险"],
-        ["DING-R06", "创建任务", "幂等", "每个 releaseId 最多创建一个发送任务", "重复点击不产生多条通知"],
-        ["DING-R07", "发送失败或部分失败", "结果", "保存终态，不允许重试、补发或重建", "通知历史唯一且可审计"],
-        ["DING-R08", "撤回原消息", "权限", "仅成功或部分成功消息可撤回，填写原因并二次确认", "撤回具有明确对象和依据"],
-        ["DING-R09", "撤回失败", "异常", "只允许针对同一原消息重试撤回", "不突破发送一次限制"],
-        ["DING-R10", "回滚后处理原 DING", "状态", "在当前版本区域展示原通知状态和可用操作", "通知处置独立于回滚结果"]
+        ["RBK-R09", "回滚完成", "结果", "返回恢复后的当前版本并记录完整回滚事件", "回滚结果清晰且可追溯"]
       ]
     },
     detail: {
@@ -451,8 +434,8 @@
       code: "DET",
       fr: "FR-08、FR-12、FR-13、FR-15、FR-20",
       rules: [
-        ["DET-R01", "查看当前版本", "数据", "聚合版本、来源、生效、提醒、机型、DING 和文件信息", "无需跨页面判断当前状态"],
-        ["DET-R02", "当前版本操作", "状态", "只展示当前可用的详情、回滚、发送或撤回操作", "禁用操作具有明确原因"],
+        ["DET-R01", "查看当前版本", "数据", "聚合版本、来源、生效、提醒、机型和文件信息", "无需跨页面判断当前状态"],
+        ["DET-R02", "当前版本操作", "状态", "只展示当前可用的详情、回滚和下架操作", "已下架能力不保留空入口"],
         ["DET-R03", "打开版本详情", "交互", "同一详情抽屉承载六类页签", "关联记录保持同一版本上下文"],
         ["DET-R04", "切换详情页签", "交互", "只替换抽屉内部内容，不关闭或重开", "切换稳定且不丢失位置"],
         ["DET-R05", "查看详情记录", "数据", "使用版本和事件关联标识查询", "不串联其他版本或事件数据"]
@@ -465,9 +448,9 @@
       rules: [
         ["RLG-R01", "进入发布日志", "数据", "按日期分组，同日多个发布、回滚或下架事件独立展示", "高频操作时链路仍可区分"],
         ["RLG-R02", "查看事件摘要", "数据", "默认展示版本变化、状态、生效时间和操作人", "首屏只呈现焦点信息"],
-        ["RLG-R03", "展开事件", "交互", "当前页面按时间节点展开审批、执行、结果和通知", "无需跳转即可理解链路"],
+        ["RLG-R03", "展开事件", "交互", "当前页面按时间节点展开审批、执行和结果", "无需跳转即可理解链路"],
         ["RLG-R04", "查询事件", "交互", "支持版本号、操作人和时间组合查询", "快速定位具体事件"],
-        ["RLG-R05", "页面操作边界", "权限", "发布日志保持只读，不提供 DING 或其他写操作", "历史追溯页不承担执行职责"],
+        ["RLG-R05", "页面操作边界", "权限", "发布日志保持只读，不提供业务写操作", "历史追溯页不承担执行职责"],
         ["RLG-R06", "事件命名", "交互", "模块统一命名为发布日志", "页面名称与数据范围一致"]
       ]
     },
@@ -493,10 +476,10 @@
       rules: [
         ["AUD-R01", "执行写操作", "权限", "服务端按页面、操作、数据范围、版本状态和审批锁校验", "前端隐藏按钮不是安全边界"],
         ["AUD-R02", "权限不足或状态冲突", "审计", "阻止操作并记录操作人、资源、结果和原因", "失败及被阻止行为可追溯"],
-        ["AUD-R03", "版本及通知操作", "审计", "版本、发布、回滚、文案、DING 和差分操作全部记录", "关键写操作无审计空白"],
+        ["AUD-R03", "版本操作", "审计", "版本、发布、回滚、文案和差分操作全部记录", "关键事实无审计空白"],
         ["AUD-R04", "角色与用户配置", "审计", "记录变更前后角色、数据范围、审批范围和操作人", "权限变化具有完整依据"],
         ["AUD-R05", "记录审批状态", "数据", "发布、回滚和下架覆盖审批中、通过、驳回和失效", "审批结果可查询并关联事件"],
-        ["AUD-R06", "跨日志查询", "数据", "使用固件、版本、审批、流程、发布和 DING 标识关联", "三类日志可互相追溯"],
+        ["AUD-R06", "跨日志查询", "数据", "使用固件、版本、审批、流程和发布标识关联", "三类日志可互相追溯"],
         ["AUD-R07", "提供模拟数据", "验收", "七类角色、不同产线、正反向权限和日志状态均有 mock", "可直接验证授权边界"]
       ]
     },
@@ -511,12 +494,8 @@
         ["CON-R04", "审批通过时当前版本变化", "异常", "复检失败并使审批失效", "不覆盖新形成的当前版本"],
         ["CON-R05", "发布或回滚部分失败", "事务", "整体回滚", "不留下双当前或半条事件"],
         ["CON-R06", "历史或已撤回版本审批驳回", "状态", "恢复提交前真实状态", "不统一降级为未发布"],
-        ["CON-R07", "DING 重复点击", "幂等", "以 releaseId 幂等，只允许一个任务", "同一事件最多发送一次"],
-        ["CON-R08", "DING 发送失败", "结果", "保存终态，不支持重试或补发", "通知记录唯一且不可覆盖"],
-        ["CON-R09", "DING 撤回失败", "异常", "只允许重试撤回原消息", "不创建第二条通知"],
-        ["CON-R10", "原 DING 进行中", "并发", "暂时阻止回滚，等待终态", "避免通知和版本处置冲突"],
-        ["CON-R11", "APP 语言未配置", "兜底", "统一使用英文说明", "APP 始终有可用内容"],
-        ["CON-R12", "旧 Locale 数据", "兼容", "映射到固定目录且历史快照不改写", "新旧版本兼容且历史不变"]
+        ["CON-R07", "APP 语言未配置", "兜底", "统一使用英文说明", "APP 始终有可用内容"],
+        ["CON-R08", "旧 Locale 数据", "兼容", "映射到固定目录且历史快照不改写", "新旧版本兼容且历史不变"]
       ]
     },
     delist: {
@@ -525,58 +504,18 @@
       fr: "FR-23、FR-24、FR-25",
       rules: [
         ["DEL-R01", "展示下架入口", "状态", "仅当前正式发布版本展示下架入口", "历史、未发布和已下架版本不能直接下架"],
-        ["DEL-R02", "点击下架", "前置", "校验当前版本、审批锁及原 DING 任务状态", "避免并发操作造成状态冲突"],
+        ["DEL-R02", "点击下架", "前置", "校验当前版本、审批锁和下架资格", "避免并发操作造成状态冲突"],
         ["DEL-R03", "展示影响快照", "数据", "展示当前版本、机型、设备数、生效时间和结果边界", "提交前明确下架对象与影响"],
         ["DEL-R04", "填写下架原因", "交互", "原因类型单选，具体说明必填 10 至 500 字", "形成结构化且可审计的下架依据"],
-        ["DEL-R05", "提交下架审批", "审批", "所有下架统一创建钉钉审批且不自动发送 DING", "高风险停止分发具有审批依据"],
+        ["DEL-R05", "提交下架审批", "审批", "所有下架统一创建钉钉审批", "高风险停止分发具有审批依据"],
         ["DEL-R06", "审批期间", "状态", "当前版本继续生效，同一标识其他发布、回滚和下架锁定", "审批结束前线上状态不变化"],
         ["DEL-R07", "审批通过", "前置", "复检当前版本、记录版本及审批快照后原子执行", "条件变化时审批失效且不清空当前版本"],
         ["DEL-R08", "下架成功", "结果", "清空当前发布指针但保留固件包，不自动恢复历史版本", "允许明确的暂无当前发布版本状态"],
-        ["DEL-R09", "处理原发布 DING", "通知", "下架不自动发送或撤回 DING，可撤回时提供独立入口", "通知处置与下架结果相互独立"],
+        ["DEL-R09", "记录下架结果", "审计", "记录审批、执行结果、原因和当前版本变化", "下架事实完整可追溯"],
         ["DEL-R10", "重新发布已下架版本", "状态", "已下架版本允许编辑、查看和重新发起发布审批，不允许删除", "版本可再次使用且历史事实不被删除"]
       ]
     }
   };
-
-  const dingOrganizationTree = [
-    {
-      id: "org-device", type: "organization", name: "设备研发中心", children: [
-        { id: "dept-firmware", type: "department", name: "固件研发组", children: [
-          { id: "user-fw-liu", type: "user", name: "刘林胶", role: "固件负责人" },
-          { id: "user-fw-zhang", type: "user", name: "张元", role: "固件开发" },
-          { id: "user-fw-tang", type: "user", name: "汤彦珊", role: "发布管理员" },
-          { id: "user-fw-huang", type: "user", name: "黄晓纯", role: "固件开发" },
-          { id: "user-fw-jiang", type: "user", name: "江锐", role: "固件开发" },
-          { id: "user-fw-deng", type: "user", name: "邓文韬", role: "固件开发" },
-          { id: "user-fw-luo", type: "user", name: "罗琅仁", role: "固件开发" },
-          { id: "user-fw-li", type: "user", name: "李金璨", role: "固件开发" }
-        ] },
-        { id: "dept-test", type: "department", name: "设备测试组", children: [
-          { id: "user-test-ling", type: "user", name: "凌紫妍", role: "测试负责人" },
-          { id: "user-test-peng", type: "user", name: "彭志勇", role: "测试工程师" },
-          { id: "user-test-ruan", type: "user", name: "阮天丽", role: "测试工程师" },
-          { id: "user-test-yan", type: "user", name: "严鹏", role: "测试工程师" },
-          { id: "user-test-he", type: "user", name: "何圣安", role: "测试工程师" },
-          { id: "user-test-quan", type: "user", name: "全继科", role: "测试工程师" }
-        ] }
-      ]
-    },
-    {
-      id: "org-product", type: "organization", name: "产品与平台中心", children: [
-        { id: "dept-ipc-product", type: "department", name: "IPC 产品线", children: [
-          { id: "user-line-owner", type: "user", name: "彭冬柏", role: "IPC 产品线负责人" },
-          { id: "user-ipc-lin", type: "user", name: "林嘉怡", role: "产品经理" },
-          { id: "user-ipc-wu", type: "user", name: "吴泽宇", role: "项目经理" }
-        ] },
-        { id: "dept-platform-ops", type: "department", name: "平台运维组", children: [
-          { id: "user-ops", type: "user", name: "严国潮", role: "平台运维负责人" },
-          { id: "user-ops-chen", type: "user", name: "陈子昂", role: "运维工程师" },
-          { id: "user-ops-zhou", type: "user", name: "周云帆", role: "运维工程师" }
-        ] }
-      ]
-    }
-  ];
-  const dingDirectory = flattenDingTree(dingOrganizationTree);
 
   function configFromCatalog(item, optionValue = item.options[0].value) {
     const option = item.options.find(candidate => candidate.value === optionValue) || item.options[0];
@@ -690,9 +629,6 @@
         versions: [{ version: `${id}.1`, url: `http://doraemon.camera666.com/firmware_${id}.1_demo.bin`, size: "7.12", models: index % 3 === 0 ? "QD20" : "A9-Pro", features: 2, creator: "管理员", note: "稳定版本", updated: "2026-06-18 14:30:00", latest: true, reminder: "不提醒" }]
       }))
     ],
-    dingNotices: [
-      { id: "DING-MOCK-1313", releaseId: "REL-INIT-1", firmwareId: "23.110.211", version: "23.110.211.13", noticeType: "publish", status: "sent", kind: "task", scopes: ["user-line-owner", "user-fw-liu", "user-fw-tang"], recipients: ["彭冬柏", "刘林胶", "汤彦珊"], messageSnapshot: "[固件发布] 23.110.211 23.110.211.12 -> 23.110.211.13\n更新内容：修复已知问题并优化升级链路\n功能集：4 项", createdAt: "2026-07-14 18:45:00", sentAt: "2026-07-14 18:45:02", attemptCount: 1, failureReason: "", recallStatus: "not_requested", recallAttempts: 0, recalledAt: "-", recalledBy: "-", recallReason: "", recallFailureReason: "" }
-    ],
     modules: [
       { model: "SY278SEEC", soc: "EC716E", linkedIdentifiers: [], tool: "FotaToolkit_V3.6.4.0", config: "ec716e", created: "2026-04-21 15:44:54" },
       { model: "SY278SAEC", soc: "EC716S", linkedIdentifiers: ["23.110.211"], tool: "FotaToolkit_V3.6.4.0", config: "ec716s", created: "2026-04-21 15:44:54" },
@@ -731,7 +667,7 @@
     }),
     approvals: [
       ["23.110.211.99", "正常发布", "彭冬柏", "2026-07-21 15:56:20", "IPC 产品线负责人", "审批驳回", "2026-07-21 16:08:20", "测试范围未覆盖完整，目标版本保持未发布"],
-      ["23.110.211.12", "版本回滚", "汤彦珊", "2026-07-21 14:20:08", "彭冬柏", "审批通过", "2026-07-21 14:28:36", "线上连接异常，恢复上一个稳定版本；回滚不发送 DING"],
+      ["23.110.211.12", "版本回滚", "汤彦珊", "2026-07-21 14:20:08", "彭冬柏", "审批通过", "2026-07-21 14:28:36", "线上连接异常，恢复上一个稳定版本"],
       ["23.110.211.60", "正常发布", "刘林胶", "2026-07-20 18:05:12", "彭冬柏", "审批驳回", "2026-07-20 18:16:04", "测试报告缺少弱网场景验证"],
       ["31.120.200.4", "阮天丽", "2026-07-14 22:06:22", "彭冬柏", "审批通过", "2026-07-14 22:10:30"],
       ["23.110.211.13", "刘林胶", "2026-07-14 18:16:22", "彭冬柏", "审批通过", "2026-07-14 18:41:21"],
@@ -782,7 +718,7 @@
       { name: "产线主管", users: 8, created: "2026-01-08 09:22:10", note: "负责所属产线发布、回滚、下架、通知与审批查看", scope: "用户所属产线", permissions: {} },
       { name: "测试人员", users: 5, created: "2026-01-12 10:10:10", note: "维护待发布、历史及已撤回版本，不具备发布和回滚权限", scope: "用户所属产线", permissions: {} },
       { name: "默认人员", users: 86, created: "2025-12-24 14:48:27", note: "只读查看固件与模组信息", scope: "用户所属产线", permissions: {} },
-      { name: "FAE技术支持组长", users: 4, created: "2026-04-23 17:29:37", note: "查看版本、发布日志、DING 记录与操作日志", scope: "用户所属产线", permissions: {} },
+      { name: "FAE技术支持组长", users: 4, created: "2026-04-23 17:29:37", note: "查看版本、发布日志与操作日志", scope: "用户所属产线", permissions: {} },
       { name: "FEA", users: 12, created: "2026-04-23 17:29:37", note: "只读查询版本和差分包", scope: "用户所属产线", permissions: {} },
       { name: "4G模组权限角色", users: 6, created: "2026-04-27 16:36:35", note: "维护 4G 模组版本、在线差分与差分包", scope: "仅 4G 模组", permissions: {} }
     ]
@@ -796,7 +732,6 @@
         { id: "EVT-1313-01", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "approval", title: "提交发布审批", time: "2026-07-14 18:16:22", operator: "刘林胶", operatorType: "用户", result: "success", summary: "审批快照已锁定，审批期间当前发布版本保持不变" },
         { id: "EVT-1313-02", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "approval", title: "发布审批通过", time: "2026-07-14 18:41:18", operator: "彭冬柏", operatorType: "钉钉审批", result: "success", summary: "审批回调与版本快照校验通过" },
         { id: "EVT-1313-03", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "release", title: "当前发布版本切换", time: "2026-07-14 18:41:21", operator: "发布服务", operatorType: "系统", result: "success", summary: "23.110.211.12 -> 23.110.211.13，系统内仅保留一个当前发布版本" },
-        { id: "EVT-1313-04", flowId: "FLOW-PUB-20260714-1313", flowType: "publish", flowStatus: "active", fromVersion: "23.110.211.12", toVersion: "23.110.211.13", stage: "notification", title: "发布 DING 发送结果", time: "2026-07-14 18:45:02", operator: "DING 任务", operatorType: "系统", result: "success", summary: "实际接收 3 人；该事件不可再次发送" },
         { id: "EVT-1499-01", flowId: "FLOW-PUB-20260714-1499", flowType: "publish", flowStatus: "rejected", fromVersion: "23.110.211.12", toVersion: "23.110.211.99", stage: "approval", title: "提交发布审批", time: "2026-07-14 16:20:05", operator: "张元/Alice", operatorType: "用户", result: "success", summary: "目标版本 23.110.211.99，当前发布版本保持不变" },
         { id: "EVT-1499-02", flowId: "FLOW-PUB-20260714-1499", flowType: "publish", flowStatus: "rejected", fromVersion: "23.110.211.12", toVersion: "23.110.211.99", stage: "approval", title: "发布审批驳回", time: "2026-07-14 16:50:42", operator: "彭冬柏", operatorType: "钉钉审批", result: "rejected", summary: "适用机型范围与本次发布计划不一致，版本未生效" },
         { id: "EVT-1422-01", flowId: "FLOW-PUB-20260714-1422", flowType: "publish", flowStatus: "failed", fromVersion: "23.110.211.12", toVersion: "23.110.211.22", stage: "approval", title: "提交发布审批", time: "2026-07-14 14:00:10", operator: "汤彦珊", operatorType: "用户", result: "success", summary: "审批快照已锁定，目标版本 23.110.211.22" },
@@ -815,15 +750,6 @@
   }
 
   function normalizeDatabase(data) {
-    if (!Array.isArray(data.dingNotices)) data.dingNotices = [];
-    data.dingNotices.forEach(notice => {
-      if (!notice.recallStatus) notice.recallStatus = "not_requested";
-      if (!Number.isFinite(Number(notice.recallAttempts))) notice.recallAttempts = 0;
-      if (!notice.recalledAt) notice.recalledAt = "-";
-      if (!notice.recalledBy) notice.recalledBy = "-";
-      if (!notice.recallReason) notice.recallReason = "";
-      if (!notice.recallFailureReason) notice.recallFailureReason = "";
-    });
     if (!data.identifiers.some(identifier => identifier.id === "25.922.219")) data.identifiers.push(differentialDemoIdentifier());
     const identifierIds = new Set(data.identifiers.map(identifier => identifier.id));
     data.identifiers.forEach((identifier, identifierIndex) => {
@@ -882,9 +808,6 @@
       }
       if (identifier.activeApproval === undefined) identifier.activeApproval = null;
       if (identifier.lastDelisted === undefined) identifier.lastDelisted = null;
-      if (!identifier.dingDefaults) identifier.dingDefaults = { scopes: ["dept-firmware", "user-line-owner"], source: "product" };
-      identifier.dingDefaults.scopes = normalizeDingScopeIds(identifier.dingDefaults.scopes || []);
-      delete identifier.dingDefaults.enabled;
       if (!Array.isArray(identifier.lifecycleEvents)) identifier.lifecycleEvents = initialLifecycleEvents(identifier, legacyCurrent, legacyRollbackTarget, identifierIndex);
       identifier.releaseEvents.forEach(event => {
         if (!event.flowId) {
@@ -1581,95 +1504,8 @@
     return (identifier?.releaseEvents || []).filter(event => event.fromVersion === version.version || event.toVersion === version.version);
   }
 
-  function dingRecordsForVersion(version, identifier = activeIdentifier()) {
-    const releaseIds = new Set(releaseEventsForVersion(version, identifier).map(event => event.id));
-    return db.dingNotices.filter(notice => notice.firmwareId === identifier.id && releaseIds.has(notice.releaseId));
-  }
-
-  function flattenDingTree(nodes) {
-    return nodes.flatMap(node => [node, ...flattenDingTree(node.children || [])]);
-  }
-
-  function dingNodeById(id) {
-    return dingDirectory.find(node => node.id === id);
-  }
-
-  function dingLeafUsers(node) {
-    if (!node) return [];
-    if (node.type === "user") return [node];
-    return (node.children || []).flatMap(dingLeafUsers);
-  }
-
-  function normalizeDingScopeIds(scopeIds = []) {
-    return [...new Set(scopeIds.flatMap(id => dingLeafUsers(dingNodeById(id)).map(user => user.id)))];
-  }
-
-  function dingExpandedNodeIds() {
-    return dingDirectory.filter(node => node.type !== "user").map(node => node.id);
-  }
-
-  function selectedDingScopes(modal = state.modal) {
-    const selectedIds = normalizeDingScopeIds(modal?.dingScopes || []);
-    return dingDirectory.filter(item => item.type === "user" && selectedIds.includes(item.id));
-  }
-
-  function resolveDingRecipients(scopeIds) {
-    return [...new Set(normalizeDingScopeIds(scopeIds).map(id => dingNodeById(id)?.name).filter(Boolean))];
-  }
-
-  function dingRecipientCount(modal = state.modal) {
-    return resolveDingRecipients(modal?.dingScopes || []).length;
-  }
-
-  function dingNodeSelection(node, modal) {
-    const selectedIds = new Set(normalizeDingScopeIds(modal?.dingScopes || []));
-    const leafIds = dingLeafUsers(node).map(user => user.id);
-    const selectedCount = leafIds.filter(id => selectedIds.has(id)).length;
-    return { leafIds, checked: Boolean(leafIds.length && selectedCount === leafIds.length), partial: selectedCount > 0 && selectedCount < leafIds.length };
-  }
-
-  function dingTreeNodeMatches(node, query) {
-    if (!query) return true;
-    const ownText = `${node.name} ${node.role || ""}`.toLowerCase();
-    return ownText.includes(query) || (node.children || []).some(child => dingTreeNodeMatches(child, query));
-  }
-
-  function renderDingTreeNode(node, modal, depth = 0) {
-    const query = String(modal.dingTreeQuery || "").trim().toLowerCase();
-    if (!dingTreeNodeMatches(node, query)) return "";
-    const children = node.children || [];
-    const expandable = children.length > 0;
-    const expanded = Boolean(query || (modal.dingExpanded || []).includes(node.id));
-    const selection = dingNodeSelection(node, modal);
-    const memberCount = dingLeafUsers(node).length;
-    const meta = node.type === "user" ? node.role : `${memberCount} 人`;
-    return `<div class="ding-tree-node" style="--ding-depth:${depth}"><div class="ding-tree-row ${node.type}">${expandable ? `<button type="button" class="ding-tree-toggle" data-action="toggle-ding-tree-node" data-node-id="${esc(node.id)}" aria-label="${expanded ? "收起" : "展开"}${esc(node.name)}" aria-expanded="${expanded}">${expanded ? "⌄" : "›"}</button>` : `<span class="ding-tree-spacer"></span>`}<label class="ding-tree-check"><input type="checkbox" data-ding-node="${esc(node.id)}" ${selection.checked ? "checked" : ""} ${selection.partial ? `data-partial="true"` : ""}><span class="ding-node-icon ${node.type}">${node.type === "organization" ? "组" : node.type === "department" ? "部" : esc(node.name.slice(0, 1))}</span><span class="ding-node-copy"><strong>${esc(node.name)}</strong><small>${esc(meta)}</small></span></label></div>${expandable && expanded ? `<div class="ding-tree-children">${children.map(child => renderDingTreeNode(child, modal, depth + 1)).join("")}</div>` : ""}</div>`;
-  }
-
   function releaseId(prefix = "REL") {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
-  }
-
-  function dingRecordForEvent(event) {
-    return event ? db.dingNotices.find(notice => notice.releaseId === event.id) : null;
-  }
-
-  function dingRecallLabel(notice) {
-    if (!notice) return "-";
-    return ({ not_requested: "未撤回", recalling: "撤回中", recalled: "已撤回", recall_failed: "撤回失败", partial_recalled: "部分撤回" })[notice.recallStatus] || notice.recallStatus;
-  }
-
-  function dingDisplayLabel(notice) {
-    if (!notice) return "未发送";
-    if (notice.recallStatus === "recalling") return "撤回中";
-    if (notice.recallStatus === "recalled") return "已撤回";
-    if (notice.recallStatus === "partial_recalled") return "部分撤回";
-    if (notice.recallStatus === "recall_failed") return "撤回失败";
-    return ({ sent: "发送成功", sending: "发送中", partial_failed: "部分失败", failed: "发送失败" })[notice.status] || notice.status;
-  }
-
-  function canRecallDing(notice) {
-    return Boolean(notice && ["sent", "partial_failed"].includes(notice.status) && ["not_requested", "recall_failed", "partial_recalled"].includes(notice.recallStatus));
   }
 
   function sourcePublishEventForRollback(identifier, rollbackEvent) {
@@ -1677,73 +1513,6 @@
     return identifier.releaseEvents.find(event => event.id === rollbackEvent.sourceReleaseId)
       || identifier.releaseEvents.find(event => event.action === "publish" && event.toVersion === rollbackEvent.fromVersion && event.status === "rolled_back")
       || null;
-  }
-
-  function sourceDingForRollback(identifier, rollbackEvent) {
-    return dingRecordForEvent(sourcePublishEventForRollback(identifier, rollbackEvent));
-  }
-
-  function canSendDing(identifier, event) {
-    const currentEvent = activeRelease(identifier);
-    return Boolean(event && event.action === "publish" && currentEvent?.id === event.id && event.status === "active" && event.toVersion === identifier.currentVersion && !identifier.activeApproval && !dingRecordForEvent(event));
-  }
-
-  function createDingRecord(identifier, event, config) {
-    if (!canSendDing(identifier, event)) return null;
-    const normalizedScopeIds = normalizeDingScopeIds(config.dingScopes || []);
-    const recipients = resolveDingRecipients(normalizedScopeIds);
-    if (!recipients.length) return null;
-    const version = identifier.versions.find(item => item.version === event.toVersion);
-    const noticeType = "publish";
-    const notice = {
-      id: releaseId("DING"), releaseId: event.id, firmwareId: identifier.id, version: event.toVersion,
-      noticeType, status: "sending", kind: "task", scopes: normalizedScopeIds,
-      recipients,
-      messageSnapshot: `[固件发布] ${identifier.id} ${event.fromVersion || "首次发布"} -> ${event.toVersion}\n${version?.platformReleaseNotes || event.reason || "-"}\n功能点：${version?.associatedFeatures?.length || 0} 项`,
-      createdAt: now(), sentAt: "-", attemptCount: 1, failureReason: "",
-      recallStatus: "not_requested", recallAttempts: 0, recalledAt: "-", recalledBy: "-", recallReason: "", recallFailureReason: ""
-    };
-    db.dingNotices.unshift(notice);
-    return notice;
-  }
-
-  function addDingHistoryEvent(identifier, event, notice, flowType) {
-    const result = notice.status === "sent" ? "success" : notice.status === "partial_failed" ? "partial" : "failed";
-    const summary = notice.status === "sent" ? `实际接收 ${notice.recipients.length} 人；该事件不可再次发送` : notice.failureReason || "DING 发送失败；该事件不可重试或补发";
-    addLifecycleEvent(identifier, { flowId: event.flowId, flowType: "publish", flowStatus: "active", fromVersion: event.fromVersion, toVersion: event.toVersion, stage: "notification", title: "发布 DING 发送结果", operator: "DING 任务", operatorType: "系统", result, summary });
-  }
-
-  function finalizeDingRecord(noticeId, succeeded = true, failureReason = "") {
-    const notice = db.dingNotices.find(item => item.id === noticeId);
-    if (!notice || notice.status !== "sending") return;
-    const identifier = db.identifiers.find(item => item.id === notice.firmwareId);
-    const event = identifier?.releaseEvents.find(item => item.id === notice.releaseId);
-    if (!identifier || !event) return;
-    notice.status = succeeded ? "sent" : "failed";
-    notice.sentAt = now();
-    notice.failureReason = succeeded ? "" : failureReason || "钉钉接口返回发送失败";
-    addDingHistoryEvent(identifier, event, notice, "publish");
-    addOperation("DING 通知", succeeded ? "发送成功" : "发送失败", `${identifier.id} ${event.toVersion}`);
-    persist();
-    renderShell();
-    toast(succeeded ? `DING 已发送给 ${notice.recipients.length} 人` : "DING 发送失败，该事件不可再次发送", succeeded ? "success" : "error");
-  }
-
-  function finalizeDingRecall(noticeId, succeeded = true, failureReason = "") {
-    const notice = db.dingNotices.find(item => item.id === noticeId);
-    if (!notice || notice.recallStatus !== "recalling") return;
-    const identifier = db.identifiers.find(item => item.id === notice.firmwareId);
-    const event = identifier?.releaseEvents.find(item => item.id === notice.releaseId);
-    if (!identifier || !event) return;
-    notice.recallStatus = succeeded ? "recalled" : "recall_failed";
-    notice.recalledAt = succeeded ? now() : "-";
-    notice.recalledBy = "汤彦珊";
-    notice.recallFailureReason = succeeded ? "" : failureReason || "钉钉接口返回撤回失败";
-    addLifecycleEvent(identifier, { flowId: event.flowId, flowType: "publish", flowStatus: event.status, fromVersion: event.fromVersion, toVersion: event.toVersion, stage: "notification", title: succeeded ? "发布 DING 已撤回" : "发布 DING 撤回失败", operator: "汤彦珊", operatorType: "用户", result: succeeded ? "success" : "failed", summary: succeeded ? `撤回原因：${notice.recallReason}；原发送记录与接收人快照继续保留` : `${notice.recallFailureReason}；固件发布或回滚状态不受影响` });
-    addOperation("DING 通知", succeeded ? "撤回成功" : "撤回失败", `${identifier.id} ${notice.version}`);
-    persist();
-    renderShell();
-    toast(succeeded ? "原发布 DING 已撤回" : "DING 撤回失败，可针对同一消息重试", succeeded ? "success" : "error");
   }
 
   function approvalById(id) {
@@ -1794,10 +1563,10 @@
   }
 
   function permissionPresetForRole(roleName) {
-    const firmwareRead = ["查看固件标识列表", "查看版本列表", "查看发布日志", "查看DING记录", "查看模组型号"];
+    const firmwareRead = ["查看固件标识列表", "查看版本列表", "查看发布日志", "查看模组型号"];
     const presets = {
       "系统管理员": permissionRows.flatMap(row => row.actions),
-      "产线主管": [...firmwareRead, "编辑固件标识", "发布固件版本", "回滚固件版本", "下架当前发布版本", "维护APP更新说明", "管理DING接收人模板", "发送DING", "撤回DING", "查看操作日志", "查看审批日志"],
+      "产线主管": [...firmwareRead, "编辑固件标识", "发布固件版本", "回滚固件版本", "下架当前发布版本", "维护APP更新说明", "查看操作日志", "查看审批日志"],
       "测试人员": [...firmwareRead, "新增固件版本", "编辑固件版本", "删除固件版本", "查看在线差分", "查看差分包", "下载差分包"],
       "默认人员": firmwareRead,
       "FAE技术支持组长": [...firmwareRead, "查看在线差分", "查看差分包", "下载差分包", "查看操作日志"],
@@ -1885,7 +1654,6 @@
         else if (itemRect.bottom > listRect.bottom) localeList.scrollTop += itemRect.bottom - listRect.bottom;
       }
     }
-    app.querySelectorAll('input[data-ding-node][data-partial="true"]').forEach(input => { input.indeterminate = true; });
   }
 
   function renderPage() {
@@ -1905,7 +1673,7 @@
     if (identifier.product === "4G模组") {
       return `<div class="meta-grid four-g-meta"><span>所属产品线：<strong>${esc(identifier.product)}</strong></span><span>创建时间：<strong>${esc(identifier.created)}</strong></span><span>模组型号：<strong>${esc(identifier.models)}</strong></span><span title="固件标识下去重后的绑定设备总数">${annotatedLabel("绑定设备数", [["identifier", "FID-R03"]])}：<strong>${formatDeviceCount(identifier.boundDeviceCount)} 台</strong></span></div>`;
     }
-    return `<div class="meta-grid"><span>所属产品线：<strong>${esc(identifier.product)}</strong></span><span>创建时间：<strong>${esc(identifier.created)}</strong></span><span>关联机型：<strong>${esc(identifier.models)}</strong></span><span title="固件标识下去重后的绑定设备总数">${annotatedLabel("绑定设备数", [["identifier", "FID-R03"]])}：<strong>${formatDeviceCount(identifier.boundDeviceCount)} 台</strong></span><span>网络类型：<strong>${esc(identifier.network)}</strong></span><span>电量类型：<strong>${esc(identifier.power)}</strong></span><span>架构类型：<strong>${esc(identifier.architecture)}</strong></span><span>${annotatedLabel("DING 接收模板", [["ding", "DING-R02"]])}：<strong>${resolveDingRecipients(identifier.dingDefaults.scopes).length} 人</strong></span></div>`;
+    return `<div class="meta-grid"><span>所属产品线：<strong>${esc(identifier.product)}</strong></span><span>创建时间：<strong>${esc(identifier.created)}</strong></span><span>关联机型：<strong>${esc(identifier.models)}</strong></span><span title="固件标识下去重后的绑定设备总数">${annotatedLabel("绑定设备数", [["identifier", "FID-R03"]])}：<strong>${formatDeviceCount(identifier.boundDeviceCount)} 台</strong></span><span>网络类型：<strong>${esc(identifier.network)}</strong></span><span>电量类型：<strong>${esc(identifier.power)}</strong></span><span>架构类型：<strong>${esc(identifier.architecture)}</strong></span></div>`;
   }
 
   function renderFirmware() {
@@ -1922,7 +1690,7 @@
       <div class="firmware-layout ${selected.product === "4G模组" && state.firmwareTab !== "firmware" ? "differential-layout" : ""}">
         <aside class="identifier-panel"><h2 class="panel-heading">固件管理</h2><div class="panel-action-with-rule"><button class="btn panel-action" data-action="add-identifier">⊕ 新增标识</button>${ruleAnnotation("identifier", "FID-R01")}</div><div class="identifier-list">${identifiers.map(item => `<button class="identifier-item ${item.id === selected.id ? "active" : ""}" data-action="select-identifier" data-id="${esc(item.id)}">${esc(item.id)}</button>`).join("") || `<div class="muted" style="padding:16px">无匹配标识</div>`}</div></aside>
         <div class="firmware-main ${selected.product === "4G模组" && state.firmwareTab !== "firmware" ? "differential-main" : ""}">
-          <div class="summary-band ${selected.product === "4G模组" ? "four-g-summary" : ""}"><div class="summary-head"><div class="module-title-row"><h2>${esc(selected.id)}</h2></div><div class="summary-actions"><button class="btn small" data-action="refresh">↻ 刷新</button><div class="action-with-rules"><div class="popover-wrap"><button class="btn small" data-action="identifier-actions" aria-expanded="${state.popover === "identifier"}">••• 更多</button>${state.popover === "identifier" ? `<div class="action-popover compact-popover"><button data-action="edit-identifier">编辑</button><button data-action="ding-defaults">DING 接收人模板</button><button class="danger-item" data-action="delete-identifier">删除</button></div>` : ""}</div>${ruleAnnotations([["identifier", "FID-R02"], ["ding", "DING-R02"]])}</div></div></div>${renderIdentifierMeta(selected)}</div>
+          <div class="summary-band ${selected.product === "4G模组" ? "four-g-summary" : ""}"><div class="summary-head"><div class="module-title-row"><h2>${esc(selected.id)}</h2></div><div class="summary-actions"><button class="btn small" data-action="refresh">↻ 刷新</button><div class="action-with-rules"><div class="popover-wrap"><button class="btn small" data-action="identifier-actions" aria-expanded="${state.popover === "identifier"}">••• 更多</button>${state.popover === "identifier" ? `<div class="action-popover compact-popover"><button data-action="edit-identifier">编辑</button><button class="danger-item" data-action="delete-identifier">删除</button></div>` : ""}</div>${ruleAnnotation("identifier", "FID-R02")}</div></div></div>${renderIdentifierMeta(selected)}</div>
           ${pendingApproval ? `<div class="approval-banner"><div><strong>${pendingApproval.type === "rollback" ? "回滚审批中" : pendingApproval.type === "delist" ? "下架审批中" : "发布审批中"}</strong><span>${esc(pendingApproval.version)} · 提交人 ${esc(pendingApproval.submitter)} · ${esc(pendingApproval.submitTime)}</span></div><button class="btn small primary" data-action="view-active-approval">查看审批</button></div>` : ""}
           <div class="tab-strip firmware-tabs"><button class="tab ${state.firmwareTab === "firmware" ? "active" : ""}" data-action="firmware-subtab" data-tab="firmware">固件列表</button><button class="tab ${state.firmwareTab === "lifecycle" ? "active" : ""}" data-action="firmware-subtab" data-tab="lifecycle">发布日志</button>${selected.product === "4G模组" ? `<button class="tab ${state.firmwareTab === "onlineDifferential" ? "active" : ""}" data-action="firmware-subtab" data-tab="onlineDifferential">在线差分</button><button class="tab ${state.firmwareTab === "differentialPackages" ? "active" : ""}" data-action="firmware-subtab" data-tab="differentialPackages">差分包列表</button>` : ""}</div>
           ${renderFirmwareTabContent(selected, latest)}
@@ -1941,7 +1709,7 @@
   }
 
   function lifecycleStageLabel(stage) {
-    return ({ approval: "钉钉审批", release: "发布生效", notification: "DING 通知", rollback: "回滚生效", delist: "下架生效", cache: "升级检查" })[stage] || stage;
+    return ({ approval: "钉钉审批", release: "发布生效", rollback: "回滚生效", delist: "下架生效", cache: "升级检查" })[stage] || stage;
   }
 
   function lifecycleResultLabel(result) {
@@ -1979,7 +1747,6 @@
 
   function lifecycleEventSequence(event) {
     if (Number.isFinite(Number(event.sequence))) return Number(event.sequence);
-    if (event.stage === "notification") return 40;
     if (["release", "rollback", "delist"].includes(event.stage)) return 30;
     if (event.stage === "cache") return 40;
     if (event.stage === "approval" && (event.title.includes("通过") || event.title.includes("驳回"))) return 20;
@@ -2042,13 +1809,12 @@
       if (!groups.has(date)) groups.set(date, { date, flows: [], publishCount: 0, rollbackCount: 0, exceptionCount: 0 });
       const group = groups.get(date);
       const releaseEvent = identifier.releaseEvents.find(event => event.flowId === flow.flowId);
-      const notice = dingRecordForEvent(releaseEvent);
       const status = lifecycleDisplayStatus(identifier, flow);
       group.flows.push(flow);
       if (flow.flowType === "rollback" && flow.events.some(event => event.stage === "rollback" && event.result === "success")) group.rollbackCount += 1;
       if (flow.flowType === "delist" && flow.events.some(event => event.stage === "delist" && event.result === "success")) group.delistCount = (group.delistCount || 0) + 1;
       if (flow.flowType === "publish" && flow.events.some(event => event.stage === "release" && event.result === "success")) group.publishCount += 1;
-      if (["rejected", "failed"].includes(status) || ["failed", "partial_failed"].includes(notice?.status) || notice?.recallStatus === "recall_failed") group.exceptionCount += 1;
+      if (["rejected", "failed"].includes(status)) group.exceptionCount += 1;
     });
     return [...groups.values()];
   }
@@ -2084,39 +1850,13 @@
       const approvalLabel = approvalEvents.some(event => event.result === "rejected") ? "已驳回" : approvalEvents.some(event => event.title.includes("通过")) ? "已通过" : approvalEvents.length ? "审批中" : "无记录";
       const approvalClass = approvalLabel === "已驳回" ? "danger-text" : approvalLabel === "已通过" ? "success-text" : "";
       const releaseEvent = identifier.releaseEvents.find(event => event.flowId === flow.flowId);
-      const notice = dingRecordForEvent(releaseEvent);
       const displayFlowStatus = lifecycleDisplayStatus(identifier, flow);
-      const notificationLabel = ["rollback", "delist"].includes(releaseEvent?.action) ? "不触发" : releaseEvent ? dingDisplayLabel(notice) : "不适用";
-      const notificationIssue = Boolean(notice && (["failed", "partial_failed"].includes(notice.status) || notice.recallStatus === "recall_failed"));
       const transition = flow.flowType === "delist" ? `${flow.fromVersion} → 暂无当前版本` : flow.toVersion ? `${flow.fromVersion || "首次发布"} → ${flow.toVersion}` : "标识初始化";
       const expanded = state.expandedLifecycleFlows.includes(flow.flowId);
       const effectiveEvent = flow.events.find(event => ["release", "rollback", "delist"].includes(event.stage)) || flow.events[flow.events.length - 1];
       const [timelineDate = "-", timelineClock = ""] = String(effectiveEvent?.time || "-").split(" ");
-      const coreEvents = flow.events.filter(event => event.stage !== "notification");
-      const notificationEvents = flow.events.filter(event => event.stage === "notification");
-      let optionalNotification = "";
-      if (releaseEvent) {
-        if (releaseEvent.action === "delist") {
-          const sourceNotice = db.dingNotices.find(item => item.id === releaseEvent.sourceNoticeId);
-          const sourceSummary = !sourceNotice ? "原发布事件未发送 DING，无需处理通知" : canRecallDing(sourceNotice) ? `原发布 DING 当前状态：${dingDisplayLabel(sourceNotice)}；可在暂无当前发布版本区域独立撤回` : `原发布 DING 当前状态：${dingDisplayLabel(sourceNotice)}；当前无需或无法撤回`;
-          optionalNotification = `<div class="release-log-optional"><div class="release-log-optional-label"><span>通知边界</span></div><div class="release-log-ding-empty"><strong>下架不触发 DING</strong><span>${esc(sourceSummary)}</span></div></div>`;
-        } else if (releaseEvent.action === "rollback") {
-          const sourceNotice = sourceDingForRollback(identifier, releaseEvent);
-          const sourceSummary = !sourceNotice ? "原发布事件未发送 DING，无需处理通知"
-            : sourceNotice.recallStatus === "recalled" ? "原发布 DING 已撤回，原发送事实和接收人快照继续保留"
-              : canRecallDing(sourceNotice) ? `原发布 DING 当前状态：${dingDisplayLabel(sourceNotice)}；可在当前发布版本中独立撤回`
-                : `原发布 DING 当前状态：${dingDisplayLabel(sourceNotice)}；当前无需或无法撤回`;
-          optionalNotification = `<div class="release-log-optional"><div class="release-log-optional-label"><span>通知边界</span></div><div class="release-log-ding-empty"><strong>回滚不触发 DING</strong><span>${esc(sourceSummary)}</span></div></div>`;
-        } else if (notificationEvents.length) {
-          optionalNotification = `<div class="release-log-optional"><div class="release-log-optional-label"><span>可选后置通知</span></div>${notificationEvents.map((event, index) => renderLifecycleStep(event, timelineDate, index === notificationEvents.length - 1)).join("")}</div>`;
-        } else if (notice?.status === "sending") {
-          optionalNotification = `<div class="release-log-optional"><div class="release-log-optional-label"><span>可选后置通知</span></div><div class="release-log-ding-pending"><time>${esc(String(notice.createdAt).split(" ")[1] || notice.createdAt)}</time><span class="event-dot warning"></span><div><strong>DING 正在发送</strong><p>已锁定 ${notice.recipients.length} 名实际接收人，任务创建后不可再次发送</p></div></div></div>`;
-        } else if (!notice) {
-          optionalNotification = `<div class="release-log-optional"><div class="release-log-optional-label"><span>可选后置通知</span></div><div class="release-log-ding-empty"><strong>DING 尚未发送</strong><span>${displayFlowStatus === "active" ? "可在固件列表的当前发布版本中独立发送一次" : "该事件已结束，不再开放发送入口"}</span></div></div>`;
-        }
-      }
-      const eventChain = expanded ? `<div class="release-log-event-chain"><div class="release-log-core-events">${coreEvents.map((event, index) => renderLifecycleStep(event, timelineDate, index === coreEvents.length - 1)).join("")}</div>${optionalNotification}</div>` : "";
-      return `<article class="release-timeline-entry ${displayFlowStatus} ${expanded ? "is-expanded" : ""}"><time class="release-timeline-time" datetime="${esc(effectiveEvent?.time || "")}"><strong>${esc(timelineClock)}</strong></time><div class="release-timeline-marker"><span class="${lifecycleFlowStatusClass(displayFlowStatus)}"></span>${flowIndex < flowCount - 1 ? `<i></i>` : ""}</div><div class="release-timeline-content"><div class="release-log-row"><button class="release-log-item" data-action="toggle-lifecycle-flow" data-flow-id="${esc(flow.flowId)}" aria-expanded="${expanded}"><span class="release-log-main"><span><span class="release-log-kind ${flow.flowType}">${flow.flowType === "rollback" ? "回滚" : flow.flowType === "delist" ? "下架" : "发布"}</span><strong>${esc(transition)}</strong><span class="tag ${lifecycleFlowStatusClass(displayFlowStatus)}">${lifecycleFlowStatusLabel(displayFlowStatus)}</span></span></span><span class="release-log-results"><span class="release-log-result ${approvalClass}"><span>审批</span><strong>${approvalLabel}</strong></span><span class="release-log-result ${notificationIssue ? "danger-text" : ""}"><span>DING</span><strong>${notificationLabel}</strong></span></span><span class="release-log-chevron" aria-hidden="true">${expanded ? "⌄" : "›"}</span></button>${ruleAnnotations([["releaseLog", "RLG-R02"], ["releaseLog", "RLG-R03"]], "release-entry-rules")}</div>${eventChain}</div></article>`;
+      const eventChain = expanded ? `<div class="release-log-event-chain"><div class="release-log-core-events">${flow.events.map((event, index) => renderLifecycleStep(event, timelineDate, index === flow.events.length - 1)).join("")}</div></div>` : "";
+      return `<article class="release-timeline-entry ${displayFlowStatus} ${expanded ? "is-expanded" : ""}"><time class="release-timeline-time" datetime="${esc(effectiveEvent?.time || "")}"><strong>${esc(timelineClock)}</strong></time><div class="release-timeline-marker"><span class="${lifecycleFlowStatusClass(displayFlowStatus)}"></span>${flowIndex < flowCount - 1 ? `<i></i>` : ""}</div><div class="release-timeline-content"><div class="release-log-row"><button class="release-log-item" data-action="toggle-lifecycle-flow" data-flow-id="${esc(flow.flowId)}" aria-expanded="${expanded}"><span class="release-log-main"><span><span class="release-log-kind ${flow.flowType}">${flow.flowType === "rollback" ? "回滚" : flow.flowType === "delist" ? "下架" : "发布"}</span><strong>${esc(transition)}</strong><span class="tag ${lifecycleFlowStatusClass(displayFlowStatus)}">${lifecycleFlowStatusLabel(displayFlowStatus)}</span></span></span><span class="release-log-results"><span class="release-log-result ${approvalClass}"><span>审批</span><strong>${approvalLabel}</strong></span></span><span class="release-log-chevron" aria-hidden="true">${expanded ? "⌄" : "›"}</span></button>${ruleAnnotations([["releaseLog", "RLG-R02"], ["releaseLog", "RLG-R03"]], "release-entry-rules")}</div>${eventChain}</div></article>`;
   }
 
   function renderLifecycleTimeline(flows, identifier) {
@@ -2158,43 +1898,24 @@
     return `<div class="action-popover column-popover"><strong>列设置</strong><label class="check"><input type="checkbox" checked disabled>固件版本号</label>${Object.entries(labels).map(([key, label]) => `<label class="check"><input type="checkbox" data-column="${key}" ${state.columns[key] ? "checked" : ""}>${label}</label>`).join("")}<label class="check"><input type="checkbox" checked disabled>操作</label></div>`;
   }
 
-  function renderDingRecordActions(notice) {
-    if (!notice) return "";
-    const recallAction = canRecallDing(notice) ? `<button class="link-btn danger-link" data-action="recall-ding" data-notice-id="${esc(notice.id)}">${notice.recallStatus === "recall_failed" || notice.recallStatus === "partial_recalled" ? "重试撤回" : "撤回 DING"}</button>` : "";
-    return `${recallAction}<button class="link-btn" data-action="view-ding-record" data-notice-id="${esc(notice.id)}">查看记录</button>`;
-  }
-
   function renderNoCurrentRelease(identifier) {
     const summary = identifier.lastDelisted;
     if (!summary) return `<div class="no-current-release"><div><strong>暂无当前发布版本</strong><span>请从下方固件版本列表选择版本并发起发布审批</span></div><button class="btn small primary" data-action="focus-publishable-versions">选择版本发布</button></div>`;
     const version = identifier.versions.find(item => item.version === summary.version);
-    const notice = db.dingNotices.find(item => item.id === summary.sourceNoticeId);
-    const dingAction = notice ? `<div class="delisted-ding-action"><span>原发布 DING：<strong>${esc(dingDisplayLabel(notice))}</strong></span>${notice.recallStatus === "recalling" ? `<span class="muted">正在撤回</span>` : renderDingRecordActions(notice)}${ruleAnnotation("delist", "DEL-R09")}</div>` : "";
-    return `<div class="no-current-release delisted-summary"><div class="no-current-main"><span class="empty-current-icon">!</span><div><strong>暂无当前发布版本</strong><span>最近下架 ${esc(summary.version)} · ${esc(summary.time)}</span><small>下架原因：${esc(summary.reasonType)} · ${esc(summary.reason)}</small></div></div><div class="no-current-actions"><span class="action-with-rules"><button class="btn small" data-action="version-detail" data-version="${esc(version?.version || summary.version)}">查看版本详情</button>${ruleAnnotation("delist", "DEL-R10")}</span><button class="btn small primary" data-action="focus-publishable-versions">选择版本发布</button></div>${dingAction}</div>`;
+    return `<div class="no-current-release delisted-summary"><div class="no-current-main"><span class="empty-current-icon">!</span><div><strong>暂无当前发布版本</strong><span>最近下架 ${esc(summary.version)} · ${esc(summary.time)}</span><small>下架原因：${esc(summary.reasonType)} · ${esc(summary.reason)}</small></div></div><div class="no-current-actions"><span class="action-with-rules"><button class="btn small" data-action="version-detail" data-version="${esc(version?.version || summary.version)}">查看版本详情</button>${ruleAnnotation("delist", "DEL-R10")}</span><button class="btn small primary" data-action="focus-publishable-versions">选择版本发布</button></div></div>`;
   }
 
   function renderLatest(identifier, version) {
     const event = activeRelease(identifier);
     const previous = rollbackTarget(identifier);
-    const notice = dingRecordForEvent(event);
     const isRollback = event?.action === "rollback";
-    const dingLabel = isRollback ? "不适用" : dingDisplayLabel(notice);
-    const dingAction = isRollback ? "" : canSendDing(identifier, event)
-      ? `<button class="link-btn" data-action="send-ding" data-release-id="${esc(event.id)}">发送 DING</button>`
-      : notice?.status === "sending" || notice?.recallStatus === "recalling" ? "" : renderDingRecordActions(notice);
-    const sourceNotice = isRollback ? sourceDingForRollback(identifier, event) : null;
-    const sourceEvent = isRollback ? sourcePublishEventForRollback(identifier, event) : null;
-    const rollbackNotice = sourceNotice ? `<div class="rollback-ding-followup ${sourceNotice.recallStatus === "recalled" ? "resolved" : sourceNotice.recallStatus === "recall_failed" ? "error" : ""}"><div><span>原发布 DING</span><strong>${esc(dingDisplayLabel(sourceNotice))}</strong><small>${esc(sourceEvent?.toVersion || event.fromVersion)} 的发布通知；回滚不会自动发送或撤回 DING</small></div><div class="rollback-ding-actions">${sourceNotice.recallStatus === "recalling" ? `<span class="muted">正在撤回，请稍候</span>` : renderDingRecordActions(sourceNotice)}</div></div>` : "";
     const detailAction = `<span class="action-with-rules"><button class="btn small" data-action="version-detail" data-version="${esc(version.version)}">详情</button>${ruleAnnotation("detail", "DET-R03")}</span>`;
     const rollbackAction = identifier.rollbackAvailable && previous
       ? `<span class="action-with-rules"><button class="btn small danger" data-action="start-rollback" ${identifier.activeApproval ? "disabled" : ""}>撤销并回滚</button>${ruleAnnotations([["rollback", "RBK-R01"], ["rollback", "RBK-R02"]])}</span>`
       : `<span class="action-with-rules"><button class="btn small" disabled title="当前没有可用的一次性回滚目标">不可回滚</button>${ruleAnnotation("rollback", "RBK-R01")}</span>`;
     const delistAction = `<span class="action-with-rules"><button class="btn small danger-outline" data-action="start-delist" ${identifier.activeApproval ? "disabled" : ""}>下架</button>${ruleAnnotation("delist", "DEL-R01")}</span>`;
     const pendingDelist = identifier.activeApproval?.type === "delist";
-    const dingRules = isRollback
-      ? ruleAnnotation("ding", "DING-R10")
-      : ruleAnnotation("ding", "DING-R06");
-    return `<div class="current-release-card"><div class="current-release-head"><div class="latest-version"><span class="file-mark">V</span><div><strong>${esc(version.version)}</strong><div class="muted">${pendingDelist ? "当前发布 · 下架审批中" : isRollback ? `由 ${esc(event.fromVersion)} 回滚恢复` : previous ? `上一个发布版本 ${esc(previous.version)}` : "首次发布"}</div></div></div><div class="current-release-actions">${detailAction}${pendingDelist ? `<span class="action-with-rules"><button class="btn small primary" data-action="view-active-approval">查看下架审批</button>${ruleAnnotation("delist", "DEL-R06")}</span>` : `${rollbackAction}${delistAction}`}</div></div><div class="current-release-grid"><div><span>生效时间</span><strong>${esc(event?.effectiveAt || version.published || version.updated)}</strong></div><div><span>APP 提醒方式</span><strong>${esc(reminderLabel(event?.reminderPolicy))}</strong></div><div><span>适用机型</span><strong>${esc(version.models)}</strong></div><div class="current-release-ding"><span>${annotatedLabel("DING 状态", isRollback ? [["rollback", "RBK-R09"]] : [["ding", "DING-R01"]])}</span><div><strong>${esc(dingLabel)}</strong>${dingAction}${dingRules}</div></div><div><span>文件大小</span><strong>${esc(version.size)} M</strong></div><div class="release-url"><span>下载地址</span><strong title="${esc(version.url)}">${esc(version.url)}</strong><div class="release-url-actions"><button class="link-btn" data-action="copy" data-copy="${esc(version.url)}" title="复制下载地址" aria-label="复制下载地址">▣</button><a class="link-btn" href="${esc(version.url)}" download title="下载固件" aria-label="下载固件">⇩</a></div></div></div>${rollbackNotice}</div>`;
+    return `<div class="current-release-card"><div class="current-release-head"><div class="latest-version"><span class="file-mark">V</span><div><strong>${esc(version.version)}</strong><div class="muted">${pendingDelist ? "当前发布 · 下架审批中" : isRollback ? `由 ${esc(event.fromVersion)} 回滚恢复` : previous ? `上一个发布版本 ${esc(previous.version)}` : "首次发布"}</div></div></div><div class="current-release-actions">${detailAction}${pendingDelist ? `<span class="action-with-rules"><button class="btn small primary" data-action="view-active-approval">查看下架审批</button>${ruleAnnotation("delist", "DEL-R06")}</span>` : `${rollbackAction}${delistAction}`}</div></div><div class="current-release-grid"><div><span>生效时间</span><strong>${esc(event?.effectiveAt || version.published || version.updated)}</strong></div><div><span>APP 提醒方式</span><strong>${esc(reminderLabel(event?.reminderPolicy))}</strong></div><div><span>适用机型</span><strong>${esc(version.models)}</strong></div><div><span>文件大小</span><strong>${esc(version.size)} M</strong></div><div class="release-url"><span>下载地址</span><strong title="${esc(version.url)}">${esc(version.url)}</strong><div class="release-url-actions"><button class="link-btn" data-action="copy" data-copy="${esc(version.url)}" title="复制下载地址" aria-label="复制下载地址">▣</button><a class="link-btn" href="${esc(version.url)}" download title="下载固件" aria-label="下载固件">⇩</a></div></div></div></div>`;
   }
 
   function renderFirmwareTable(identifier) {
@@ -2290,11 +2011,6 @@
     const exact = {
       "新增固件标识": [["identifier", "FID-R01"]],
       "编辑固件标识": [["identifier", "FID-R02"]],
-      "DING 接收人模板": [["ding", "DING-R02"], ["ding", "DING-R03"]],
-      "确认发送 DING": [["ding", "DING-R05"], ["ding", "DING-R06"]],
-      "DING 发送记录": [["ding", "DING-R07"]],
-      "撤回原发布 DING": [["ding", "DING-R08"]],
-      "确认撤回原发布 DING": [["ding", "DING-R08"], ["ding", "DING-R09"]],
       "新增差分任务": [["differential", "DIF-R02"], ["differential", "DIF-R03"]],
       "选择发布版本": [["publish", "PUB-R01"], ["publish", "PUB-R02"], ["delist", "DEL-R10"]],
       "提交固件发布审批": [["publish", "PUB-R03"], ["reminder", "REM-R01"]],
@@ -2318,13 +2034,12 @@
       "权限配置": [["audit", "AUD-R04"]]
     };
     if (exact[title]) return exact[title];
-    if (title.startsWith("发送") && title.endsWith(" DING")) return [["ding", "DING-R02"], ["ding", "DING-R04"]];
     if (title.endsWith("关联固件列表")) return [["identifier", "FID-R05"]];
     return frameType === "drawer" ? [] : [];
   }
 
   function modalFrame(title, body, footer = "", wide = false, nested = false) {
-    return `<section class="modal ${wide ? "wide" : ""} ${body.includes('class="ding-config"') ? "ding-modal" : ""} ${body.includes('class="app-reminder-layout"') ? "release-modal" : ""} ${body.includes('class="feature-picker"') ? "feature-modal" : ""} ${nested ? "nested-modal" : ""} ${animateCurrentModal ? "is-entering" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header class="dialog-header"><div class="frame-title-with-rules"><h2>${esc(title)}</h2>${ruleAnnotations(frameRuleItems(title, "modal"))}</div><button class="close-btn" data-action="${nested ? "close-modal" : "close-overlay"}" aria-label="关闭">×</button></header><div class="dialog-body">${body}</div>${footer ? `<footer class="dialog-footer">${footer}</footer>` : ""}</section>`;
+    return `<section class="modal ${wide ? "wide" : ""} ${body.includes('class="app-reminder-layout"') ? "release-modal" : ""} ${body.includes('class="feature-picker"') ? "feature-modal" : ""} ${nested ? "nested-modal" : ""} ${animateCurrentModal ? "is-entering" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header class="dialog-header"><div class="frame-title-with-rules"><h2>${esc(title)}</h2>${ruleAnnotations(frameRuleItems(title, "modal"))}</div><button class="close-btn" data-action="${nested ? "close-modal" : "close-overlay"}" aria-label="关闭">×</button></header><div class="dialog-body">${body}</div>${footer ? `<footer class="dialog-footer">${footer}</footer>` : ""}</section>`;
   }
 
   function drawerFrame(title, body, footer = "", narrow = false) {
@@ -2376,70 +2091,23 @@
     return `<section class="publish-snapshot"><div class="publish-snapshot-head"><div><h3>${annotatedLabel("发布内容快照", [["publish", "PUB-R04"]])}</h3><span>提交后与提醒策略一起进入审批快照</span></div><strong>功能点 ${targetFeatures.size} 项 · ${changedCount} 项变化</strong></div><div class="publish-summary-grid"><span>${annotatedLabel("预计影响设备", [["identifier", "FID-R04"]])}<strong>${formatDeviceCount(target.associatedDeviceCount)} 台</strong></span><span>适用机型<strong>${esc(target.models)}</strong></span><span>平台发布说明<strong>${esc(target.platformReleaseNotes)}</strong></span></div><div class="feature-snapshot"><div class="feature-snapshot-head"><span>功能点</span><strong>当前版本 → 目标版本</strong><em>结果</em></div>${rows.join("") || `<div class="feature-snapshot-empty">目标版本未配置功能点</div>`}</div></section>`;
   }
 
-  function renderDingConfiguration(modal) {
-    const selectedMembers = selectedDingScopes(modal);
-    const count = dingRecipientCount(modal);
-    const memberList = selectedMembers.length ? selectedMembers.map(member => `<div class="ding-selected-member"><span class="ding-member-avatar">${esc(member.name.slice(0, 1))}</span><span><strong>${esc(member.name)}</strong><small>${esc(member.role || "成员")}</small></span><button type="button" data-action="remove-ding-member" data-member-id="${esc(member.id)}" title="移除${esc(member.name)}" aria-label="移除${esc(member.name)}">×</button></div>`).join("") : `<div class="ding-selected-empty">暂未选择接收成员</div>`;
-    const previewTitle = modal.type === "dingDefaults" ? "接收人模板预览" : "最终 DING 消息预览";
-    return `<div class="ding-config"><div class="ding-scope-grid"><section class="ding-tree-panel"><div class="ding-tree-heading"><div><h4>${annotatedLabel("选择接收范围", [["ding", "DING-R03"]])}</h4><span>可按组织、部门或成员选择</span></div><button type="button" class="link-btn" data-action="clear-ding-members" ${count ? "" : "disabled"}>清空</button></div><div class="ding-tree-search"><span>⌕</span><input class="field" data-ding-tree-query value="${esc(modal.dingTreeQuery || "")}" placeholder="搜索部门或成员" aria-label="搜索钉钉组织成员"></div><div class="ding-tree" role="tree">${dingOrganizationTree.map(node => renderDingTreeNode(node, modal)).join("") || `<div class="ding-tree-empty">没有匹配的部门或成员</div>`}</div>${errorFor("dingScopes")}</section><aside class="ding-preview"><div class="ding-selected-heading"><div><span>已选成员</span><strong>${count} 人</strong></div><small>成员已按账号去重</small></div><div class="ding-selected-list">${memberList}</div><div class="ding-message-preview"><div class="ding-message-preview-head"><span>${annotatedLabel(previewTitle, [["ding", "DING-R04"]])}</span><small>发送时保存接收人快照</small></div><strong>[固件发布] ${esc(activeIdentifier().id)} ${esc(modal.version || modal.targetVersion || "")}</strong><p>${esc(modal.platformReleaseNotes || "发送时自动读取对应版本的平台发布说明")}</p></div></aside></div></div>`;
-  }
-
-  function renderDingSendModal(modal) {
-    const identifier = activeIdentifier();
-    const event = identifier.releaseEvents.find(item => item.id === modal.releaseId);
-    const version = identifier.versions.find(item => item.version === event?.toVersion);
-    if (!event || !version) return modalFrame("发送 DING", `<div class="empty-state"><div>当前发布事件不存在或已失效</div></div>`, `<button class="btn" data-action="close-overlay">关闭</button>`);
-    const typeLabel = "发布";
-    const featureSummary = (version.associatedFeatures || []).map(item => `${item.name}：${item.version}`).join("；") || "未配置功能点";
-    if (modal.confirmStep) {
-      const recipients = resolveDingRecipients(modal.dingScopes || []);
-      return modalFrame("确认发送 DING", `<div class="ding-final-confirm"><div class="confirm-icon">!</div><h3>${annotatedLabel("请再次确认本次 DING", [["ding", "DING-R05"]])}</h3><p>发送任务创建后不可重试或补发；发送成功后可由有权限人员独立撤回。</p><div class="ding-confirm-grid"><span>事件类型<strong>${typeLabel}</strong></span><span>版本变化<strong>${esc(event.fromVersion || "首次发布")} → ${esc(event.toVersion)}</strong></span><span>生效时间<strong>${esc(event.effectiveAt)}</strong></span><span>实际接收人<strong>${recipients.length} 人</strong></span></div><div class="ding-confirm-recipients"><span>接收人快照</span><p>${esc(recipients.join("、"))}</p></div><div class="ding-confirm-message"><strong>[固件${typeLabel}] ${esc(identifier.id)} ${esc(event.toVersion)}</strong><p>${esc(version.platformReleaseNotes)}</p><small>${esc(featureSummary)}</small></div></div>`, `<button class="btn" data-action="back-ding-send">返回修改</button><span class="action-with-rules"><button class="btn primary" data-action="confirm-ding-send">确认并发送</button>${ruleAnnotations([["ding", "DING-R05"], ["ding", "DING-R06"]])}</span>`, true);
-    }
-    return modalFrame(`发送${typeLabel} DING`, `<div class="ding-send-context"><div><span>${annotatedLabel("生效事件", [["ding", "DING-R04"]])}</span><strong>${typeLabel}</strong></div><div><span>版本变化</span><strong>${esc(event.fromVersion || "首次发布")} → ${esc(event.toVersion)}</strong></div><div><span>生效时间</span><strong>${esc(event.effectiveAt)}</strong></div><div><span>功能点</span><strong>${version.associatedFeatures?.length || 0} 项配置</strong></div></div><div class="ding-send-note"><span>平台发布说明</span><p>${esc(version.platformReleaseNotes)}</p></div><div class="ding-feature-summary"><span>功能点版本</span><p>${esc(featureSummary)}</p></div>${renderDingConfiguration(modal)}<div class="ding-once-warning">${annotatedLabel("单次发送限制", [["ding", "DING-R06"], ["ding", "DING-R07"]])}：该发布事件仅可创建一次 DING 发送任务；发送成功或失败后均不可重试或补发。发送成功后可按权限独立撤回。</div>`, `<button class="btn" data-action="close-overlay">取消</button><span class="action-with-rules"><button class="btn primary" data-action="review-ding-send">下一步：确认发送</button>${ruleAnnotation("ding", "DING-R05")}</span>`, true);
-  }
-
-  function renderDingRecordModal(modal) {
-    const notice = db.dingNotices.find(item => item.id === modal.noticeId);
-    if (!notice) return modalFrame("DING 记录", `<div class="empty-state"><div>记录不存在</div></div>`, `<button class="btn" data-action="close-overlay">关闭</button>`);
-    const statusLabel = ({ sending: "发送中", sent: "发送成功", failed: "发送失败", partial_failed: "部分失败" })[notice.status] || notice.status;
-    const recallDetails = notice.recallStatus !== "not_requested" ? `<div class="ding-recall-audit"><div><span>撤回状态</span><strong>${esc(dingRecallLabel(notice))}</strong></div><div><span>撤回人</span><strong>${esc(notice.recalledBy)}</strong></div><div><span>撤回时间</span><strong>${esc(notice.recalledAt)}</strong></div><div><span>撤回原因</span><strong>${esc(notice.recallReason || "-")}</strong></div>${notice.recallFailureReason ? `<p>${esc(notice.recallFailureReason)}</p>` : ""}</div>` : "";
-    const terminalNote = ["sent", "partial_failed"].includes(notice.status) ? "发送任务不支持重发或补发；撤回只影响钉钉消息，不改变固件发布和回滚状态。" : "发送任务已终态，不支持重试或补发。";
-    const closeAction = state.drawer ? "close-modal" : "close-overlay";
-    return modalFrame("DING 发送记录", `${ruleContextBar(["ding"])}<div class="ding-record-detail"><div class="ding-record-status ${notice.status} ${notice.recallStatus}"><span>当前状态</span><strong>${esc(dingDisplayLabel(notice))}</strong></div><div class="ding-confirm-grid"><span>通知类型<strong>发布 DING</strong></span><span>固件版本<strong>${esc(notice.version)}</strong></span><span>发送结果<strong>${esc(statusLabel)}</strong></span><span>发送时间<strong>${esc(notice.sentAt)}</strong></span></div><div class="ding-confirm-recipients"><span>实际接收人快照 · ${notice.recipients.length} 人</span><p>${esc(notice.recipients.join("、") || "-")}</p></div><div class="ding-confirm-message"><span>消息快照</span><p>${esc(notice.messageSnapshot)}</p></div>${recallDetails}<div class="ding-terminal-note">${terminalNote}</div></div>`, `<button class="btn" data-action="${closeAction}">关闭</button>${canRecallDing(notice) ? `<button class="btn danger" data-action="recall-ding" data-notice-id="${esc(notice.id)}">${notice.recallStatus === "recall_failed" || notice.recallStatus === "partial_recalled" ? "重试撤回" : "撤回 DING"}</button>` : ""}`, true, Boolean(state.drawer));
-  }
-
-  function renderDingRecallModal(modal) {
-    const notice = db.dingNotices.find(item => item.id === modal.noticeId);
-    const nested = Boolean(state.drawer);
-    const dismissAction = nested ? "close-modal" : "close-overlay";
-    if (!notice) return modalFrame("撤回 DING", `<div class="empty-state"><div>原发布 DING 记录不存在</div></div>`, `<button class="btn" data-action="${dismissAction}">关闭</button>`, false, nested);
-    if (!canRecallDing(notice)) return modalFrame("撤回 DING", `<div class="empty-state"><div>当前 DING 状态不允许撤回</div></div>`, `<button class="btn" data-action="${dismissAction}">关闭</button>`, false, nested);
-    if (modal.confirmStep) {
-      return modalFrame("确认撤回原发布 DING", `${ruleContextBar(["ding", "concurrency"])}<div class="ding-final-confirm ding-recall-confirm"><div class="confirm-icon">!</div><h3>确认撤回这条发布通知？</h3><p>撤回后不能恢复，但已阅读的内容无法从接收人的认知中消除。</p><div class="ding-confirm-grid"><span>固件版本<strong>${esc(notice.version)}</strong></span><span>实际接收人<strong>${notice.recipients.length} 人</strong></span><span>发送时间<strong>${esc(notice.sentAt)}</strong></span><span>撤回尝试<strong>第 ${notice.recallAttempts + 1} 次</strong></span></div><div class="ding-confirm-message"><span>撤回原因</span><p>${esc(modal.reason)}</p></div><div class="ding-once-warning">本操作只撤回钉钉消息，不会撤销固件发布、回滚结果、审批记录或 APP 提醒策略。</div></div>`, `<button class="btn" data-action="back-ding-recall">返回修改</button><button class="btn danger" data-action="confirm-ding-recall">确认撤回</button>`, true, nested);
-    }
-    return modalFrame("撤回原发布 DING", `${ruleContextBar(["ding", "concurrency"])}<div class="ding-recall-summary"><div><span>固件版本</span><strong>${esc(notice.version)}</strong></div><div><span>发送状态</span><strong>${esc(({ sent: "发送成功", partial_failed: "部分失败" })[notice.status] || notice.status)}</strong></div><div><span>发送时间</span><strong>${esc(notice.sentAt)}</strong></div><div><span>接收人数</span><strong>${notice.recipients.length} 人</strong></div></div><div class="ding-confirm-message"><span>原消息快照</span><p>${esc(notice.messageSnapshot)}</p></div><div class="form-field required ding-recall-reason"><label>撤回原因</label><textarea class="textarea" data-modal-field="reason" maxlength="300" placeholder="请说明撤回原因，例如版本已回滚、通知内容有误或接收范围错误">${esc(modal.reason || "")}</textarea>${errorFor("recallReason")}<div class="helper align-right">${(modal.reason || "").length} / 300</div></div><div class="rollback-risk">撤回不会影响已经完成的固件发布或回滚；已阅读的接收人仍可能知道原通知内容。</div>`, `<button class="btn" data-action="${dismissAction}">取消</button><button class="btn danger" data-action="review-ding-recall">下一步：确认撤回</button>`, true, nested);
-  }
-
   function renderRollbackResultModal(modal) {
     return modalFrame("固件回滚成功", `<div class="approval-submit-result rollback-result"><div class="approval-result-icon">✓</div><h3>${esc(modal.version)} 已恢复为当前发布版本</h3></div>`, `<button class="btn primary" data-action="close-overlay">完成</button>`, true);
   }
 
   function renderDelistResultModal(modal) {
-    const notice = db.dingNotices.find(item => item.id === modal.noticeId);
-    const dingFollowup = notice ? `<div class="delist-result-ding"><div><span>原发布 DING</span><strong>${esc(dingDisplayLabel(notice))}</strong></div>${notice.recallStatus === "recalling" ? `<span class="muted">正在撤回</span>` : renderDingRecordActions(notice)}</div>` : "";
-    return modalFrame("固件版本下架成功", `<div class="approval-submit-result delist-result"><div class="approval-result-icon">✓</div><h3>${esc(modal.version)} 已停止作为当前发布版本</h3><p>当前状态为“暂无当前发布版本”，固件包和已升级设备不受影响。</p>${dingFollowup}</div>`, `<button class="btn primary" data-action="close-overlay">完成</button>`, true);
+    return modalFrame("固件版本下架成功", `<div class="approval-submit-result delist-result"><div class="approval-result-icon">✓</div><h3>${esc(modal.version)} 已停止作为当前发布版本</h3><p>当前状态为“暂无当前发布版本”，固件包和已升级设备不受影响。</p></div>`, `<button class="btn primary" data-action="close-overlay">完成</button>`, true);
   }
 
   function renderApprovalSimulation(modal) {
     const approval = approvalById(modal.approvalId);
     const rollback = approval.type === "rollback";
     const delist = approval.type === "delist";
-    const dingBoundary = delist ? "下架不会自动发送或撤回 DING。" : rollback ? "回滚事件不会触发 DING。" : "发布成功后可在当前发布版本中独立发送一次 DING。";
     const actionLabel = delist ? "下架" : rollback ? "回滚" : "发布";
     const snapshot = delist
       ? `<div class="approval-snapshot"><span>审批事件<strong>${esc(approval.event)}</strong></span><span>下架版本<strong>${esc(approval.version)}</strong></span><span>关联设备快照<strong>${formatDeviceCount(approval.associatedDeviceCount)} 台</strong></span><span>适用机型<strong>${esc(approval.models)}</strong></span><span>下架原因<strong>${esc(approval.reasonType)}</strong></span><span>提交人<strong>${esc(approval.submitter)}</strong></span><span>提交时间<strong>${esc(approval.submitTime)}</strong></span><span>具体说明<strong>${esc(approval.reason)}</strong></span></div>`
       : `<div class="approval-snapshot"><span>审批事件<strong>${esc(approval.event)}</strong></span><span>目标版本<strong>${esc(approval.version)}</strong></span><span>APP 提醒<strong>${esc(reminderLabel(approval.reminderPolicy))}</strong></span><span>APP 说明<strong>${Object.keys(approval.appReleaseNotes || {}).length} 种语言</strong></span><span>功能点<strong>${(approval.associatedFeatures || []).length} 项配置</strong></span><span>提交人<strong>${esc(approval.submitter)}</strong></span><span>提交时间<strong>${esc(approval.submitTime)}</strong></span></div>`;
-    return modalFrame(delist ? "下架审批已提交" : rollback ? "回滚审批已提交" : "发布审批已提交", `${ruleContextBar([delist ? "delist" : rollback ? "rollback" : "publish", "concurrency"])}<div class="approval-submit-result"><div class="approval-result-icon">✓</div><h3>审批单已进入钉钉审批</h3><p>当前发布版本保持不变，审批通过后平台会重新校验快照并执行${actionLabel}事务。${dingBoundary}</p>${snapshot}<div class="prototype-simulation-note">原型审批模拟</div></div>`, `<button class="btn danger" data-action="simulate-approval-reject">模拟审批驳回</button><button class="btn primary" data-action="simulate-approval-approve">模拟审批通过</button>`, true);
+    return modalFrame(delist ? "下架审批已提交" : rollback ? "回滚审批已提交" : "发布审批已提交", `${ruleContextBar([delist ? "delist" : rollback ? "rollback" : "publish", "concurrency"])}<div class="approval-submit-result"><div class="approval-result-icon">✓</div><h3>审批单已进入钉钉审批</h3><p>当前发布版本保持不变，审批通过后平台会重新校验快照并执行${actionLabel}事务。</p>${snapshot}<div class="prototype-simulation-note">原型审批模拟</div></div>`, `<button class="btn danger" data-action="simulate-approval-reject">模拟审批驳回</button><button class="btn primary" data-action="simulate-approval-approve">模拟审批通过</button>`, true);
   }
 
   function renderModal() {
@@ -2452,18 +2120,6 @@
     if (modal.type === "editIdentifier") {
       const item = activeIdentifier();
       return modalFrame("编辑固件标识", `${ruleContextBar(["identifier"])}<form id="edit-identifier-form"><div class="notice">关联机型创建后不可二次编辑。</div><div class="form-grid"><div class="form-field"><label>固件标识</label><input class="field" value="${esc(item.id)}" disabled></div><div class="form-field required"><label>所属产线</label><select class="select" name="product">${productLines.map(line => `<option ${line === item.product ? "selected" : ""}>${line}</option>`).join("")}</select></div><div class="form-field required"><label>关联机型</label><input class="field" value="${esc(item.models)}" disabled></div><div class="form-field"><label>网络类型</label><select class="select" name="network"><option ${item.network === "仅4G" ? "selected" : ""}>仅4G</option><option ${item.network === "WiFi" ? "selected" : ""}>WiFi</option><option ${item.network === "4G + WiFi" ? "selected" : ""}>4G + WiFi</option></select></div><div class="form-field"><label>电量类型</label><select class="select" name="power"><option ${item.power === "常电" ? "selected" : ""}>常电</option><option ${item.power === "低功耗" ? "selected" : ""}>低功耗</option></select></div><div class="form-field"><label>架构类型</label><select class="select" name="architecture"><option ${item.architecture === "新架构" ? "selected" : ""}>新架构</option><option ${item.architecture === "旧架构" ? "selected" : ""}>旧架构</option></select></div></div></form>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" type="submit" form="edit-identifier-form">保存</button>`, true);
-    }
-    if (modal.type === "dingDefaults") {
-      return modalFrame("DING 接收人模板", `${ruleContextBar(["ding"])}<div class="notice">模板只在独立发送发布 DING 时预填接收人，不会随发布或回滚自动发送；发送前仍需确认实际接收范围。</div>${renderDingConfiguration(modal)}`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn primary" data-action="save-ding-defaults">保存接收人模板</button>`, true);
-    }
-    if (modal.type === "sendDing") {
-      return renderDingSendModal(modal);
-    }
-    if (modal.type === "dingRecord") {
-      return renderDingRecordModal(modal);
-    }
-    if (modal.type === "recallDing") {
-      return renderDingRecallModal(modal);
     }
     if (modal.type === "rollbackResult") {
       return renderRollbackResultModal(modal);
@@ -2497,7 +2153,7 @@
       const identifier = activeIdentifier();
       const targetVersion = findVersion(modal.version);
       const current = currentVersion(identifier);
-      return modalFrame("提交固件发布审批", `<div class="release-impact"><div><span>当前发布版本</span><strong>${esc(current?.version || "-")}</strong></div><div class="impact-arrow">→</div><div><span>${annotatedLabel("目标发布版本", [["publish", "PUB-R03"]])}</span><strong>${esc(targetVersion.version)}</strong></div></div><div class="app-reminder-layout"><div class="publish-primary-column"><section class="app-reminder-choice"><div class="field-rule-row"><div class="section-label required">APP 提醒方式</div>${ruleAnnotations([["reminder", "REM-R01"], ["reminder", "REM-R03"]])}</div>${renderReminderOptions(modal.reminderPolicy)}${errorFor("reminderPolicy")}</section>${renderReleaseSnapshot(current, targetVersion)}<div class="approval-boundary-note">${annotatedLabel("通知边界", [["publish", "PUB-R10"], ["ding", "DING-R01"]])}：本审批只决定版本发布与 APP 提醒策略，不包含 DING 通知。发布生效后可在固件列表的当前发布版本中独立发送一次 DING。</div></div>${renderAppReminderPreview(modal, targetVersion)}</div>`, `<button class="btn" data-action="close-overlay">取消</button><span class="action-with-rules"><button class="btn primary" data-action="confirm-publish">提交发布审批</button>${ruleAnnotations([["publish", "PUB-R03"], ["concurrency", "CON-R01"]])}</span>`, true);
+      return modalFrame("提交固件发布审批", `<div class="release-impact"><div><span>当前发布版本</span><strong>${esc(current?.version || "-")}</strong></div><div class="impact-arrow">→</div><div><span>${annotatedLabel("目标发布版本", [["publish", "PUB-R03"]])}</span><strong>${esc(targetVersion.version)}</strong></div></div><div class="app-reminder-layout"><div class="publish-primary-column"><section class="app-reminder-choice"><div class="field-rule-row"><div class="section-label required">APP 提醒方式</div>${ruleAnnotations([["reminder", "REM-R01"], ["reminder", "REM-R03"]])}</div>${renderReminderOptions(modal.reminderPolicy)}${errorFor("reminderPolicy")}</section>${renderReleaseSnapshot(current, targetVersion)}<div class="approval-boundary-note">${annotatedLabel("审批边界", [["publish", "PUB-R10"]])}：本审批决定版本发布与 APP 提醒策略；审批通过后平台会复检快照并执行版本切换。</div></div>${renderAppReminderPreview(modal, targetVersion)}</div>`, `<button class="btn" data-action="close-overlay">取消</button><span class="action-with-rules"><button class="btn primary" data-action="confirm-publish">提交发布审批</button>${ruleAnnotations([["publish", "PUB-R03"], ["concurrency", "CON-R01"]])}</span>`, true);
     }
     if (modal.type === "rollback") {
       const identifier = activeIdentifier();
@@ -2511,9 +2167,8 @@
       const identifier = activeIdentifier();
       const current = currentVersion(identifier);
       const event = activeRelease(identifier);
-      const notice = dingRecordForEvent(event);
       if (!current || !event) return modalFrame("下架当前发布版本", `<div class="empty-state"><div>当前发布版本已变化，请关闭后刷新</div></div>`, `<button class="btn" data-action="close-overlay">关闭</button>`);
-      return modalFrame("下架当前发布版本", `<div class="delist-impact-grid"><div><span>当前发布版本</span><strong>${esc(current.version)}</strong></div><div><span>适用机型</span><strong>${esc(current.models)}</strong></div><div><span>关联设备数</span><strong>${formatDeviceCount(current.associatedDeviceCount)} 台</strong></div><div><span>生效时间</span><strong>${esc(event.effectiveAt || current.published || current.updated)}</strong></div><div><span>原发布 DING</span><strong>${esc(dingDisplayLabel(notice))}</strong></div><div><span>下架后状态</span><strong>暂无当前发布版本</strong></div></div><div class="delist-boundary"><strong>${annotatedLabel("下架结果边界", [["delist", "DEL-R03"], ["delist", "DEL-R09"]])}</strong><span>停止将该版本作为当前发布版本；不删除固件包，不影响已升级设备，不自动停止 OTA 已有任务，也不自动发送或撤回 DING。</span></div><div class="form-field required"><div class="field-rule-row"><label>下架原因类型</label>${ruleAnnotation("delist", "DEL-R04")}</div><div class="delist-reason-options">${delistReasonTypes.map(reason => `<label class="delist-reason-option ${modal.reasonType === reason ? "selected" : ""}"><input type="radio" name="delistReasonType" data-modal-field="reasonType" value="${esc(reason)}" ${modal.reasonType === reason ? "checked" : ""}><span>${esc(reason)}</span></label>`).join("")}</div>${errorFor("delistReasonType")}</div><div class="form-field required"><label>具体说明</label><textarea class="textarea" data-modal-field="reason" maxlength="500" placeholder="请说明问题表现、影响范围及后续处理计划">${esc(modal.reason || "")}</textarea>${errorFor("delistReason")}<div class="helper align-right">${(modal.reason || "").length} / 500（至少 10 字）</div></div>`, `<button class="btn" data-action="close-overlay">取消</button><span class="action-with-rules"><button class="btn danger" data-action="confirm-delist">提交下架审批</button>${ruleAnnotations([["delist", "DEL-R05"], ["concurrency", "CON-R01"]])}</span>`, true);
+      return modalFrame("下架当前发布版本", `<div class="delist-impact-grid"><div><span>当前发布版本</span><strong>${esc(current.version)}</strong></div><div><span>适用机型</span><strong>${esc(current.models)}</strong></div><div><span>关联设备数</span><strong>${formatDeviceCount(current.associatedDeviceCount)} 台</strong></div><div><span>生效时间</span><strong>${esc(event.effectiveAt || current.published || current.updated)}</strong></div><div><span>固件包处理</span><strong>保留原文件</strong></div><div><span>下架后状态</span><strong>暂无当前发布版本</strong></div></div><div class="delist-boundary"><strong>${annotatedLabel("下架结果边界", [["delist", "DEL-R03"]])}</strong><span>停止将该版本作为当前发布版本；不删除固件包，不影响已升级设备，也不自动停止 OTA 已有任务。</span></div><div class="form-field required"><div class="field-rule-row"><label>下架原因类型</label>${ruleAnnotation("delist", "DEL-R04")}</div><div class="delist-reason-options">${delistReasonTypes.map(reason => `<label class="delist-reason-option ${modal.reasonType === reason ? "selected" : ""}"><input type="radio" name="delistReasonType" data-modal-field="reasonType" value="${esc(reason)}" ${modal.reasonType === reason ? "checked" : ""}><span>${esc(reason)}</span></label>`).join("")}</div>${errorFor("delistReasonType")}</div><div class="form-field required"><label>具体说明</label><textarea class="textarea" data-modal-field="reason" maxlength="500" placeholder="请说明问题表现、影响范围及后续处理计划">${esc(modal.reason || "")}</textarea>${errorFor("delistReason")}<div class="helper align-right">${(modal.reason || "").length} / 500（至少 10 字）</div></div>`, `<button class="btn" data-action="close-overlay">取消</button><span class="action-with-rules"><button class="btn danger" data-action="confirm-delist">提交下架审批</button>${ruleAnnotations([["delist", "DEL-R05"], ["concurrency", "CON-R01"]])}</span>`, true);
     }
     if (modal.type === "approvalSimulation") {
       return renderApprovalSimulation(modal);
@@ -2713,12 +2368,8 @@
       const records = releaseEventsForVersion(version);
       tabContent = records.length ? `<div class="release-event-list">${records.map(event => `<article><div class="release-event-mark ${event.action}">${event.action === "rollback" ? "回" : "发"}</div><div><strong>${event.action === "rollback" ? "回滚恢复" : "正常发布"} · ${esc(event.fromVersion || "-")} → ${esc(event.toVersion)}</strong><span>${esc(event.effectiveAt)} · ${esc(event.operator)} · ${esc(reminderLabel(event.reminderPolicy))}</span><small>发布标识 ${esc(event.id)} · ${event.status === "active" ? "当前生效" : event.status === "rolled_back" ? "已回滚" : "历史事件"}</small></div></article>`).join("")}</div>` : `<div class="empty-state"><div><div class="empty-illustration">▤</div>暂无发布记录</div></div>`;
     }
-    if (tab === "ding") {
-      const notices = dingRecordsForVersion(version);
-      tabContent = notices.length ? `<div class="table-wrap"><table class="data-table detail-content-table ding-record-table"><thead><tr><th>通知类型</th><th>发送结果</th><th>撤回状态</th><th>实际接收人快照</th><th>发送时间</th><th>操作</th></tr></thead><tbody>${notices.map(notice => `<tr><td>发布 DING</td><td><span class="tag ${notice.status === "sent" ? "success" : ["failed", "partial_failed"].includes(notice.status) ? "danger" : "warning"}">${esc(({ sending: "发送中", sent: "发送成功", failed: "发送失败", partial_failed: "部分失败" })[notice.status] || notice.status)}</span>${notice.failureReason ? `<small class="ding-failure">${esc(notice.failureReason)}</small>` : ""}</td><td><span class="tag ${notice.recallStatus === "recalled" ? "success" : notice.recallStatus === "recall_failed" ? "danger" : ""}">${esc(dingRecallLabel(notice))}</span></td><td>${esc(notice.recipients.join(" / ") || "-")}</td><td>${esc(notice.sentAt)}</td><td><div class="cell-actions">${canRecallDing(notice) ? `<button class="link-btn danger-link" data-action="recall-ding" data-notice-id="${esc(notice.id)}">${notice.recallStatus === "recall_failed" ? "重试撤回" : "撤回"}</button>` : ""}<button class="link-btn" data-action="view-ding-record" data-notice-id="${esc(notice.id)}">查看</button></div></td></tr>`).join("")}</tbody></table></div>` : `<div class="empty-state"><div><div class="empty-illustration">▤</div>暂无 DING 记录</div></div>`;
-    }
     const event = releaseEventsForVersion(version)[0];
-    return drawerFrame("固件版本详情", `${ruleContextBar(["detail", tab === "appNotes" ? "locale" : tab === "ding" ? "ding" : "detail"])}<div class="detail-hero"><h3>${esc(version.version)} <span class="tag ${version.status === "current" ? "success" : version.status === "withdrawn" ? "danger" : ""}">${esc(versionStatusLabel(version.status))}</span></h3><div class="detail-note"><span>平台发布说明</span><strong>${esc(version.platformReleaseNotes)}</strong></div><div class="detail-stats four"><div class="detail-stat"><span>适用机型</span><strong>${esc(version.models)}</strong></div><div class="detail-stat"><span>APP 提醒方式</span><strong>${esc(reminderLabel(event?.reminderPolicy) || version.reminder || "不提醒")}</strong></div><div class="detail-stat"><span>功能点</span><strong>${associatedFeatures.length} 项配置</strong></div><div class="detail-stat"><span>生效时间</span><strong>${esc(event?.effectiveAt || version.published || "未发布")}</strong></div></div></div><div class="drawer-section detail-basic-section"><h3>基础信息</h3><table class="info-list detail-info-list"><tr><td>固件版本号</td><td>${esc(version.version)}</td></tr><tr><td>固件标识</td><td>${esc(activeIdentifier().id)}</td></tr><tr><td>文件大小</td><td>${esc(version.size)} M</td></tr><tr><td>固件包下载地址</td><td><div class="detail-url"><span>${esc(version.url)}</span><button class="link-btn" title="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button></div></td></tr><tr><td>创建时间</td><td>${esc(version.created || version.updated)}</td></tr><tr><td>创建人</td><td>${esc(version.creator)}</td></tr></table></div><div class="tab-strip detail-tabs"><button class="tab ${tab === "related" ? "active" : ""}" data-action="detail-tab" data-tab="related">功能点配置</button><button class="tab ${tab === "appNotes" ? "active" : ""}" data-action="detail-tab" data-tab="appNotes">APP 更新说明</button>${featureConfigs.length ? `<button class="tab ${tab === "features" ? "active" : ""}" data-action="detail-tab" data-tab="features">历史功能集快照</button>` : ""}<button class="tab ${tab === "releases" ? "active" : ""}" data-action="detail-tab" data-tab="releases">发布记录</button><button class="tab ${tab === "approvals" ? "active" : ""}" data-action="detail-tab" data-tab="approvals">审批日志</button><button class="tab ${tab === "ding" ? "active" : ""}" data-action="detail-tab" data-tab="ding">DING 记录</button></div><div class="detail-tab-content">${tabContent}</div>`);
+    return drawerFrame("固件版本详情", `${ruleContextBar(["detail", tab === "appNotes" ? "locale" : "detail"])}<div class="detail-hero"><h3>${esc(version.version)} <span class="tag ${version.status === "current" ? "success" : version.status === "withdrawn" ? "danger" : ""}">${esc(versionStatusLabel(version.status))}</span></h3><div class="detail-note"><span>平台发布说明</span><strong>${esc(version.platformReleaseNotes)}</strong></div><div class="detail-stats four"><div class="detail-stat"><span>适用机型</span><strong>${esc(version.models)}</strong></div><div class="detail-stat"><span>APP 提醒方式</span><strong>${esc(reminderLabel(event?.reminderPolicy) || version.reminder || "不提醒")}</strong></div><div class="detail-stat"><span>功能点</span><strong>${associatedFeatures.length} 项配置</strong></div><div class="detail-stat"><span>生效时间</span><strong>${esc(event?.effectiveAt || version.published || "未发布")}</strong></div></div></div><div class="drawer-section detail-basic-section"><h3>基础信息</h3><table class="info-list detail-info-list"><tr><td>固件版本号</td><td>${esc(version.version)}</td></tr><tr><td>固件标识</td><td>${esc(activeIdentifier().id)}</td></tr><tr><td>文件大小</td><td>${esc(version.size)} M</td></tr><tr><td>固件包下载地址</td><td><div class="detail-url"><span>${esc(version.url)}</span><button class="link-btn" title="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button></div></td></tr><tr><td>创建时间</td><td>${esc(version.created || version.updated)}</td></tr><tr><td>创建人</td><td>${esc(version.creator)}</td></tr></table></div><div class="tab-strip detail-tabs"><button class="tab ${tab === "related" ? "active" : ""}" data-action="detail-tab" data-tab="related">功能点配置</button><button class="tab ${tab === "appNotes" ? "active" : ""}" data-action="detail-tab" data-tab="appNotes">APP 更新说明</button>${featureConfigs.length ? `<button class="tab ${tab === "features" ? "active" : ""}" data-action="detail-tab" data-tab="features">历史功能集快照</button>` : ""}<button class="tab ${tab === "releases" ? "active" : ""}" data-action="detail-tab" data-tab="releases">发布记录</button><button class="tab ${tab === "approvals" ? "active" : ""}" data-action="detail-tab" data-tab="approvals">审批日志</button></div><div class="detail-tab-content">${tabContent}</div>`);
   }
 
   function renderUserDetail(user) {
@@ -2815,7 +2466,6 @@
     const current = currentVersion(identifier);
     const target = isDelist ? current : isRollback ? rollbackTarget(identifier) : findVersion(config.version);
     const sourceEvent = isRollback || isDelist ? activeRelease(identifier) : null;
-    const sourceNotice = isRollback || isDelist ? dingRecordForEvent(sourceEvent) : null;
     if (!target || (isDelist && (!current || !sourceEvent))) {
       toast(isDelist ? "当前没有可下架的正式发布版本" : "审批目标版本不存在", "warning");
       return null;
@@ -2862,7 +2512,6 @@
       snapshotRecordVersion: target.recordVersion,
       previousTargetStatus: isRollback || isDelist ? null : target.status,
       sourceReleaseId: sourceEvent?.id || null,
-      sourceNoticeId: sourceNotice?.id || null,
       flowId
     };
     db.approvals.unshift(approval);
@@ -2892,13 +2541,13 @@
       sourceEvent.status = "delisted";
       sourceEvent.rollbackAvailable = false;
       setLifecycleFlowStatus(identifier, sourceEvent.flowId, "delisted");
-      const delistEvent = { id: releaseId("DELIST"), flowId: approval.flowId, action: "delist", fromVersion: target.version, toVersion: null, status: "delisted", effectiveAt: stamp, operator: approval.submitter, approvalId: approval.id, reasonType: approval.reasonType, reason: approval.reason, sourceReleaseId: sourceEvent.id, sourceNoticeId: approval.sourceNoticeId || null };
+      const delistEvent = { id: releaseId("DELIST"), flowId: approval.flowId, action: "delist", fromVersion: target.version, toVersion: null, status: "delisted", effectiveAt: stamp, operator: approval.submitter, approvalId: approval.id, reasonType: approval.reasonType, reason: approval.reason, sourceReleaseId: sourceEvent.id };
       identifier.releaseEvents.unshift(delistEvent);
       identifier.currentVersion = null;
       identifier.rollbackTargetVersion = null;
       identifier.rollbackAvailable = false;
       identifier.activeApproval = null;
-      identifier.lastDelisted = { version: target.version, time: stamp, reasonType: approval.reasonType, reason: approval.reason, sourceReleaseId: sourceEvent.id, sourceNoticeId: approval.sourceNoticeId || null, approvalId: approval.id };
+      identifier.lastDelisted = { version: target.version, time: stamp, reasonType: approval.reasonType, reason: approval.reason, sourceReleaseId: sourceEvent.id, approvalId: approval.id };
       approval.status = "审批通过";
       approval.approver = "IPC 产品线负责人";
       approval.approveTime = stamp;
@@ -2906,7 +2555,7 @@
       addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: "delist", flowStatus: "completed", fromVersion: target.version, toVersion: null, stage: "delist", title: "停止提供当前发布版本", time: stamp, operator: "发布服务", operatorType: "系统", result: "success", summary: `${target.version} → 暂无当前发布版本；固件包与已升级设备不受影响` });
       addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: "delist", flowStatus: "completed", fromVersion: target.version, toVersion: null, stage: "cache", title: "升级检查缓存失效", time: stamp, operator: "发布服务", operatorType: "系统", result: "success", summary: "新发起的升级检查不再返回该版本；OTA 已有任务不在本平台承诺停止" });
       persist();
-      return { ok: true, version: target.version, type: "delist", sourceNoticeId: approval.sourceNoticeId || null };
+      return { ok: true, version: target.version, type: "delist" };
     }
     const target = identifier.versions.find(version => version.version === approval.toVersion);
     if (!target || target.recordVersion !== approval.snapshotRecordVersion) return { ok: false, message: "目标版本已发生变化，原审批快照失效" };
@@ -2960,8 +2609,7 @@
     approval.approver = "IPC 产品线负责人";
     approval.approveTime = stamp;
     persist();
-    const sourceNoticeId = approval.type === "rollback" ? (approval.sourceNoticeId || db.dingNotices.find(notice => notice.releaseId === approval.sourceReleaseId)?.id || null) : null;
-    return { ok: true, version: target.version, type: approval.type, sourceNoticeId };
+    return { ok: true, version: target.version, type: approval.type };
   }
 
   function restorePublishApprovalTarget(approval) {
@@ -3157,119 +2805,6 @@
     if (action === "edit-identifier") {
       state.popover = null;
       state.modal = { type: "editIdentifier" };
-      renderShell();
-      return;
-    }
-    if (action === "ding-defaults") {
-      const defaults = activeIdentifier().dingDefaults;
-      state.popover = null;
-      state.errors = {};
-      state.modal = { type: "dingDefaults", version: "接收人模板", dingScopes: normalizeDingScopeIds(defaults.scopes), dingExpanded: dingExpandedNodeIds(), dingTreeQuery: "", platformReleaseNotes: "发送时自动读取对应版本的平台发布说明" };
-      renderShell();
-      return;
-    }
-    if (action === "save-ding-defaults") {
-      if (!state.modal.dingScopes.length) { state.errors.dingScopes = "请至少选择一个模板接收成员"; renderShell(); return; }
-      activeIdentifier().dingDefaults = { scopes: normalizeDingScopeIds(state.modal.dingScopes), source: "identifier" };
-      addOperation("DING 接收人模板", "更新", activeIdentifier().id);
-      persist();
-      closeOverlay();
-      toast("DING 接收人模板已保存");
-      return;
-    }
-    if (action === "send-ding") {
-      const identifier = activeIdentifier();
-      const event = identifier.releaseEvents.find(item => item.id === target.dataset.releaseId);
-      if (!canSendDing(identifier, event)) { toast("仅当前生效且未创建任务的正常发布事件可以发送 DING", "warning"); return; }
-      const version = identifier.versions.find(item => item.version === event.toVersion);
-      state.errors = {};
-      state.modal = { type: "sendDing", releaseId: event.id, version: event.toVersion, dingScopes: normalizeDingScopeIds(identifier.dingDefaults.scopes), dingExpanded: dingExpandedNodeIds(), dingTreeQuery: "", platformReleaseNotes: version?.platformReleaseNotes || "" };
-      renderShell();
-      return;
-    }
-    if (action === "review-ding-send") {
-      if (!state.modal.dingScopes.length) { state.errors.dingScopes = "请至少选择一名实际接收人"; renderShell(); return; }
-      state.modal.confirmStep = true;
-      renderShell();
-      return;
-    }
-    if (action === "back-ding-send") {
-      state.modal.confirmStep = false;
-      renderShell();
-      return;
-    }
-    if (action === "confirm-ding-send") {
-      const identifier = activeIdentifier();
-      const event = identifier.releaseEvents.find(item => item.id === state.modal.releaseId);
-      if (!canSendDing(identifier, event)) { closeOverlay(); toast("当前发布事件已失效、进入审批或已经创建过 DING 任务", "warning"); return; }
-      const notice = createDingRecord(identifier, event, state.modal);
-      if (!notice) { state.errors.dingScopes = "接收人无效，请返回重新选择"; state.modal.confirmStep = false; renderShell(); return; }
-      addOperation("DING 通知", "创建发送任务", `${identifier.id} ${event.toVersion}`);
-      persist();
-      closeOverlay();
-      toast("DING 发送任务已创建，正在发送");
-      window.setTimeout(() => finalizeDingRecord(notice.id), 900);
-      return;
-    }
-    if (action === "view-ding-record") {
-      const notice = db.dingNotices.find(item => item.id === target.dataset.noticeId);
-      if (!notice) { toast("DING 记录不存在", "warning"); return; }
-      state.modal = { type: "dingRecord", noticeId: notice.id };
-      renderShell();
-      return;
-    }
-    if (action === "recall-ding") {
-      const notice = db.dingNotices.find(item => item.id === target.dataset.noticeId);
-      if (!notice || !canRecallDing(notice)) { toast("当前 DING 状态不允许撤回", "warning"); return; }
-      state.errors = {};
-      state.modal = { type: "recallDing", noticeId: notice.id, reason: notice.recallStatus === "recall_failed" ? notice.recallReason : "", confirmStep: false };
-      renderShell();
-      return;
-    }
-    if (action === "review-ding-recall") {
-      state.errors = {};
-      if (!String(state.modal.reason || "").trim()) state.errors.recallReason = "请填写撤回原因";
-      if (Object.keys(state.errors).length) { renderShell(); return; }
-      state.modal.reason = state.modal.reason.trim();
-      state.modal.confirmStep = true;
-      renderShell();
-      return;
-    }
-    if (action === "back-ding-recall") {
-      state.modal.confirmStep = false;
-      renderShell();
-      return;
-    }
-    if (action === "confirm-ding-recall") {
-      const notice = db.dingNotices.find(item => item.id === state.modal.noticeId);
-      if (!notice || !canRecallDing(notice)) { closeOverlay(); toast("DING 状态已变化，无法撤回", "warning"); return; }
-      notice.recallStatus = "recalling";
-      notice.recallAttempts += 1;
-      notice.recallReason = String(state.modal.reason || "").trim();
-      notice.recalledBy = "汤彦珊";
-      notice.recallFailureReason = "";
-      addOperation("DING 通知", "提交撤回", `${notice.firmwareId} ${notice.version}`);
-      persist();
-      state.modal = null;
-      state.errors = {};
-      renderShell();
-      toast("DING 撤回请求已提交，正在处理");
-      window.setTimeout(() => finalizeDingRecall(notice.id), 900);
-      return;
-    }
-    if (action === "toggle-ding-tree-node") {
-      const nodeId = target.dataset.nodeId;
-      state.modal.dingExpanded = (state.modal.dingExpanded || []).includes(nodeId) ? state.modal.dingExpanded.filter(id => id !== nodeId) : [...(state.modal.dingExpanded || []), nodeId];
-      renderShell();
-      return;
-    }
-    if (action === "clear-ding-members") {
-      state.modal.dingScopes = [];
-      renderShell();
-      return;
-    }
-    if (action === "remove-ding-member") {
-      state.modal.dingScopes = normalizeDingScopeIds(state.modal.dingScopes).filter(id => id !== target.dataset.memberId);
       renderShell();
       return;
     }
@@ -3511,9 +3046,6 @@
       const event = activeRelease(identifier);
       if (!current || !event || current.status !== "current") { toast("当前没有可下架的正式发布版本", "warning"); return; }
       if (identifier.activeApproval) { toast("当前固件标识已有发布、回滚或下架审批", "warning"); return; }
-      const notice = dingRecordForEvent(event);
-      if (notice?.status === "sending") { toast("原发布 DING 正在发送，请等待发送结果后再发起下架", "warning"); return; }
-      if (notice?.recallStatus === "recalling") { toast("原发布 DING 正在撤回，请等待撤回结果后再发起下架", "warning"); return; }
       state.errors = {};
       state.modal = { type: "delist", version: current.version, reasonType: "", reason: "", sourceReleaseId: event.id };
       renderShell();
@@ -3538,9 +3070,6 @@
       const targetVersion = rollbackTarget(identifier);
       if (identifier.activeApproval) { toast("当前固件标识已有发布、回滚或下架审批", "warning"); return; }
       if (!identifier.rollbackAvailable || !targetVersion) { toast("当前发布事件没有可用的一次性回滚目标", "warning"); return; }
-      const activeNotice = dingRecordForEvent(activeRelease(identifier));
-      if (activeNotice?.status === "sending") { toast("原发布 DING 正在发送，请等待发送结果后再发起回滚", "warning"); return; }
-      if (activeNotice?.recallStatus === "recalling") { toast("原发布 DING 正在撤回，请等待撤回结果后再发起回滚", "warning"); return; }
       if (!targetVersion.appReleaseNotes?.zh || !targetVersion.appReleaseNotes?.en) { toast("回滚目标缺少有效的中英文 APP 更新说明", "warning"); return; }
       const overLimitLocale = Object.entries(targetVersion.appReleaseNotes || {}).find(([locale, content]) => !appNoteWithinLimit(locale, content));
       if (overLimitLocale) { toast(`回滚目标 ${overLimitLocale[0]} 更新说明超过 ${appNoteLimit(overLimitLocale[0])} 个字符`, "warning"); return; }
@@ -3585,12 +3114,12 @@
         return;
       }
       if (result.type === "delist") {
-        state.modal = { type: "delistResult", version: result.version, noticeId: result.sourceNoticeId };
+        state.modal = { type: "delistResult", version: result.version };
         state.drawer = null;
         state.errors = {};
         renderShell();
       } else if (result.type === "rollback") {
-        state.modal = { type: "rollbackResult", version: result.version, noticeId: result.sourceNoticeId };
+        state.modal = { type: "rollbackResult", version: result.version };
         state.drawer = null;
         state.errors = {};
         renderShell();
@@ -3989,17 +3518,6 @@
   });
 
   app.addEventListener("input", event => {
-    if (event.target.matches("[data-ding-tree-query]") && state.modal) {
-      const value = event.target.value;
-      state.modal.dingTreeQuery = value;
-      renderShell();
-      const search = app.querySelector("[data-ding-tree-query]");
-      if (search) {
-        search.focus();
-        search.setSelectionRange(value.length, value.length);
-      }
-      return;
-    }
     const filter = event.target.dataset.filter;
     const draft = event.target.dataset.draft;
     const versionDraft = event.target.dataset.versionDraft;
@@ -4091,22 +3609,6 @@
         state.modal.sourceOpen = false;
         delete state.errors.differentialTargetVersion;
       }
-      renderShell();
-      return;
-    }
-    if (target.dataset.dingScope && state.modal) {
-      const scope = target.dataset.dingScope;
-      state.modal.dingScopes = target.checked ? [...new Set([...(state.modal.dingScopes || []), scope])] : (state.modal.dingScopes || []).filter(item => item !== scope);
-      renderShell();
-      return;
-    }
-    if (target.dataset.dingNode && state.modal) {
-      const node = dingNodeById(target.dataset.dingNode);
-      const leafIds = dingLeafUsers(node).map(user => user.id);
-      const selected = new Set(normalizeDingScopeIds(state.modal.dingScopes));
-      leafIds.forEach(id => target.checked ? selected.add(id) : selected.delete(id));
-      state.modal.dingScopes = [...selected];
-      delete state.errors.dingScopes;
       renderShell();
       return;
     }
@@ -4258,7 +3760,7 @@
       if (db.identifiers.some(item => item.id === id)) state.errors.id = "该固件标识已存在";
       if (!models) state.errors.models = "请输入关联机型";
       if (Object.keys(state.errors).length) { renderShell(); return; }
-      db.identifiers.unshift({ id, product, created: now(), models, network: "仅4G", power: "常电", architecture: "新架构", versions: [], differentialTasks: [], differentialPackages: [], currentVersion: null, rollbackTargetVersion: null, rollbackAvailable: false, releaseEvents: [], activeApproval: null, aiTranslationLocales: ["en"], dingDefaults: { scopes: ["dept-firmware", "user-line-owner"], source: "product" } });
+      db.identifiers.unshift({ id, product, created: now(), models, network: "仅4G", power: "常电", architecture: "新架构", versions: [], differentialTasks: [], differentialPackages: [], currentVersion: null, rollbackTargetVersion: null, rollbackAvailable: false, releaseEvents: [], activeApproval: null, aiTranslationLocales: ["en"] });
       state.selectedIdentifier = id;
       state.filters.product = product;
       state.firmwareTab = "firmware";

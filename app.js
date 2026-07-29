@@ -1430,8 +1430,88 @@
     pt: "Melhoria da estabilidade da conexao em redes fracas e correcao de problemas conhecidos."
   };
 
-  function mockAiTranslation(source, locale) {
-    const translation = mockAiTranslations[locale] || `${localeName(locale)}：${source}`;
+  const mockAiTranslationScenarios = {
+    feature: {
+      en: "Add new device capabilities and improve the related interaction experience.",
+      zh_FT: "新增裝置功能，並優化相關互動體驗。",
+      vi: "Bo sung cac tinh nang moi cho thiet bi va cai thien trai nghiem tuong tac lien quan.",
+      th: "เพิ่มความสามารถใหม่ให้กับอุปกรณ์และปรับปรุงประสบการณ์การใช้งานที่เกี่ยวข้อง",
+      ja: "デバイスの新機能を追加し、関連する操作体験を改善しました。",
+      ko: "새로운 기기 기능을 추가하고 관련 사용 경험을 개선했습니다.",
+      ru: "Добавлены новые функции устройства и улучшено взаимодействие с ними.",
+      de: "Neue Geratefunktionen wurden hinzugefugt und die zugehorige Bedienung verbessert.",
+      fr: "Ajout de nouvelles fonctions de l'appareil et amelioration de l'experience associee.",
+      es: "Se agregaron nuevas funciones del dispositivo y se mejoro la experiencia relacionada.",
+      it: "Aggiunte nuove funzioni del dispositivo e migliorata l'esperienza correlata.",
+      nl: "Nieuwe apparaatfuncties toegevoegd en de bijbehorende bediening verbeterd.",
+      pl: "Dodano nowe funkcje urzadzenia i ulepszono zwiazana z nimi obsluge.",
+      pt: "Foram adicionados novos recursos ao dispositivo e a experiencia relacionada foi aprimorada."
+    },
+    performance: {
+      en: "Improve device response speed, reduce power consumption, and optimize overall performance.",
+      zh_FT: "提升裝置回應速度、降低功耗，並優化整體效能。",
+      vi: "Tang toc do phan hoi cua thiet bi, giam muc tieu thu dien va toi uu hieu suat tong the.",
+      th: "เพิ่มความเร็วในการตอบสนองของอุปกรณ์ ลดการใช้พลังงาน และปรับปรุงประสิทธิภาพโดยรวม",
+      ja: "デバイスの応答速度を向上し、消費電力を抑えて全体的な性能を最適化しました。",
+      ko: "기기 응답 속도를 높이고 전력 소비를 줄여 전반적인 성능을 최적화했습니다.",
+      ru: "Повышена скорость отклика устройства, снижено энергопотребление и оптимизирована производительность.",
+      de: "Die Reaktionsgeschwindigkeit wurde erhoht, der Energieverbrauch gesenkt und die Gesamtleistung optimiert.",
+      fr: "Amelioration de la reactivite, reduction de la consommation d'energie et optimisation des performances.",
+      es: "Se mejoro la velocidad de respuesta, se redujo el consumo de energia y se optimizo el rendimiento.",
+      it: "Migliorata la velocita di risposta, ridotto il consumo energetico e ottimizzate le prestazioni.",
+      nl: "De reactiesnelheid is verbeterd, het energieverbruik verlaagd en de prestaties geoptimaliseerd.",
+      pl: "Poprawiono szybkosc reakcji, zmniejszono zuzycie energii i zoptymalizowano wydajnosc.",
+      pt: "A velocidade de resposta foi melhorada, o consumo de energia reduzido e o desempenho otimizado."
+    },
+    fix: {
+      en: "Fix known issues and improve firmware reliability and user experience.",
+      zh_FT: "修復已知問題，提升韌體可靠性與使用體驗。",
+      vi: "Khac phuc cac su co da biet va cai thien do tin cay cua firmware cung trai nghiem nguoi dung.",
+      th: "แก้ไขปัญหาที่ทราบและปรับปรุงความน่าเชื่อถือของเฟิร์มแวร์และประสบการณ์ใช้งาน",
+      ja: "既知の問題を修正し、ファームウェアの信頼性と使用体験を改善しました。",
+      ko: "알려진 문제를 수정하고 펌웨어 안정성과 사용 경험을 개선했습니다.",
+      ru: "Исправлены известные проблемы, повышена надежность прошивки и улучшено удобство использования.",
+      de: "Bekannte Probleme wurden behoben und Zuverlassigkeit sowie Benutzererfahrung verbessert.",
+      fr: "Correction des problemes connus et amelioration de la fiabilite du micrologiciel.",
+      es: "Se corrigieron problemas conocidos y se mejoro la fiabilidad del firmware y la experiencia de uso.",
+      it: "Risolti i problemi noti e migliorate l'affidabilita del firmware e l'esperienza d'uso.",
+      nl: "Bekende problemen opgelost en de betrouwbaarheid van de firmware verbeterd.",
+      pl: "Usunieto znane problemy oraz poprawiono niezawodnosc oprogramowania i wygode uzytkowania.",
+      pt: "Problemas conhecidos foram corrigidos e a confiabilidade do firmware foi aprimorada."
+    }
+  };
+
+  const mockAiRefreshSuffixes = {
+    en: "Additional details from the latest update have been included.",
+    zh_FT: "已同步納入本次更新的最新內容。",
+    vi: "Noi dung moi nhat cua lan cap nhat nay da duoc bo sung.",
+    th: "รวมรายละเอียดล่าสุดของการอัปเดตครั้งนี้แล้ว",
+    ja: "今回の更新に関する最新内容も反映しました。",
+    ko: "이번 업데이트의 최신 내용도 반영했습니다.",
+    ru: "Также учтены последние изменения этого обновления.",
+    de: "Die neuesten Inhalte dieses Updates wurden ebenfalls berucksichtigt.",
+    fr: "Les derniers elements de cette mise a jour ont egalement ete integres.",
+    es: "Tambien se incluyeron los detalles mas recientes de esta actualizacion.",
+    it: "Sono stati inclusi anche i contenuti piu recenti di questo aggiornamento.",
+    nl: "De nieuwste inhoud van deze update is ook opgenomen.",
+    pl: "Uwzgledniono rowniez najnowsze informacje z tej aktualizacji.",
+    pt: "Os detalhes mais recentes desta atualizacao tambem foram incluidos."
+  };
+
+  function mockAiTranslationScenario(source) {
+    if (/新增|增加|支持|上线|功能|能力/.test(source)) return "feature";
+    if (/性能|速度|响应|启动|功耗|耗电|续航|流畅/.test(source)) return "performance";
+    if (/连接|网络|弱网|离线|断连|稳定/.test(source)) return "stability";
+    return "fix";
+  }
+
+  function mockAiTranslation(source, locale, previousContent = "") {
+    const scenario = mockAiTranslationScenario(source);
+    const catalog = scenario === "stability" ? mockAiTranslations : mockAiTranslationScenarios[scenario];
+    const baseTranslation = catalog?.[locale] || `${localeName(locale)} AI：${source}`;
+    const translation = baseTranslation === String(previousContent || "").trim()
+      ? `${baseTranslation} ${mockAiRefreshSuffixes[locale] || "Updated from the latest Chinese release notes."}`
+      : baseTranslation;
     const limit = appNoteLimit(locale);
     return translation.length > limit ? `${translation.slice(0, Math.max(0, limit - 1))}…` : translation;
   }
@@ -1444,8 +1524,9 @@
     const source = String(notes.zh || "").trim();
     if (!source) { toast("请先填写简体中文更新说明", "warning"); return; }
     const targets = [...new Set(locales)].filter(locale => locale !== "zh" && enabledAppNoteLocales(meta).includes(locale));
+    const protectedLocales = targets.filter(locale => forceLocale !== locale && meta.origins[locale] === "manual");
     const writable = targets.filter(locale => forceLocale === locale || meta.origins[locale] !== "manual");
-    if (!writable.length) { toast("已保护人工译文，没有需要更新的语言", "warning"); return; }
+    if (!writable.length) { toast(`已保留 ${protectedLocales.length} 种人工译文；如需覆盖，请进入对应语言点击“重新翻译”`, "warning"); return; }
     const jobId = `AI-${Date.now()}`;
     const sourceRevision = meta.sourceRevision;
     meta.translationJob = { id: jobId, sourceRevision, locales: writable };
@@ -1464,7 +1545,8 @@
       return;
     }
     writable.forEach(locale => {
-      currentHost.container[currentHost.notesKey][locale] = mockAiTranslation(source, locale);
+      const previousContent = currentHost.container[currentHost.notesKey][locale];
+      currentHost.container[currentHost.notesKey][locale] = mockAiTranslation(source, locale, previousContent);
       currentMeta.statuses[locale] = "ai_draft";
       currentMeta.origins[locale] = "ai";
       currentMeta.sourceRevisions[locale] = sourceRevision;
@@ -1472,7 +1554,7 @@
     clearAppNoteErrors(writable);
     currentMeta.translationJob = null;
     renderShell();
-    toast(`已生成 ${writable.length} 种语言的 AI 草稿`);
+    toast(`已根据最新中文生成 ${writable.length} 种语言的 AI 草稿${protectedLocales.length ? `，保留 ${protectedLocales.length} 种人工译文` : ""}`);
   }
 
   function previewSnippet(content, length) {

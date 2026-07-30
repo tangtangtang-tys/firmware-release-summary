@@ -1404,37 +1404,41 @@
     }
   };
 
-  const mockAiRefreshSuffixes = {
-    en: "Additional details from the latest update have been included.",
-    zh_FT: "已同步納入本次更新的最新內容。",
-    vi: "Noi dung moi nhat cua lan cap nhat nay da duoc bo sung.",
-    th: "รวมรายละเอียดล่าสุดของการอัปเดตครั้งนี้แล้ว",
-    ja: "今回の更新に関する最新内容も反映しました。",
-    ko: "이번 업데이트의 최신 내용도 반영했습니다.",
-    ru: "Также учтены последние изменения этого обновления.",
-    de: "Die neuesten Inhalte dieses Updates wurden ebenfalls berucksichtigt.",
-    fr: "Les derniers elements de cette mise a jour ont egalement ete integres.",
-    es: "Tambien se incluyeron los detalles mas recientes de esta actualizacion.",
-    it: "Sono stati inclusi anche i contenuti piu recenti di questo aggiornamento.",
-    nl: "De nieuwste inhoud van deze update is ook opgenomen.",
-    pl: "Uwzgledniono rowniez najnowsze informacje z tej aktualizacji.",
-    pt: "Os detalhes mais recentes desta atualizacao tambem foram incluidos."
+  const mockAiExactTranslations = {
+    "测试": {
+      en: "Test.", zh_FT: "測試。", vi: "Thử nghiệm.", th: "ทดสอบ", ja: "テストします。", ko: "테스트합니다.",
+      ru: "Тест.", de: "Test.", fr: "Test.", es: "Prueba.", it: "Test.", nl: "Test.", pl: "Test.", pt: "Teste."
+    },
+    "测试一下": {
+      en: "Test it.", zh_FT: "測試一下。", vi: "Thử nghiệm một chút.", th: "ทดสอบสักหน่อย", ja: "少しテストします。", ko: "테스트해 봅니다.",
+      ru: "Проверить работу.", de: "Kurz testen.", fr: "Faire un test.", es: "Hacer una prueba.", it: "Fare una prova.", nl: "Even testen.", pl: "Przetestujmy.", pt: "Fazer um teste."
+    }
   };
+
+  const mockAiFallbackPrefixes = {
+    en: "Translation preview", zh_FT: "翻譯預覽", vi: "Bản dịch xem trước", th: "ตัวอย่างคำแปล", ja: "翻訳プレビュー", ko: "번역 미리보기",
+    ru: "Предпросмотр перевода", de: "Ubersetzungsvorschau", fr: "Apercu de la traduction", es: "Vista previa de traduccion", it: "Anteprima della traduzione",
+    nl: "Vertaalvoorbeeld", pl: "Podglad tlumaczenia", pt: "Previa da traducao"
+  };
+
+  function normalizeMockAiSource(source) {
+    return String(source || "").trim().replace(/[。！？!?；;，,]+$/g, "").trim();
+  }
 
   function mockAiTranslationScenario(source) {
     if (/新增|增加|支持|上线|功能|能力/.test(source)) return "feature";
     if (/性能|速度|响应|启动|功耗|耗电|续航|流畅/.test(source)) return "performance";
     if (/连接|网络|弱网|离线|断连|稳定/.test(source)) return "stability";
-    return "fix";
+    if (/修复|修正|解决|问题|异常|缺陷|故障|bug/i.test(source)) return "fix";
+    return null;
   }
 
-  function mockAiTranslation(source, locale, previousContent = "") {
+  function mockAiTranslation(source, locale) {
+    const normalizedSource = normalizeMockAiSource(source);
+    const exactTranslation = mockAiExactTranslations[normalizedSource]?.[locale];
     const scenario = mockAiTranslationScenario(source);
     const catalog = scenario === "stability" ? mockAiTranslations : mockAiTranslationScenarios[scenario];
-    const baseTranslation = catalog?.[locale] || `${localeName(locale)} AI：${source}`;
-    const translation = baseTranslation === String(previousContent || "").trim()
-      ? `${baseTranslation} ${mockAiRefreshSuffixes[locale] || "Updated from the latest Chinese release notes."}`
-      : baseTranslation;
+    const translation = exactTranslation || catalog?.[locale] || `${mockAiFallbackPrefixes[locale] || localeName(locale)}：${String(source || "").trim()}`;
     const limit = appNoteLimit(locale);
     return translation.length > limit ? `${translation.slice(0, Math.max(0, limit - 1))}…` : translation;
   }
@@ -1468,8 +1472,7 @@
       return;
     }
     writable.forEach(locale => {
-      const previousContent = currentHost.container[currentHost.notesKey][locale];
-      currentHost.container[currentHost.notesKey][locale] = mockAiTranslation(source, locale, previousContent);
+      currentHost.container[currentHost.notesKey][locale] = mockAiTranslation(source, locale);
       currentMeta.statuses[locale] = "ai_draft";
       currentMeta.origins[locale] = "ai";
       currentMeta.sourceRevisions[locale] = sourceRevision;

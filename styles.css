@@ -672,7 +672,7 @@ button { color: inherit; }
 .selected-feature-version > p { margin: 9px 0 0; color: var(--text-2); font-size: 12px; line-height: 1.5; }
 .feature-version-source { display: block; margin-top: 7px; color: var(--text-3); }
 .feature-version-error { margin-top: 8px; color: var(--danger); font-size: 11px; line-height: 1.45; }
-.feature-point-detail-table { min-width: 880px; }
+.feature-point-detail-table { min-width: 760px; }
 .compact-empty { min-height: 170px; }
 .drawer[aria-label="固件版本详情"] { width: min(980px, calc(100vw - 48px)); }
 .drawer[aria-label="固件版本详情"] .drawer-body { padding: 0 28px 28px; }

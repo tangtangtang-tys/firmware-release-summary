@@ -229,6 +229,45 @@
     return [...required, ...optional];
   }
 
+  function migrateLegacyAssociatedFeatures(version, product) {
+    const legacyCount = Math.max(
+      Number(version?.features) || 0,
+      Array.isArray(version?.featureConfigs) ? version.featureConfigs.length : 0
+    );
+    if (!legacyCount) return [];
+    const required = requiredFeatureSourcesForProduct(product);
+    const optional = optionalFeatureSourcesForProduct(product);
+    const sources = [...required, ...optional].slice(0, Math.max(required.length, legacyCount));
+    return sources.map(source => {
+      const featureVersion = defaultFeatureVersion(source);
+      return featureVersion ? associatedFeatureSnapshot(source, featureVersion.id) : null;
+    }).filter(Boolean);
+  }
+
+  function defaultFeatureBaseline(product) {
+    return requiredFeatureSourcesForProduct(product).map(source => {
+      const featureVersion = defaultFeatureVersion(source);
+      return featureVersion ? associatedFeatureSnapshot(source, featureVersion.id) : null;
+    }).filter(Boolean);
+  }
+
+  function configuredFeatureBaseline(identifier, preferredVersion = null) {
+    const hasFeatures = version => Array.isArray(version?.associatedFeatures) && version.associatedFeatures.length > 0;
+    const current = identifier.versions.find(version => version.version === identifier.currentVersion)
+      || identifier.versions.find(version => version.status === "current" || version.latest);
+    const recentConfigured = [...identifier.versions]
+      .filter(hasFeatures)
+      .sort((left, right) => String(right.updated || right.created || "").localeCompare(String(left.updated || left.created || "")))[0];
+    const source = [preferredVersion, current, recentConfigured].find(hasFeatures) || null;
+    return {
+      source,
+      features: source
+        ? source.associatedFeatures.map(feature => normalizeAssociatedFeatureSnapshot(feature, identifier.product))
+        : defaultFeatureBaseline(identifier.product),
+      type: source ? (source === current ? "current" : "recent") : "product-default"
+    };
+  }
+
   function featureAssociationIssue(association, product) {
     const source = sourceFeatureBySnapshot(association);
     if (!source) return `${association?.name || "功能点"} 已不在机型平台功能目录中`;
@@ -401,7 +440,8 @@
         ["VER-R14", "适用机型范围", "数据", "从当前固件标识绑定机型中选择；编辑历史版本时允许保留原值", "不能任意录入其他机型，历史数据不被强制改写"],
         ["VER-R15", "统一功能入口", "交互", "添加可选功能与切换功能版本统一在“配置功能”弹窗完成", "主表不重复提供逐行配置入口"],
         ["VER-R16", "渐进多语言", "交互", "默认只展示简体中文，执行翻译或主动查看时展开完整语言列表", "首屏聚焦必填内容，已有翻译仍可完整维护"],
-        ["VER-R17", "未保存退出", "交互", "表单存在真实修改时，关闭、取消、遮罩与 Esc 均需二次确认", "避免误操作丢失已填写内容"]
+        ["VER-R17", "未保存退出", "交互", "表单存在真实修改时，关闭、取消、遮罩与 Esc 均需二次确认", "避免误操作丢失已填写内容"],
+        ["VER-R18", "继承功能配置", "数据", "新增版本优先继承当前正式发布版本；无当前版本时继承最近配置完整版本；仍无基线时加载产品线必配功能", "新版本默认具备可用功能配置且继承来源可追溯"]
       ]
     },
     locale: {
@@ -805,9 +845,13 @@
         if (!Array.isArray(version.featureConfigs)) {
           version.featureConfigs = featureCatalog.slice(0, Number(version.features) || 0).map(item => configFromCatalog(item));
         }
-        if (!Array.isArray(version.associatedFeatures)) version.associatedFeatures = [];
-        version.associatedFeatures = version.associatedFeatures.map(feature => normalizeAssociatedFeatureSnapshot(feature, identifier.product));
-        version.features = version.featureConfigs.length;
+        const storedAssociatedFeatures = Array.isArray(version.associatedFeatures)
+          ? version.associatedFeatures.map(feature => normalizeAssociatedFeatureSnapshot(feature, identifier.product))
+          : [];
+        version.associatedFeatures = storedAssociatedFeatures.length
+          ? storedAssociatedFeatures
+          : migrateLegacyAssociatedFeatures(version, identifier.product);
+        version.features = version.associatedFeatures.length;
         if (!version.published && version.latest) version.published = version.version === "23.110.211.13" ? "2026-07-14 18:41:21" : version.updated;
         if (!version.platformReleaseNotes) version.platformReleaseNotes = version.note && version.note !== "-" ? version.note : "稳定性优化与已知问题修复";
         if (!version.appReleaseNotes || typeof version.appReleaseNotes !== "object") {
@@ -831,6 +875,17 @@
         version.associatedDeviceCount = Number(version.associatedDeviceCount);
       });
       if (identifier.currentVersion === undefined && legacyCurrent) identifier.currentVersion = legacyCurrent.version;
+      const baseline = configuredFeatureBaseline(identifier, legacyCurrent);
+      identifier.versions.forEach(version => {
+        if (version.associatedFeatures.length) {
+          if (!version.featureConfigOrigin) version.featureConfigOrigin = "existing";
+          return;
+        }
+        version.associatedFeatures = clone(baseline.features);
+        version.features = version.associatedFeatures.length;
+        version.featureConfigOrigin = baseline.source ? "baseline-inherited" : "product-default";
+        version.featureConfigSourceVersion = baseline.source?.version || null;
+      });
       if (identifier.rollbackTargetVersion === undefined) identifier.rollbackTargetVersion = legacyRollbackTarget?.version || null;
       if (identifier.rollbackAvailable === undefined) identifier.rollbackAvailable = Boolean(legacyCurrent && legacyRollbackTarget);
       if (!Array.isArray(identifier.releaseEvents)) identifier.releaseEvents = [];
@@ -2406,6 +2461,8 @@
     const packagePanel = uploadName ? `<div class="package-summary"><div class="package-summary-file"><span class="upload-file-icon">▤</span><div><strong class="ellipsis">${esc(uploadName)}</strong><span>${editing ? "已保存固件包" : "固件包解析完成"}</span></div>${editing ? "" : `<label class="link-btn">重新上传<input id="firmware-file" class="hidden" type="file" accept=".bin,.binpkg"></label>`}</div><div class="package-meta-grid"><div><span>固件版本号</span><strong>${esc(packageVersion || "-")}</strong></div><div><span>MD5</span><strong title="${esc(packageMd5 || "-")}">${esc(packageMd5 || "-")}</strong></div><div><span>文件大小</span><strong>${esc(uploadSize || "-")} MB</strong></div></div></div>` : `<div class="package-upload-panel"><div><strong>上传固件包</strong><span>支持 .bin、.binpkg，上传后自动解析版本号与 MD5</span></div><label class="btn primary upload-trigger"><input id="firmware-file" class="hidden" type="file" accept=".bin,.binpkg">上传文件</label></div>`;
     const requiredCount = associatedFeatures.filter(isRequiredFeature).length;
     const optionalCount = Math.max(0, associatedFeatures.length - requiredCount);
+    const inheritedSource = !editing ? state.drawer.inheritedFromVersion : null;
+    const inheritanceSummary = !editing ? `<div class="feature-inheritance-summary"><div><span class="inheritance-icon">↳</span><span>${inheritedSource ? `已继承版本 <strong>${esc(inheritedSource)}</strong> 的功能配置` : "已加载产品线默认必配功能"}</span></div><span>${associatedFeatures.length} 项，可继续调整</span>${ruleAnnotation("version", "VER-R18")}</div>` : "";
     const featurePointRows = associatedFeatures.map(feature => {
       const issue = featureAssociationIssue(feature, activeIdentifier().product);
       const source = sourceFeatureBySnapshot(feature);
@@ -2420,7 +2477,7 @@
         <div class="package-scope-grid"><div>${packagePanel}${errorFor("file")}${errorFor("version")}</div><div class="form-field required version-model-field"><div class="field-rule-row"><label>适用机型</label>${ruleAnnotation("version", "VER-R14")}</div><select class="select" name="models" data-version-draft="models">${modelOptions.map(model => `<option value="${esc(model)}" ${model === formDraft.models ? "selected" : ""}>${esc(model)}</option>`).join("")}</select>${errorFor("models")}</div></div>
       </section>
       <section class="version-form-section feature-point-section">
-        <div class="version-section-head"><div><h3>${annotatedLabel("功能配置", [["version", "VER-R03"]])}</h3><p>必配 ${requiredCount} 项 · 可选 ${optionalCount} 项</p></div><span class="action-with-rules"><button class="btn primary small" type="button" data-action="add-associated-feature">配置功能</button>${ruleAnnotation("version", "VER-R15")}</span></div>
+        <div class="version-section-head"><div><h3>${annotatedLabel("功能配置", [["version", "VER-R03"]])}</h3><p>必配 ${requiredCount} 项 · 可选 ${optionalCount} 项</p></div><span class="action-with-rules"><button class="btn primary small" type="button" data-action="add-associated-feature">配置功能</button>${ruleAnnotation("version", "VER-R15")}</span></div>${inheritanceSummary}
         ${errorFor("associatedFeatures")}<div class="table-wrap"><table class="data-table associated-table compact-feature-table"><thead><tr><th>功能名称</th><th>配置版本</th></tr></thead><tbody>${featurePointRows}</tbody></table></div>${associatedFeatures.length ? "" : `<div class="empty-state compact-empty"><div>当前产品线暂无可配置功能</div></div>`}
       </section>
       <section class="version-form-section release-copy-section">
@@ -3036,8 +3093,13 @@
     if (action === "add-version") {
       state.upload = null;
       state.errors = {};
-      const defaultTargets = activeIdentifier().aiTranslationLocales || ["en"];
-      state.drawer = { type: "addVersion", formDraft: { version: "", models: activeIdentifier().models || "", note: "" }, associatedFeatures: ensureRequiredFeatureSnapshots([], activeIdentifier().product), appReleaseNotes: appNoteDraft(), appNoteMeta: normalizeAppNoteMeta({}, {}, defaultTargets), activeLocale: "zh", appNotesExpanded: false, translationTargetsOpen: false, dirty: false };
+      const identifier = activeIdentifier();
+      const baseline = configuredFeatureBaseline(identifier);
+      const inheritedLocales = baseline.source
+        ? enabledAppNoteLocales(normalizeAppNoteMeta(baseline.source.appNoteMeta, baseline.source.appReleaseNotes)).filter(locale => locale !== "zh")
+        : [];
+      const defaultTargets = inheritedLocales.length ? inheritedLocales : identifier.aiTranslationLocales || ["en"];
+      state.drawer = { type: "addVersion", formDraft: { version: "", models: baseline.source?.models || identifier.models || "", note: "" }, associatedFeatures: ensureRequiredFeatureSnapshots(clone(baseline.features), identifier.product), inheritedFromVersion: baseline.source?.version || null, inheritanceType: baseline.type, appReleaseNotes: appNoteDraft(), appNoteMeta: normalizeAppNoteMeta({}, {}, defaultTargets), activeLocale: "zh", appNotesExpanded: false, translationTargetsOpen: false, dirty: false };
       renderShell();
       return;
     }
@@ -4032,7 +4094,7 @@
         oldVersion.appNoteMeta.sourceText = appReleaseNotes.zh;
         oldVersion.featureConfigs = featureConfigs;
         oldVersion.associatedFeatures = clone(state.drawer.associatedFeatures || []);
-        oldVersion.features = featureConfigs.length;
+        oldVersion.features = oldVersion.associatedFeatures.length;
         oldVersion.updated = now();
         oldVersion.associatedDeviceCount = associatedDeviceCount(identifier, models);
         oldVersion.recordVersion = Number(oldVersion.recordVersion || 1) + 1;
@@ -4041,8 +4103,8 @@
         const featureChange = featureAssociationChangeSummary(before.associatedFeatures, oldVersion.associatedFeatures);
         addOperation("固件版本", "编辑", versionName, "汤彦珊", "成功", `编辑${versionStatusLabel(oldVersion.status)}元数据，生成修订记录 R${oldVersion.recordVersion}；功能点：${featureChange}`);
       } else {
-        identifier.versions.unshift({ version: versionName, url: `http://doraemon.camera666.com/${state.upload.name}`, size: state.upload.size, md5: state.upload.md5, models, associatedDeviceCount: associatedDeviceCount(identifier, models), features: featureConfigs.length, featureConfigs, associatedFeatures: clone(state.drawer.associatedFeatures || []), creator: "汤彦珊", note: platformReleaseNotes, platformReleaseNotes, appReleaseNotes: clone(appReleaseNotes), appNoteMeta: clone(appNoteMeta), noteRevisions: [], created: now(), updated: now(), latest: false, status: "unpublished", reminder: "不提醒", recordVersion: 1 });
-        addOperation("固件版本", "新增", versionName, "汤彦珊", "成功", `功能点配置 ${(state.drawer.associatedFeatures || []).length} 项`);
+        identifier.versions.unshift({ version: versionName, url: `http://doraemon.camera666.com/${state.upload.name}`, size: state.upload.size, md5: state.upload.md5, models, associatedDeviceCount: associatedDeviceCount(identifier, models), features: (state.drawer.associatedFeatures || []).length, featureConfigs, associatedFeatures: clone(state.drawer.associatedFeatures || []), featureConfigOrigin: state.drawer.inheritedFromVersion ? "baseline-inherited" : "product-default", featureConfigSourceVersion: state.drawer.inheritedFromVersion || null, creator: "汤彦珊", note: platformReleaseNotes, platformReleaseNotes, appReleaseNotes: clone(appReleaseNotes), appNoteMeta: clone(appNoteMeta), noteRevisions: [], created: now(), updated: now(), latest: false, status: "unpublished", reminder: "不提醒", recordVersion: 1 });
+        addOperation("固件版本", "新增", versionName, "汤彦珊", "成功", `功能点配置 ${(state.drawer.associatedFeatures || []).length} 项${state.drawer.inheritedFromVersion ? `，继承自 ${state.drawer.inheritedFromVersion}` : "，来源为产品线默认必配功能"}`);
       }
       identifier.aiTranslationLocales = enabledAppNoteLocales(appNoteMeta).filter(locale => locale !== "zh");
       persist();

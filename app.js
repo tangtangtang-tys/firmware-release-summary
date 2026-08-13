@@ -439,7 +439,7 @@
         ["VER-R13", "固件包摘要", "交互", "上传前只展示上传入口；解析后集中展示文件、版本、MD5 和大小", "不使用空只读字段占用首屏空间"],
         ["VER-R14", "适用机型范围", "数据", "从当前固件标识绑定机型中选择；编辑历史版本时允许保留原值", "不能任意录入其他机型，历史数据不被强制改写"],
         ["VER-R15", "统一功能入口", "交互", "添加可选功能与切换功能版本统一在“配置功能”弹窗完成", "主表不重复提供逐行配置入口"],
-        ["VER-R16", "渐进多语言", "交互", "默认只展示简体中文，执行翻译或主动查看时展开完整语言列表", "首屏聚焦必填内容，已有翻译仍可完整维护"],
+        ["VER-R16", "固定语言工作台", "交互", "新增、编辑与说明维护默认展示全部 15 种语言目录，左侧独立滚动，右侧编辑当前语言", "无需额外展开即可查看配置状态并连续切换语言"],
         ["VER-R17", "未保存退出", "交互", "表单存在真实修改时，关闭、取消、遮罩与 Esc 均需二次确认", "避免误操作丢失已填写内容"],
         ["VER-R18", "继承功能配置", "数据", "新增版本优先继承当前正式发布版本；无当前版本时继承最近配置完整版本；仍无基线时加载产品线必配功能", "新版本默认具备可用功能配置且继承来源可追溯"]
       ]
@@ -1566,7 +1566,6 @@
     meta.translationJob = { id: jobId, sourceRevision, locales: writable };
     writable.forEach(locale => { meta.statuses[locale] = "translating"; });
     host.container.translationTargetsOpen = false;
-    host.container.appNotesExpanded = true;
     markVersionDrawerDirty();
     renderShell();
     await new Promise(resolve => window.setTimeout(resolve, 650));
@@ -2414,7 +2413,6 @@
     const enabledCount = enabledLocales.length;
     const translating = Boolean(meta.translationJob);
     const hasAiDraft = enabledLocales.some(locale => meta.statuses[locale] === "ai_draft");
-    const expanded = revision || Boolean(host?.container.appNotesExpanded) || hasAiDraft;
     const targetsOpen = Boolean(host?.container.translationTargetsOpen);
     const selectAction = revision ? "select-revision-locale" : "select-locale";
     const inputAttribute = revision ? "data-revision-locale" : "data-app-note";
@@ -2433,12 +2431,7 @@
     const currentActions = selectedLocale === "zh" ? "" : `<div class="locale-writing-actions"><button class="btn small" type="button" data-action="ai-retranslate-locale" data-locale="${esc(selectedLocale)}" ${!enabledLocales.includes(selectedLocale) || translating ? "disabled" : ""}>重新翻译</button>${currentStatus === "ai_draft" ? `<button class="btn small primary" type="button" data-action="confirm-locale-note" data-locale="${esc(selectedLocale)}">确认当前</button>` : ""}</div>`;
     const configuredCount = configuredDefaultLocaleCount(notes);
     const headerRules = revision ? ruleAnnotation("locale", "LOC-R11") : ruleAnnotations([["locale", "LOC-R11"], ["version", "VER-R16"]]);
-    const header = `<div class="section-bar app-note-section-bar"><div><h3>${annotatedLabel("APP 固件版本更新说明", [["locale", "LOC-R09"]])}</h3><span class="subtle">已配置 ${configuredCount} / ${defaultLocaleIds.length} 种语言 · 英文兜底</span></div><div class="app-note-ai-actions"><div class="split-action"><button class="btn primary" type="button" data-action="ai-translate-notes" ${translating ? "disabled" : ""}>${translating ? "AI 翻译中..." : `AI 一键翻译（${Math.max(0, enabledCount - 1)}种）`}</button><button class="btn primary split-toggle" type="button" data-action="toggle-translation-targets" aria-label="选择适配语言" aria-expanded="${targetsOpen}" ${translating ? "disabled" : ""}>⌄</button>${targetPopover}</div>${hasAiDraft ? `<button class="btn" type="button" data-action="confirm-ai-notes">全部确认</button>` : ""}${revision ? "" : `<button class="link-btn app-note-expand" type="button" data-action="toggle-app-notes-expanded">${expanded ? "收起语言列表" : "查看全部语言"}</button>`}${headerRules}</div></div>${errorFor(revision ? "revisionRequired" : "appNotes")}`;
-    if (!expanded) {
-      const sourceContent = notes.zh || "";
-      const sourceStatus = meta.statuses.zh || "pending";
-      return `${header}<div class="app-note-compact"><div class="app-note-compact-head"><div><strong>简体中文</strong><span>AI 翻译源</span></div><em class="locale-status ${esc(sourceStatus)}">${esc(appNoteStatusLabels[sourceStatus] || sourceStatus)}</em></div><textarea class="textarea app-note-source-textarea" data-app-note="zh" maxlength="${appNoteLimit("zh")}" placeholder="请输入简体中文更新说明">${esc(sourceContent)}</textarea>${errorFor("locale-zh")}<div class="helper align-right">${sourceContent.length} / ${appNoteLimit("zh")}</div></div>`;
-    }
+    const header = `<div class="section-bar app-note-section-bar"><div><h3>${annotatedLabel("APP 固件版本更新说明", [["locale", "LOC-R09"]])}</h3><span class="subtle">已配置 ${configuredCount} / ${defaultLocaleIds.length} 种语言 · 英文兜底</span></div><div class="app-note-ai-actions"><div class="split-action"><button class="btn primary" type="button" data-action="ai-translate-notes" ${translating ? "disabled" : ""}>${translating ? "AI 翻译中..." : `AI 一键翻译（${Math.max(0, enabledCount - 1)}种）`}</button><button class="btn primary split-toggle" type="button" data-action="toggle-translation-targets" aria-label="选择适配语言" aria-expanded="${targetsOpen}" ${translating ? "disabled" : ""}>⌄</button>${targetPopover}</div>${hasAiDraft ? `<button class="btn" type="button" data-action="confirm-ai-notes">全部确认</button>` : ""}${headerRules}</div></div>${errorFor(revision ? "revisionRequired" : "appNotes")}`;
     return `${header}<div class="locale-editor ${revision ? "revision-locale-editor" : ""}"><div class="locale-list-wrap"><div class="locale-list-rule">${ruleAnnotation("locale", "LOC-R01")}</div><aside class="locale-list" aria-label="APP 更新说明语言">${list}</aside></div><div class="locale-writing"><div class="locale-writing-head"><div><strong>${esc(localeName(selectedLocale))}</strong><span>${selectedLocale === "zh" ? "AI 翻译源" : selectedLocale === "en" ? "必填 · 默认兜底" : enabledLocales.includes(selectedLocale) ? "已启用" : "未启用"}</span></div><div class="locale-head-actions">${currentActions}${ruleAnnotation("locale", "LOC-R03")}</div></div><textarea class="textarea locale-textarea" ${inputAttribute}="${esc(selectedLocale)}" maxlength="${appNoteLimit(selectedLocale)}" placeholder="${selectedLocale === "zh" ? "请输入简体中文更新说明" : enabledLocales.includes(selectedLocale) ? "请输入或检查翻译内容" : "该语言尚未启用"}" ${translating || !enabledLocales.includes(selectedLocale) ? "disabled" : ""}>${esc(selectedContent)}</textarea>${errorFor(`${errorPrefix}-${selectedLocale}`)}<div class="locale-writing-foot"><div></div><div class="helper align-right">${selectedContent.length} / ${appNoteLimit(selectedLocale)}</div></div></div></div>`;
   }
 
@@ -3099,7 +3092,7 @@
         ? enabledAppNoteLocales(normalizeAppNoteMeta(baseline.source.appNoteMeta, baseline.source.appReleaseNotes)).filter(locale => locale !== "zh")
         : [];
       const defaultTargets = inheritedLocales.length ? inheritedLocales : identifier.aiTranslationLocales || ["en"];
-      state.drawer = { type: "addVersion", formDraft: { version: "", models: baseline.source?.models || identifier.models || "", note: "" }, associatedFeatures: ensureRequiredFeatureSnapshots(clone(baseline.features), identifier.product), inheritedFromVersion: baseline.source?.version || null, inheritanceType: baseline.type, appReleaseNotes: appNoteDraft(), appNoteMeta: normalizeAppNoteMeta({}, {}, defaultTargets), activeLocale: "zh", appNotesExpanded: false, translationTargetsOpen: false, dirty: false };
+      state.drawer = { type: "addVersion", formDraft: { version: "", models: baseline.source?.models || identifier.models || "", note: "" }, associatedFeatures: ensureRequiredFeatureSnapshots(clone(baseline.features), identifier.product), inheritedFromVersion: baseline.source?.version || null, inheritanceType: baseline.type, appReleaseNotes: appNoteDraft(), appNoteMeta: normalizeAppNoteMeta({}, {}, defaultTargets), activeLocale: "zh", translationTargetsOpen: false, dirty: false };
       renderShell();
       return;
     }
@@ -3121,7 +3114,6 @@
         associatedFeatures: ensureRequiredFeatureSnapshots(clone(version.associatedFeatures || []), identifier.product),
         appReleaseNotes: appNoteDraft(version.appReleaseNotes),
         appNoteMeta: normalizeAppNoteMeta(version.appNoteMeta, version.appReleaseNotes),
-        appNotesExpanded: false,
         translationTargetsOpen: false,
         activeLocale: "zh",
         dirty: false
@@ -3370,12 +3362,6 @@
       const host = activeAppNoteEditorHost();
       if (!host) return;
       host.container.translationTargetsOpen = !host.container.translationTargetsOpen;
-      renderShell();
-      return;
-    }
-    if (action === "toggle-app-notes-expanded") {
-      if (!["addVersion", "editVersion"].includes(state.drawer?.type)) return;
-      state.drawer.appNotesExpanded = !state.drawer.appNotesExpanded;
       renderShell();
       return;
     }
@@ -4072,7 +4058,6 @@
         const firstLocaleError = Object.keys(state.errors).find(key => key.startsWith("locale-"));
         if (firstLocaleError) {
           state.drawer.activeLocale = firstLocaleError.slice("locale-".length);
-          state.drawer.appNotesExpanded = true;
         }
         renderShell();
         return;

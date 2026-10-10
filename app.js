@@ -8,7 +8,8 @@
     operations: { title: "操作日志", group: "logs" },
     approvals: { title: "审批日志", group: "logs" },
     users: { title: "用户列表", group: "users" },
-    roles: { title: "角色权限", group: "users" }
+    roles: { title: "角色权限", group: "users" },
+    approvalPolicies: { title: "审批配置", group: "users" }
   };
 
   const productLines = ["IPC", "车载", "NVR", "AI玩具", "婴儿看护", "4G模组", "BK系列"];
@@ -18,9 +19,16 @@
     { menu: "固件管理", page: "模组型号", actions: ["查看模组型号"] },
     { menu: "日志管理", page: "操作日志", actions: ["查看操作日志"] },
     { menu: "日志管理", page: "审批日志", actions: ["查看审批日志"] },
-    { menu: "用户角色", page: "用户列表", actions: ["查看用户列表", "更新用户"] },
-    { menu: "用户角色", page: "角色权限", actions: ["查看角色权限", "新增角色", "更新角色", "更新角色权限", "删除角色"] }
+    { menu: "系统管理", page: "用户列表", actions: ["查看用户列表", "更新用户"] },
+    { menu: "系统管理", page: "角色权限", actions: ["查看角色权限", "新增角色", "更新角色", "更新角色权限", "删除角色"] },
+    { menu: "系统管理", page: "审批配置", actions: ["查看审批流程配置", "新建审批方案", "编辑审批方案", "启用/停用审批方案", "查看审批方案版本记录", "替换回滚/下架审批人"] }
   ];
+  const systemAdminOnlyActions = new Set(["替换回滚/下架审批人"]);
+
+  const releaseMaterialRules = {
+    testReport: { label: "测试报告", extensions: ["pdf", "doc", "docx", "xls", "xlsx"], maxFiles: 5, maxSizeMb: 50 },
+    meetingMinutes: { label: "会议纪要", extensions: ["pdf", "doc", "docx", "xls", "xlsx"], maxFiles: 5, maxSizeMb: 50 }
+  };
 
   const featureCatalog = [
     {
@@ -64,47 +72,49 @@
 
   const associatedFeatureCatalog = [
     {
-      id: "motion-track", product: "IPC", name: "移动侦测", identifier: "motion_detection", category: "智能分析", firmwarePolicy: "固件必配", imageLabel: "侦测",
+      id: "motion-track", product: "IPC", name: "网络功能", identifier: "network_feature", category: "设备基本信息", description: "设备网络能力 · 设备基本信息类", firmwarePolicy: "固件必配", imageLabel: "◎",
       versions: [
-        { id: "motion-v3", code: "V3", status: "testing", createdAt: "2026-07-24 11:21:05", description: "新增复杂场景目标过滤，功能版本测试中" },
-        { id: "motion-v2", code: "V2", status: "published", latest: true, releasedAt: "2026-07-15 16:40:20", description: "支持移动事件检测、区域配置与灵敏度控制" },
-        { id: "motion-v1", code: "V1", status: "disabled", releasedAt: "2026-05-18 11:32:10", description: "历史移动侦测协议，仅保留既有固件关联" }
+        { id: "motion-v3", code: "V3", status: "testing", createdAt: "2026-07-24 11:21:05", description: "新增网络策略配置，功能版本测试中" },
+        { id: "motion-v2", code: "V2", status: "published", releasedAt: "2026-07-15 16:40:20", description: "支持基础网络连接与网络状态管理" },
+        { id: "motion-v1", code: "V1", status: "published", latest: true, releasedAt: "2026-05-18 11:32:10", description: "支持设备基础网络能力配置" }
       ]
     },
     {
-      id: "night-vision", product: "IPC", name: "夜视模式", identifier: "night_vision", category: "图像能力", firmwarePolicy: "固件必配", imageLabel: "夜视",
+      id: "night-vision", product: "IPC", name: "连接类型", identifier: "connection_type", category: "设备基本信息", description: "设备连接服务器协议类型 · 设备基本信息类", firmwarePolicy: "固件必配", imageLabel: "▣",
       versions: [
-        { id: "night-v4", code: "V4", status: "published", latest: true, releasedAt: "2026-07-18 14:12:30", description: "支持全彩、红外与智能夜视模式切换" },
-        { id: "night-v3", code: "V3", status: "published", releasedAt: "2026-06-12 10:08:16", description: "支持全彩与红外夜视模式" },
-        { id: "night-v2", code: "V2", status: "disabled", releasedAt: "2026-03-20 09:30:00", description: "历史红外夜视版本" }
+        { id: "night-v4", code: "V2", status: "published", releasedAt: "2026-07-18 14:12:30", description: "支持 MQTT 与 P2P 双通道连接" },
+        { id: "night-v3", code: "V1", status: "published", latest: true, releasedAt: "2026-06-12 10:08:16", description: "支持设备连接服务器的基础协议类型" },
+        { id: "night-v2", code: "V0", status: "disabled", releasedAt: "2026-03-20 09:30:00", description: "历史连接协议，仅保留既有固件关联" }
       ]
     },
     {
-      id: "low-power", product: "IPC", name: "低功耗待机", identifier: "low_power_standby", category: "设备能力", firmwarePolicy: "可选能力", imageLabel: "低功耗",
+      id: "low-power", product: "IPC", name: "远程拍照", identifier: "remote_photo", category: "设备基本信息", description: "设备是否支持远程拍照功能配置", firmwarePolicy: "可选能力", imageLabel: "●",
       versions: [
-        { id: "power-v2", code: "V2", status: "published", latest: true, releasedAt: "2026-07-08 09:45:12", description: "优化休眠唤醒与低电量保护策略" },
-        { id: "power-v1", code: "V1", status: "published", releasedAt: "2026-04-11 15:20:36", description: "基础低功耗待机能力" }
+        { id: "power-v0", code: "V0", status: "published", releasedAt: "2026-03-11 09:45:12", description: "基础版本，支持设备遥控拍照功能，适用于基础拍照场景。" },
+        { id: "power-v2", code: "V1", status: "published", releasedAt: "2026-04-11 15:20:36", description: "支持远程拍照及定时拍照功能，适用于需要远程获取设备图片的场景。" },
+        { id: "power-v3", code: "V3", status: "published", latest: true, releasedAt: "2026-07-08 09:45:12", description: "提供更完整的远程拍照配置能力，支持多种拍照策略，适用于高级拍照业务场景。" }
       ]
     },
     {
-      id: "voice-intercom", product: "IPC", name: "双向语音对讲", identifier: "voice_intercom", category: "音频能力", firmwarePolicy: "固件必配", imageLabel: "语音",
+      id: "voice-intercom", product: "IPC", name: "新添加方式", identifier: "add_method", category: "设备基本信息", description: "设备支持的新添加绑定方式 · 设备基本信息类", firmwarePolicy: "可选能力", imageLabel: "+",
       versions: [
-        { id: "voice-v3", code: "V3", status: "published", latest: true, releasedAt: "2026-07-10 17:06:22", description: "支持回声消除与弱网语音优化" },
-        { id: "voice-v2", code: "V2", status: "published", releasedAt: "2026-05-09 13:15:40", description: "支持基础双向语音对讲" }
+        { id: "voice-v3", code: "V3", status: "published", latest: true, releasedAt: "2026-07-10 17:06:22", description: "支持设备通过新添加接口完成绑定与分配。" },
+        { id: "voice-v2", code: "V1", status: "published", releasedAt: "2026-05-09 13:15:40", description: "支持标准设备添加与绑定流程。" }
       ]
     },
     {
-      id: "device-share", product: "IPC", name: "设备分享", identifier: "device_share", category: "设备管理", firmwarePolicy: "可选能力", imageLabel: "分享",
+      id: "device-share", product: "IPC", name: "P2P功能", identifier: "p2p", category: "设备基本信息", description: "设备支持的 P2P 方式配置 · P2P", firmwarePolicy: "可选能力", imageLabel: "↗",
       versions: [
-        { id: "share-v2", code: "V2", status: "published", latest: true, releasedAt: "2026-06-28 10:30:18", description: "支持分享权限与有效期控制" }
+        { id: "share-v2", code: "V1", status: "published", latest: true, releasedAt: "2026-06-28 10:30:18", description: "设备支持自研 P2P 连接与远程预览能力。" }
       ]
     },
     {
-      id: "pet-detection", product: "IPC", name: "宠物识别", identifier: "pet_detection", category: "智能分析", firmwarePolicy: "可选能力", imageLabel: "宠物",
+      id: "pet-detection", product: "IPC", name: "实时日志功能", identifier: "realtime_log", category: "设备运维类", description: "设备与服务器实时日志功能 · 设备运维类", firmwarePolicy: "可选能力", imageLabel: "▤",
       versions: [
-        { id: "pet-v1", code: "V1", status: "testing", createdAt: "2026-07-26 16:18:05", description: "首个功能版本，当前处于测试阶段" }
+        { id: "pet-v1", code: "V1", status: "published", latest: true, releasedAt: "2026-07-26 16:18:05", description: "支持设备运行日志实时上传与查看。" }
       ]
     },
+    { id: "ipc-other", product: "IPC", name: "其他功能", identifier: "other_feature", category: "其他能力", description: "当前固件版本 V3.2.1 暂不支持此功能", firmwarePolicy: "可选能力", supported: false, imageLabel: "⊘", versions: [] },
     { id: "vehicle-positioning", product: "车载", name: "车辆定位", identifier: "vehicle_positioning", category: "定位能力", firmwarePolicy: "固件必配", imageLabel: "定位", versions: [{ id: "vehicle-v2", code: "V2", status: "published", latest: true, releasedAt: "2026-07-02 13:40:00", description: "支持 GPS 与基站融合定位" }] },
     { id: "nvr-channel", product: "NVR", name: "通道管理", identifier: "nvr_channel", category: "设备管理", firmwarePolicy: "固件必配", imageLabel: "通道", versions: [{ id: "channel-v3", code: "V3", status: "published", latest: true, releasedAt: "2026-06-30 11:25:00", description: "支持多通道动态管理" }] },
     { id: "toy-dialog", product: "AI玩具", name: "智能对话", identifier: "ai_dialog", category: "交互能力", firmwarePolicy: "固件必配", imageLabel: "对话", versions: [{ id: "dialog-v2", code: "V2", status: "published", latest: true, releasedAt: "2026-07-12 15:10:00", description: "支持多轮对话与打断" }] },
@@ -134,9 +144,17 @@
     return (feature?.versions || []).filter(version => version.status === "published");
   }
 
+  function configurableFeatureVersions(feature) {
+    return (feature?.versions || []).filter(version => ["published", "testing"].includes(version.status));
+  }
+
   function defaultFeatureVersion(feature) {
     const eligible = eligibleFeatureVersions(feature);
     return eligible.find(version => version.latest) || eligible[0] || null;
+  }
+
+  function defaultConfigurableFeatureVersion(feature) {
+    return defaultFeatureVersion(feature) || configurableFeatureVersions(feature).find(version => version.latest) || configurableFeatureVersions(feature)[0] || null;
   }
 
   function featureVersionStatusLabel(version) {
@@ -144,6 +162,15 @@
     if (version.status === "testing") return "测试中";
     if (version.status === "disabled") return "已停用";
     return version.latest ? "最新可用" : "已发布";
+  }
+
+  function featureVersionDisplayStatus(snapshot) {
+    const liveVersion = sourceFeatureVersion(sourceFeatureBySnapshot(snapshot), snapshot);
+    const status = liveVersion?.status || snapshot?.versionStatus || "unknown";
+    return {
+      label: liveVersion ? featureVersionStatusLabel(liveVersion) : snapshot?.versionStatusLabel || "版本不存在",
+      className: status === "published" ? "success" : status === "testing" ? "warning" : "danger"
+    };
   }
 
   function sourceFeatureBySnapshot(snapshot) {
@@ -180,7 +207,7 @@
     if (!source) {
       return {
         id: snapshot.id || `legacy-${snapshot.name}`,
-        name: snapshot.name || "未知功能点",
+        name: snapshot.name || "未知功能项",
         identifier: snapshot.identifier || "-",
         product: snapshot.product || product,
         category: snapshot.category || "未分类",
@@ -188,14 +215,14 @@
         imageLabel: snapshot.imageLabel || snapshot.imageName || "功能",
         featureVersionId: snapshot.featureVersionId || "",
         version: snapshot.version || "-",
-        versionDescription: snapshot.versionDescription || "历史功能点快照",
+        versionDescription: snapshot.versionDescription || "历史功能项快照",
         versionStatus: snapshot.versionStatus || "unknown",
         versionStatusLabel: snapshot.versionStatusLabel || "来源已失效",
         sourceUpdatedAt: snapshot.sourceUpdatedAt || "-",
         selectedAt: snapshot.selectedAt || "-"
       };
     }
-    const selectedVersion = sourceFeatureVersion(source, snapshot) || defaultFeatureVersion(source);
+    const selectedVersion = sourceFeatureVersion(source, snapshot) || defaultConfigurableFeatureVersion(source);
     if (!selectedVersion) return { ...snapshot, id: source.id, name: snapshot.name || source.name, identifier: snapshot.identifier || source.identifier, product: source.product, category: source.category, firmwarePolicy: source.firmwarePolicy, imageLabel: source.imageLabel };
     const normalized = associatedFeatureSnapshot(source, selectedVersion.id, snapshot);
     return {
@@ -270,7 +297,7 @@
 
   function featureAssociationIssue(association, product) {
     const source = sourceFeatureBySnapshot(association);
-    if (!source) return `${association?.name || "功能点"} 已不在机型平台功能目录中`;
+    if (!source) return `${association?.name || "功能项"} 已不在机型平台功能目录中`;
     if (source.product !== product) return `${source.name} 不属于当前产品线 ${product}`;
     const version = sourceFeatureVersion(source, association);
     if (!version) return `${source.name} 的关联版本已不存在`;
@@ -280,12 +307,13 @@
     return "";
   }
 
-  function featureConfigurationError(features, product) {
+  function featureConfigurationError(features, product, options = {}) {
     const ids = new Set();
     for (const feature of features || []) {
       if (ids.has(feature.id)) return `${feature.name} 不能重复配置`;
       ids.add(feature.id);
       const issue = featureAssociationIssue(feature, product);
+      if (options.allowTesting && /仍在测试中$/.test(issue)) continue;
       if (issue) return issue;
     }
     for (const required of requiredFeatureSourcesForProduct(product)) {
@@ -304,7 +332,7 @@
     if (added.length) parts.push(`新增 ${added.length} 项`);
     if (removed.length) parts.push(`移除 ${removed.length} 项`);
     if (switched.length) parts.push(`切换版本 ${switched.length} 项`);
-    return parts.join("、") || "功能点配置无变化";
+    return parts.join("、") || "功能项配置无变化";
   }
 
   const localeCatalog = [
@@ -426,15 +454,15 @@
       rules: [
         ["VER-R01", "上传固件包", "前置", "仅接收 .bin、.binpkg，解析成功后才能继续配置", "失败文件不能形成版本记录"],
         ["VER-R02", "移除功能集配置", "范围", "新增和编辑固件版本时不展示功能集配置，且不参与保存校验", "新版本不写入功能集，历史版本配置保持不变"],
-        ["VER-R03", "加载功能点", "数据", "按当前固件标识所属产品线读取机型平台功能管理目录；固件必配功能自动加载且不可移除", "不展示其他产品线功能源，用户只需选择可选功能"],
+        ["VER-R03", "加载功能项", "数据", "按当前固件标识所属产品线读取机型平台功能管理目录；固件必配功能自动加载且不可移除", "不展示其他产品线功能源，用户只需选择可选功能"],
         ["VER-R04", "保存新版本", "数据", "版本号唯一且适用机型、平台说明、中英文 APP 说明完整", "校验通过后保存为未发布版本"],
         ["VER-R05", "编辑非当前版本", "权限", "未发布、历史发布和已撤回版本可编辑，审批目标锁定", "编辑范围与版本状态一致"],
         ["VER-R06", "编辑版本内容", "状态", "不得修改版本号或替换固件包", "历史制品和引用关系稳定"],
         ["VER-R07", "保存历史修订", "审计", "递增 recordVersion 并保留修改前内容", "历史修订不可覆盖且可追溯"],
         ["VER-R08", "删除版本", "权限", "仅未发布版本可删除", "已形成业务事实的版本不被移除"],
-        ["VER-R09", "默认功能版本", "交互", "固件必配功能自动关联最新已发布可用版本；勾选可选功能后同样默认带出最新版本", "测试中的最新工作版本不会被误关联"],
-        ["VER-R10", "切换功能版本", "交互", "支持切换其他已发布可用版本，测试中和已停用版本不可新选", "功能版本选择范围与源平台状态一致"],
-        ["VER-R11", "保存功能点快照", "数据", "保存功能标识、名称、分类、版本、说明和来源更新时间快照", "源平台后续变化不追溯改写固件历史"],
+        ["VER-R09", "默认功能版本", "交互", "固件必配功能自动关联最新已发布可用版本；勾选可选功能后默认带出最新可配置版本", "测试中版本可用于 OTA 验证配置，不会被直接发布"],
+        ["VER-R10", "切换功能版本", "交互", "支持切换其他已发布或测试中版本；已停用版本不可新选", "测试版本可用于 OTA 验证，正式发布时仍需切换为已发布版本"],
+        ["VER-R11", "保存功能项快照", "数据", "保存功能项名称、分类、版本、状态和说明快照", "源平台后续变化不追溯改写固件历史"],
         ["VER-R12", "功能版本失效", "状态", "历史快照继续展示，正常发布前必须切换至仍可关联的版本", "历史可追溯且新发布不引用失效版本"],
         ["VER-R13", "固件包摘要", "交互", "上传前只展示上传入口；解析后集中展示文件、版本、MD5 和大小", "不使用空只读字段占用首屏空间"],
         ["VER-R14", "适用机型范围", "数据", "从当前固件标识绑定机型中选择；编辑历史版本时允许保留原值", "不能任意录入其他机型，历史数据不被强制改写"],
@@ -485,10 +513,10 @@
       rules: [
         ["PUB-R01", "展示发布入口", "状态", "除当前正式版本外均支持发布，审批目标打开已有审批", "不重复创建审批且入口明确"],
         ["PUB-R02", "点击发布", "权限", "按页面、操作、数据范围、版本状态和审批锁顺序校验", "不满足时阻止并说明原因"],
-        ["PUB-R03", "提交审批", "前置", "校验固件包、功能点版本、启用语言、提醒策略和审批并发", "仅完整且无冲突的版本进入审批"],
-        ["PUB-R04", "创建审批", "数据", "冻结 recordVersion、影响设备、功能点版本、说明和提醒方式", "审批内容与执行内容一一对应"],
+        ["PUB-R03", "提交审批", "前置", "校验固件包、功能项版本、启用语言、提醒策略和审批并发", "仅完整且无冲突的版本进入审批"],
+        ["PUB-R04", "创建审批", "数据", "冻结 recordVersion、影响设备、功能项版本、说明和提醒方式", "审批内容与执行内容一一对应"],
         ["PUB-R05", "审批期间", "状态", "当前版本继续生效，目标版本及其内容锁定", "审批不会提前改变线上版本"],
-        ["PUB-R06", "审批通过", "前置", "服务端复检当前指针、目标、固件包、功能点来源状态和快照版本号", "条件变化时审批失效"],
+        ["PUB-R06", "审批通过", "前置", "服务端复检当前指针、目标、固件包、功能项来源状态和快照版本号", "条件变化时审批失效"],
         ["PUB-R07", "执行发布", "结果", "同一事务切换唯一当前版本并生成发布事件和回滚目标", "始终只有一个当前正式版本"],
         ["PUB-R08", "执行失败", "异常", "整体回退且当前版本不变，不自动重试", "不产生双当前或半条事件"],
         ["PUB-R09", "审批驳回或失效", "状态", "恢复目标提交前真实状态并解除锁定", "历史、已撤回和未发布状态不被误改"],
@@ -518,7 +546,7 @@
       rules: [
         ["DET-R01", "查看当前版本", "数据", "聚合版本、状态、影响设备、生效、提醒、机型和固件包信息", "无需跨页面判断当前状态"],
         ["DET-R02", "当前版本操作", "状态", "只展示当前可用的详情、回滚和下架操作", "已下架能力不保留空入口"],
-        ["DET-R03", "打开版本详情", "交互", "同一详情抽屉承载功能点、APP 更新说明、发布记录和审批日志四类页签", "关联记录保持同一版本上下文"],
+        ["DET-R03", "打开版本详情", "交互", "同一详情抽屉承载功能项、APP 更新说明、发布记录和审批日志四类页签", "关联记录保持同一版本上下文"],
         ["DET-R04", "切换详情页签", "交互", "只替换抽屉内部内容，不关闭或重开", "切换稳定且不丢失位置"],
         ["DET-R05", "查看详情记录", "数据", "使用版本和事件关联标识查询", "不串联其他版本或事件数据"]
       ]
@@ -603,6 +631,29 @@
     const option = item.options.find(candidate => candidate.value === optionValue) || item.options[0];
     return { key: item.key, name: item.name, value: option.value, label: option.label, version: option.version, description: option.description };
   }
+
+  const demoAppNoteRevisions = {
+    "23.110.211/23.110.211.99": [
+      {
+        time: "2026-09-08 11:08:15",
+        operator: "张元/Alice",
+        reason: "补充弱网重连场景说明，并统一中英文升级文案表述。",
+        before: {
+          appReleaseNotes: {
+            zh: "优化设备连接稳定性。",
+            en: "Improve device connection stability."
+          }
+        },
+        after: {
+          appReleaseNotes: {
+            zh: "提升弱网环境下的连接稳定性。",
+            en: "Improve connection stability on weak networks."
+          }
+        },
+        recordVersion: 2
+      }
+    ]
+  };
 
   const baseVersions = [
     { version: "23.110.211.13", url: "http://doraemon.camera666.com/firmware_VP_OTA_23.110.211.13_20260630_141359_1783931459.bin", size: "7.07", models: "QD20-DK", features: 4, creator: "刘林胶", note: "更新内容：1.修复已知问题 2.增加MQTT重新获取新的尚云uid 3.更新新的升级方式 4.同步最新代码", updated: "2026-07-13 16:30:59", latest: true, reminder: "不提醒" },
@@ -773,6 +824,8 @@
       }
       return approval;
     }),
+    approvalPolicies: [],
+    notifications: [],
     users: [
       ["严国潮", "系统管理员", productLines, "2025-12-24 14:48:27"],
       ["彭冬柏", "产线主管", ["IPC", "4G模组"], "2026-01-08 09:22:10"],
@@ -831,7 +884,51 @@
     ] : [];
   }
 
+  function backfillAppNoteRevisions(version) {
+    if (!Array.isArray(version.editRevisions) || !version.editRevisions.length) return;
+    const edits = version.editRevisions
+      .filter(item => Number(item?.recordVersion) > 0 && item?.before?.appReleaseNotes && typeof item.before.appReleaseNotes === "object")
+      .slice()
+      .sort((left, right) => Number(left.recordVersion) - Number(right.recordVersion));
+    if (!edits.length) return;
+
+    const existingRecordVersions = new Set((version.noteRevisions || []).map(item => Number(item.recordVersion)));
+    const currentSnapshot = { appReleaseNotes: version.appReleaseNotes, appNoteMeta: version.appNoteMeta };
+    edits.forEach((edit, index) => {
+      const recordVersion = Number(edit.recordVersion);
+      const beforeSnapshot = edit.before;
+      const afterSnapshot = edits[index + 1]?.before || currentSnapshot;
+      const changedLocales = changedAppNoteLocales(beforeSnapshot.appReleaseNotes, afterSnapshot.appReleaseNotes);
+      const previousEnabledLocales = enabledAppNoteLocales(normalizeAppNoteMeta(beforeSnapshot.appNoteMeta, beforeSnapshot.appReleaseNotes));
+      const nextEnabledLocales = enabledAppNoteLocales(normalizeAppNoteMeta(afterSnapshot.appNoteMeta, afterSnapshot.appReleaseNotes));
+      const enabledLocalesChanged = !sameValues(previousEnabledLocales, nextEnabledLocales);
+      if ((!changedLocales.length && !enabledLocalesChanged) || existingRecordVersions.has(recordVersion)) return;
+
+      const changedCopy = changedLocales.map(localeName).join("、");
+      version.noteRevisions.push({
+        time: edit.time || version.updated || version.created || "-",
+        operator: edit.operator || version.creator || "管理员",
+        reason: changedCopy
+          ? `通过固件版本编辑同步更新${changedCopy}文案${enabledLocalesChanged ? "及适配语言范围" : ""}`
+          : "通过固件版本编辑调整文案适配语言范围",
+        before: {
+          appReleaseNotes: clone(normalizeAppNotes(beforeSnapshot.appReleaseNotes)),
+          appNoteMeta: clone(normalizeAppNoteMeta(beforeSnapshot.appNoteMeta, beforeSnapshot.appReleaseNotes))
+        },
+        after: {
+          appReleaseNotes: clone(normalizeAppNotes(afterSnapshot.appReleaseNotes)),
+          appNoteMeta: clone(normalizeAppNoteMeta(afterSnapshot.appNoteMeta, afterSnapshot.appReleaseNotes))
+        },
+        recordVersion
+      });
+      existingRecordVersions.add(recordVersion);
+    });
+    version.noteRevisions.sort((left, right) => Number(right.recordVersion) - Number(left.recordVersion));
+  }
+
   function normalizeDatabase(data) {
+    if (!Array.isArray(data.approvalPolicies)) data.approvalPolicies = [];
+    if (!Array.isArray(data.notifications)) data.notifications = [];
     if (!data.identifiers.some(identifier => identifier.id === "25.922.219")) data.identifiers.push(differentialDemoIdentifier());
     const identifierIds = new Set(data.identifiers.map(identifier => identifier.id));
     data.identifiers.forEach((identifier, identifierIndex) => {
@@ -863,6 +960,14 @@
         version.appReleaseNotes = normalizeAppNotes(version.appReleaseNotes);
         version.appNoteMeta = normalizeAppNoteMeta(version.appNoteMeta, version.appReleaseNotes);
         if (!Array.isArray(version.noteRevisions)) version.noteRevisions = [];
+        const demoRevisions = demoAppNoteRevisions[`${identifier.id}/${version.version}`];
+        if (!version.noteRevisions.length && demoRevisions) {
+          if (!version.created) version.created = version.updated;
+          version.noteRevisions = clone(demoRevisions);
+          const latestDemoRevisionTime = demoRevisions[0]?.time;
+          if (latestDemoRevisionTime && String(latestDemoRevisionTime) > String(version.updated || "")) version.updated = latestDemoRevisionTime;
+        }
+        backfillAppNoteRevisions(version);
         if (!version.status) {
           if (version === legacyCurrent) version.status = "current";
           else if (version === legacyRollbackTarget) version.status = "historical";
@@ -870,7 +975,8 @@
         }
         version.latest = version.status === "current";
         if (!version.created) version.created = version.updated;
-        if (!version.recordVersion) version.recordVersion = 1;
+        const latestNoteRevision = version.noteRevisions.reduce((latest, item) => Math.max(latest, Number(item.recordVersion) || 0), 0);
+        version.recordVersion = Math.max(Number(version.recordVersion) || 1, latestNoteRevision);
         if (!Number.isFinite(Number(version.associatedDeviceCount))) version.associatedDeviceCount = associatedDeviceCount(identifier, version.models);
         version.associatedDeviceCount = Number(version.associatedDeviceCount);
       });
@@ -950,6 +1056,14 @@
       if (!role.code) role.code = index === 0 ? "SYSTEM_ADMIN" : `ROLE_${index + 1}`;
       if (!role.scope) role.scope = role.name === "系统管理员" ? "全部产线" : role.name === "4G模组权限角色" ? "仅 4G 模组" : "用户所属产线";
       if (!role.permissions || !Object.keys(role.permissions).length) role.permissions = permissionPresetForRole(role.name);
+      if (role.permissions["menu-系统管理"] === undefined) role.permissions["menu-系统管理"] = Boolean(role.permissions["menu-用户角色"]);
+      if (role.permissions["page-审批配置"] === undefined) role.permissions["page-审批配置"] = Boolean(role.permissions["page-审批流程配置"]);
+      if (role.permissions["page-审批配置"] && role.permissions["action-查看审批流程配置"] === undefined) role.permissions["action-查看审批流程配置"] = true;
+      if (role.permissions["action-维护审批流程配置"]) {
+        ["查看审批流程配置", "新建审批方案", "编辑审批方案", "启用/停用审批方案", "查看审批方案版本记录"].forEach(action => { role.permissions[`action-${action}`] = true; });
+      }
+      delete role.permissions["action-替换在途审批人"];
+      delete role.permissions["action-维护审批流程配置"];
     });
     const roleNames = new Set(data.roles.map(role => role.name));
     const fallbackRole = data.roles.find(role => role.default)?.name || data.roles[0]?.name || "";
@@ -958,6 +1072,8 @@
       if (!Array.isArray(user.lines)) user.lines = [];
       if (!Array.isArray(user.approverLines)) user.approverLines = [];
       if (!Array.isArray(user.changeLogs)) user.changeLogs = [];
+      if (!user.userId) user.userId = `USR-${String(data.users.indexOf(user) + 1).padStart(4, "0")}`;
+      if (!user.status) user.status = "active";
       if (!user.changeLogs.length && user.name === "刘林胶") {
         user.changeLogs = [
           { time: "2026-07-21 15:32:44", operator: "严国潮", action: "更新角色", content: "关联角色：默认人员 → 测试人员；所属产线：IPC" },
@@ -966,12 +1082,88 @@
       }
       user.approverLines = user.approverLines.filter(line => user.lines.includes(line));
     });
+    if (!data.approvalPolicies.length) {
+      const firstApprover = data.users.find(user => user.status === "active" && user.lines.includes("IPC") && user.name === "彭冬柏") || data.users.find(user => user.status === "active" && user.lines.includes("IPC"));
+      const secondApprover = data.users.find(user => user.status === "active" && user.lines.includes("IPC") && user.userId !== firstApprover?.userId);
+      if (firstApprover && secondApprover) {
+        data.approvalPolicies.push({
+          id: "POLICY-IPC-FORMAL",
+          productLine: "IPC",
+          name: "IPC 正式发布审批",
+          description: "正式发布采用 1–5 级串行审批，可按需增删审批节点",
+          operations: ["publish"],
+          nodes: [
+            { sequence: 1, type: "generic", approverUserId: firstApprover.userId, approverName: firstApprover.name, timeoutUnit: "hour", timeoutValue: 24 },
+            { sequence: 2, type: "generic", approverUserId: secondApprover.userId, approverName: secondApprover.name, timeoutUnit: "day", timeoutValue: 1 }
+          ],
+          copyUserIds: [firstApprover.userId],
+          status: "enabled",
+          versionNumber: 1,
+          policyVersion: "POLICY-IPC-FORMAL-V1",
+          createdAt: now(),
+          updatedAt: now(),
+          updatedBy: "系统预置",
+          history: []
+        });
+        data.approvalPolicies.push({
+          id: "POLICY-IPC-CHANGE",
+          productLine: "IPC",
+          name: "IPC 回滚与下架审批",
+          description: "回滚和下架共用通用审批方案，可按需拆分",
+          operations: ["rollback", "delist"],
+          nodes: [{ sequence: 1, type: "generic", approverUserId: firstApprover.userId, approverName: firstApprover.name, timeoutUnit: "hour", timeoutValue: 12 }],
+          copyUserIds: [firstApprover.userId],
+          status: "enabled",
+          versionNumber: 1,
+          policyVersion: "POLICY-IPC-CHANGE-V1",
+          createdAt: now(),
+          updatedAt: now(),
+          updatedBy: "系统预置",
+          history: []
+        });
+      }
+    }
+    data.approvalPolicies.forEach((policy, policyIndex) => {
+      if (!policy.id) policy.id = `POLICY-${String(policyIndex + 1).padStart(4, "0")}`;
+      if (!policy.productLine) policy.productLine = policy.product || productLines[0];
+      if (policy.description == null) policy.description = "";
+      if (policy.name === "IPC 正式发布质量审批") policy.name = "IPC 正式发布审批";
+      if (policy.description === "正式发布固定由项目经理审核后进入质量代表确认") policy.description = "正式发布采用 1–5 级串行审批，可按需增删审批节点";
+      if (!Array.isArray(policy.operations) || !policy.operations.length) policy.operations = ["publish"];
+      if (!Array.isArray(policy.nodes) || !policy.nodes.length) policy.nodes = [];
+      policy.levelCount = Math.min(5, Math.max(1, Number(policy.levelCount || policy.nodes.length || 1)));
+      policy.nodes = policy.nodes.slice(0, 5).map((node, index) => {
+        const timeout = normalizeTimeout(node);
+        const approver = data.users.find(user => user.name === node.approverName) || data.users.find(user => user.userId === node.approverUserId);
+        return {
+          ...node,
+          sequence: index + 1,
+          type: "generic",
+          approverUserId: node.approverUserId || approver?.userId || "",
+          approverName: node.approverName || approver?.name || "",
+          timeoutUnit: timeout.unit,
+          timeoutValue: timeout.value,
+          timeoutHours: timeout.unit === "day" ? timeout.value * 24 : timeout.value
+        };
+      });
+      policy.levelCount = policy.nodes.length || policy.levelCount;
+      if (!policy.policyVersion) policy.policyVersion = `${policy.id}-V1`;
+      if (!Number.isFinite(Number(policy.versionNumber))) policy.versionNumber = Number(String(policy.policyVersion).match(/V(\d+)$/)?.[1] || 1);
+      policy.status = policy.status === "disabled" ? "disabled" : "enabled";
+      if (!Array.isArray(policy.copyUserIds)) policy.copyUserIds = [];
+      policy.copyUserIds = [...new Set(policy.copyUserIds)].filter(userId => data.users.some(user => user.userId === userId && user.status === "active" && user.lines.includes(policy.productLine)));
+      if (!policy.createdAt) policy.createdAt = now();
+      if (!policy.updatedAt) policy.updatedAt = policy.createdAt;
+      if (!Array.isArray(policy.history)) policy.history = [];
+      policy.history = policy.history.map(version => ({ ...version, name: version.name || policy.name, description: version.description ?? policy.description, status: version.status === "disabled" ? "disabled" : "enabled", copyUserIds: Array.isArray(version.copyUserIds) ? [...new Set(version.copyUserIds)] : [...policy.copyUserIds] }));
+      if (!policy.history.length) policy.history.push({ policyVersion: policy.policyVersion, name: policy.name, description: policy.description, status: policy.status, operations: clone(policy.operations), nodes: clone(policy.nodes), copyUserIds: [...policy.copyUserIds], updatedAt: policy.updatedAt, updatedBy: policy.updatedBy || "系统迁移" });
+    });
     data.operations.forEach(item => {
       if (!item.role) item.role = data.users.find(user => user.name === item.user)?.role || "系统管理员";
       if (!item.result) item.result = /失败|阻止|驳回/.test(`${item.action}${item.description}`) ? "失败" : "成功";
     });
     data.identifiers.forEach(identifier => {
-      if (identifier.activeApproval && !data.approvals.some(approval => approval.id === identifier.activeApproval.approvalId && approval.status === "审批中")) identifier.activeApproval = null;
+      if (identifier.activeApproval && !data.approvals.some(approval => approval.id === identifier.activeApproval.approvalId && (approval.status === "审批中" || ["执行中", "执行失败", "补偿中"].includes(approval.executionStatus)))) identifier.activeApproval = null;
     });
     data.approvals.forEach(approval => {
       if (approval.type === "publish" && !approval.previousTargetStatus) approval.previousTargetStatus = "unpublished";
@@ -984,16 +1176,49 @@
       if (!approval.appReleaseNotes || !Object.keys(approval.appReleaseNotes).length) approval.appReleaseNotes = activeAppNotes(target.appReleaseNotes || {}, target.appNoteMeta || {});
       if (!approval.appNoteMeta) approval.appNoteMeta = clone(target.appNoteMeta || {});
     });
+    data.approvals.forEach((approval, approvalIndex) => {
+      if (!approval.productLine) approval.productLine = data.identifiers.find(identifier => identifier.id === approval.firmwareId || String(approval.version || "").startsWith(`${identifier.id}.`))?.product || "-";
+      if (!Array.isArray(approval.tasks) || !approval.tasks.length) {
+        const legacyUser = data.users.find(user => user.name === approval.approver);
+        approval.tasks = [{
+          sequence: 1,
+          approverUserId: legacyUser?.userId || "",
+          approverNameSnapshot: approval.approver || "-",
+          status: approval.status === "审批通过" ? "已通过" : approval.status === "审批驳回" ? "已驳回" : approval.status === "审批中" ? "审批中" : "已结束",
+          startedAt: approval.submitTime || "-",
+          deadlineAt: "-",
+          completedAt: approval.approveTime || "-",
+          replacementHistory: []
+        }];
+      }
+      approval.policyVersion = approval.policyVersion || "LEGACY";
+      approval.policyId = approval.policyId || "LEGACY";
+      approval.currentTaskIndex = Number.isFinite(Number(approval.currentTaskIndex)) ? Number(approval.currentTaskIndex) : Math.max(0, approval.tasks.findIndex(task => task.status === "审批中"));
+      approval.approvalStatus = approval.approvalStatus || approval.status || "审批中";
+      approval.executionStatus = approval.executionStatus || (approval.status === "审批通过" ? "执行成功" : approval.status === "审批中" ? "未执行" : "不适用");
+      approval.instanceNo = approval.instanceNo || `APR-${String(approvalIndex + 1).padStart(4, "0")}`;
+      if (!Array.isArray(approval.testReportFiles)) approval.testReportFiles = [];
+      if (!Array.isArray(approval.meetingMinutesFiles)) approval.meetingMinutesFiles = [];
+      if (!Array.isArray(approval.copyUserIds)) approval.copyUserIds = [];
+      if (!Array.isArray(approval.notificationStatus)) approval.notificationStatus = [];
+      approval.tasks = approval.tasks.map((task, index) => {
+        const timeout = normalizeTimeout(task);
+        return { ...task, type: task.type || approvalNodeTypeFor(approval.type, index + 1), timeoutUnit: timeout.unit, timeoutValue: timeout.value, timeoutHours: timeout.unit === "day" ? timeout.value * 24 : timeout.value };
+      });
+    });
     return data;
   }
 
   function loadData() {
+    let data;
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      return normalizeDatabase(stored ? JSON.parse(stored) : clone(seed));
+      data = normalizeDatabase(stored ? JSON.parse(stored) : clone(seed));
     } catch (_error) {
-      return normalizeDatabase(clone(seed));
+      data = normalizeDatabase(clone(seed));
     }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (_error) { /* local preview remains functional */ }
+    return data;
   }
 
   let db = loadData();
@@ -1001,6 +1226,7 @@
   let state = {
     route: routeFromHash(),
     groups: { device: true, logs: true, users: true },
+    selectedPolicyProductLine: productLines[0],
     selectedIdentifier: db.identifiers[0]?.id || "",
     selectedRole: db.roles[0]?.name || "",
     roleTab: "permissions",
@@ -1021,8 +1247,9 @@
     modulePage: 1,
     operationPage: 1,
     approvalPage: 1,
+    approvalPolicyPage: 1,
     userPage: 1,
-    pageSizes: { firmware: 20, differentialTasks: 20, differentialPackages: 20, modules: 20, operations: 20, approvals: 20, users: 20 },
+    pageSizes: { firmware: 20, differentialTasks: 20, differentialPackages: 20, modules: 20, operations: 20, approvals: 20, approvalPolicies: 10, users: 20 },
     columns: { url: true, size: true, models: true, devices: true, features: true, creator: true, note: true, updated: true },
     filters: { firmware: "", product: "IPC", lifecycleQuery: "", lifecycleRange: "7d", lifecycleStart: "", lifecycleEnd: "", differentialTask: "", differentialTaskStatus: "", differentialPackage: "", module: "", operation: "", approval: "", user: "", userLines: [], roleUserLines: [], operationStart: defaultAuditRange.start, operationEnd: defaultAuditRange.end, approvalStart: defaultAuditRange.start, approvalEnd: defaultAuditRange.end },
     draftFilters: {},
@@ -1227,6 +1454,11 @@
       toast("当前固件标识已有发布、回滚或下架审批", "warning");
       return false;
     }
+    const policy = activeApprovalPolicy(identifier.product, "publish");
+    if (!policy) {
+      toast("当前产品线未启用正式发布审批方案，暂不能提交正式发布", "warning");
+      return false;
+    }
     const noteError = appNoteConfigurationError(version.appReleaseNotes, normalizeAppNoteMeta(version.appNoteMeta, version.appReleaseNotes));
     if (noteError) {
       toast(`${noteError.message}，请先编辑版本`, "warning");
@@ -1234,11 +1466,11 @@
     }
     const featureError = featureConfigurationError(version.associatedFeatures || [], identifier.product);
     if (featureError) {
-      toast(`${featureError}，请先更新功能点配置`, "warning");
+      toast(`${featureError}，请先更新功能项配置`, "warning");
       return false;
     }
     state.errors = {};
-    state.modal = { type: "publish", version: version.version, reminderPolicy: "", previewLocale: "zh", platformReleaseNotes: version.platformReleaseNotes };
+    state.modal = { type: "publish", version: version.version, reminderPolicy: "", previewLocale: "zh", platformReleaseNotes: version.platformReleaseNotes, testReportFiles: [] };
     return true;
   }
 
@@ -1269,6 +1501,12 @@
 
   function sameValues(left, right) {
     return left.length === right.length && left.every(value => right.includes(value));
+  }
+
+  function changedAppNoteLocales(before = {}, after = {}) {
+    const previous = normalizeAppNotes(before);
+    const next = normalizeAppNotes(after);
+    return defaultLocaleIds.filter(locale => String(previous[locale] || "").trim() !== String(next[locale] || "").trim());
   }
 
   function modelValues(value) {
@@ -1630,9 +1868,392 @@
     return db.approvals.find(item => item.id === id);
   }
 
+  const approvalOperationCatalog = [
+    { value: "publish", label: "正常发布" },
+    { value: "rollback", label: "版本回滚" },
+    { value: "delist", label: "版本下架" }
+  ];
+
+  function approvalOperationLabel(value) {
+    return approvalOperationCatalog.find(item => item.value === value)?.label || value;
+  }
+
+  function approvalPolicyCandidates(productLine) {
+    return db.users.filter(user => user.status === "active" && user.lines.includes(productLine));
+  }
+
+  function approvalPoliciesForLine(productLine) {
+    return db.approvalPolicies.filter(policy => policy.productLine === productLine);
+  }
+
+  function activeApprovalPolicy(productLine, operation) {
+    const matches = db.approvalPolicies.filter(policy => policy.status === "enabled" && policy.productLine === productLine && policy.operations.includes(operation));
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  function policyCoverage(productLine, operation) {
+    const matches = db.approvalPolicies.filter(policy => policy.status === "enabled" && policy.productLine === productLine && policy.operations.includes(operation));
+    if (!matches.length) return { status: "unconfigured", label: "未配置", policies: [] };
+    if (matches.length > 1) return { status: "conflict", label: "配置冲突", policies: matches };
+    return { status: "configured", label: `${matches[0].levelCount} 级串行`, policies: matches };
+  }
+
+  function conflictingApprovalPolicy(productLine, operations, excludedPolicyId = null, enabledOnly = true) {
+    return db.approvalPolicies.find(policy => policy.id !== excludedPolicyId && (!enabledOnly || policy.status === "enabled") && policy.productLine === productLine && policy.operations.some(operation => operations.includes(operation))) || null;
+  }
+
+  function formatDateTime(date) {
+    const pad = value => String(value).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  }
+
+  function normalizeTimeout(node) {
+    const unit = node?.timeoutUnit === "day" ? "day" : "hour";
+    const rawValue = Number(node?.timeoutValue ?? (unit === "day" ? Math.ceil(Number(node?.timeoutHours || 24) / 24) : node?.timeoutHours || 24));
+    return { unit, value: Number.isFinite(rawValue) && rawValue > 0 ? rawValue : unit === "day" ? 1 : 24 };
+  }
+
+  function timeoutLabel(node) {
+    const timeout = normalizeTimeout(node);
+    return `${timeout.value} ${timeout.unit === "day" ? "自然日" : "小时"}`;
+  }
+
+  function deadlineFrom(startTime, timeoutOrNode) {
+    const parsed = new Date(String(startTime).replace(" ", "T"));
+    const start = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+    const timeout = typeof timeoutOrNode === "object" ? normalizeTimeout(timeoutOrNode) : { unit: "hour", value: Number(timeoutOrNode || 24) };
+    if (timeout.unit === "day") {
+      const deadline = new Date(start);
+      deadline.setDate(deadline.getDate() + timeout.value);
+      deadline.setHours(23, 59, 59, 0);
+      return formatDateTime(deadline);
+    }
+    return formatDateTime(new Date(start.getTime() + timeout.value * 60 * 60 * 1000));
+  }
+
+  function currentApprovalTask(approval) {
+    if (!Array.isArray(approval?.tasks)) return null;
+    return approval.tasks.find(task => ["审批中", "已超时"].includes(task.status)) || null;
+  }
+
+  // Formal publish keeps the approved business roles visible in the prototype;
+  // custom policies continue to use their configured user role/level label.
+  function approvalTaskRoleLabel(approval, task) {
+    if (!task) return "通用审批人";
+    if (task.type === "projectManager") return "项目经理";
+    if (["qualityRepresentative", "qualityEngineer"].includes(task.type)) return "质量工程师";
+    if (approval?.type === "publish" && approval.policyId === "POLICY-IPC-FORMAL") {
+      if (task.sequence === 1) return "项目经理";
+      if (task.sequence === 2) return "质量工程师";
+    }
+    const user = db.users.find(item => item.userId === task.approverUserId);
+    return user?.role || approvalNodeTypeLabel(task.type, task.sequence);
+  }
+
+  function approvalViewerOptions(approval) {
+    if (!approval) return [];
+    const options = [];
+    const indexed = new Map();
+    const addViewer = ({ user, fallbackId, fallbackName, fallbackRole, relation }) => {
+      const userId = user?.userId || fallbackId || "";
+      const name = user?.name || fallbackName || "历史用户";
+      const viewerId = userId || `viewer:${name}`;
+      let option = indexed.get(viewerId);
+      if (!option) {
+        option = {
+          viewerId,
+          userId,
+          name,
+          role: fallbackRole || user?.role || "平台用户",
+          status: user?.status || "active",
+          relationships: []
+        };
+        indexed.set(viewerId, option);
+        options.push(option);
+      }
+      if (relation && !option.relationships.some(item => item.kind === relation.kind && item.sequence === relation.sequence)) option.relationships.push(relation);
+    };
+
+    const submitterUser = db.users.find(user => user.name === approval.submitter);
+    addViewer({
+      user: submitterUser,
+      fallbackId: `submitter:${approval.submitter || "unknown"}`,
+      fallbackName: approval.submitter || "历史发起人",
+      fallbackRole: approval.submitter === "汤彦珊" ? "系统管理员" : "发布申请人",
+      relation: { kind: "submitter", label: "发起人" }
+    });
+
+    (approval.tasks || []).forEach(task => {
+      const user = db.users.find(item => item.userId === task.approverUserId) || db.users.find(item => item.name === task.approverNameSnapshot);
+      const taskRole = approvalTaskRoleLabel(approval, task);
+      addViewer({
+        user,
+        fallbackId: task.approverUserId || `task:${task.sequence}:${task.approverNameSnapshot}`,
+        fallbackName: task.approverNameSnapshot,
+        fallbackRole: taskRole,
+        relation: { kind: "approver", sequence: task.sequence, label: `${taskRole} · 第 ${task.sequence} 级`, status: task.status }
+      });
+    });
+
+    (approval.copyUserIds || []).forEach(userId => {
+      const user = db.users.find(item => item.userId === userId);
+      addViewer({ user, fallbackId: userId, fallbackName: userId, fallbackRole: "平台用户", relation: { kind: "copy", label: "结果抄送人" } });
+    });
+
+    const administrator = db.users.find(user => user.role === "系统管理员" && user.status === "active" && user.name !== approval.submitter)
+      || db.users.find(user => user.role === "系统管理员" && user.status === "active");
+    if (administrator) addViewer({ user: administrator, relation: { kind: "administrator", label: "系统管理员" } });
+    return options;
+  }
+
+  function approvalViewerContext(approval, requestedViewerId) {
+    const options = approvalViewerOptions(approval);
+    const viewer = options.find(option => option.viewerId === requestedViewerId)
+      || options.find(option => option.relationships.some(item => item.kind === "submitter"))
+      || options[0]
+      || { viewerId: "", userId: "", name: "未知用户", role: "平台用户", relationships: [] };
+    const activeTask = currentApprovalTask(approval);
+    const matchesTask = task => Boolean(task) && (
+      (viewer.userId && task.approverUserId && viewer.userId === task.approverUserId)
+      || (!task.approverUserId && viewer.name === task.approverNameSnapshot)
+    );
+    const isSubmitter = viewer.relationships.some(item => item.kind === "submitter");
+    const isAdmin = viewer.role === "系统管理员" || viewer.relationships.some(item => item.kind === "administrator");
+    const isTaskApprover = (approval?.tasks || []).some(matchesTask);
+    const isCurrentApprover = approval?.approvalStatus === "审批中" && matchesTask(activeTask);
+    const isCopyUser = viewer.relationships.some(item => item.kind === "copy");
+    const canDecide = isCurrentApprover && !isSubmitter;
+    const canUploadMinutes = canDecide && approval?.type === "publish" && activeTask?.sequence === 1;
+    return {
+      options,
+      viewer,
+      activeTask,
+      isSubmitter,
+      isAdmin,
+      isTaskApprover,
+      isCurrentApprover,
+      isCopyUser,
+      canWithdraw: isSubmitter && approval?.approvalStatus === "审批中",
+      canDecide,
+      canUploadMinutes,
+      canSimulateTimeout: isAdmin && !isSubmitter && approval?.approvalStatus === "审批中" && Boolean(activeTask),
+      canReplaceTask: isAdmin && !isSubmitter && approval?.approvalStatus === "审批中" && approval?.type !== "publish",
+      canHandleExecutionFailure: isAdmin && !isSubmitter && approval?.approvalStatus === "审批通过" && approval?.executionStatus === "执行失败"
+    };
+  }
+
+  function approvalViewerPermissionMessage(approval, context) {
+    if (context.canUploadMinutes) return `你是当前${approvalTaskRoleLabel(approval, context.activeTask)}（第 1 级审批人），需先上传会议纪要，再完成本节点审批。`;
+    if (context.canDecide) return "你是当前审批人，可审批通过或驳回；会议纪要已转为只读审计材料。";
+    if (context.canWithdraw) return "你是本次申请的发起人，可查看进度或撤回申请，但不能审批自己的申请。";
+    if (context.canHandleExecutionFailure) return "你正以系统管理员身份查看，可对审批通过后的执行失败进行重试或终止。";
+    if (context.canSimulateTimeout || context.canReplaceTask) return `你正以系统管理员身份查看，可${context.canReplaceTask ? "替换回滚/下架流程的在途审批人并" : ""}模拟节点超时，不代替当前审批人做决定。`;
+    if (context.isCopyUser && approval?.approvalStatus !== "审批中") return "你是本次审批的结果抄送人，可查看终态结果、审计材料与通知记录。";
+    if (context.isCopyUser) return "你是结果抄送人，当前可只读查看进度，审批终态产生后将收到结果通知。";
+    if (context.isTaskApprover) return "当前尚未轮到你处理，或你负责的节点已完成；当前详情为只读状态。";
+    if (context.isAdmin && context.isSubmitter) return "你是本次申请的发起人；即使同时具备管理员角色，也不能审批或处置自己的申请。";
+    return "当前账号仅可查看本次审批详情，无可执行操作。";
+  }
+
+  function renderApprovalViewerSwitch(approval, modal, context) {
+    const viewer = context.viewer;
+    const relationshipTags = viewer.relationships.map(item => `<span>${esc(item.label)}</span>`).join("");
+    const optionRows = context.options.map(option => {
+      const selected = option.viewerId === viewer.viewerId;
+      const labels = option.relationships.map(item => item.label).join("·");
+      return `<button type="button" class="approval-viewer-option ${selected ? "selected" : ""}" data-action="select-approval-viewer" data-viewer-id="${esc(option.viewerId)}" role="option" aria-selected="${selected}"><span class="approval-viewer-avatar">${esc(String(option.name || "用").slice(0, 1))}</span><span><strong>${esc(option.name)}</strong><small>${esc(option.role)} · ${esc(option.userId || "虚拟账号")}</small><em>${esc(labels)}</em></span>${selected ? `<i aria-hidden="true">✓</i>` : ""}</button>`;
+    }).join("");
+    return `<section class="approval-viewer-bar"><div class="approval-viewer-current"><span class="approval-viewer-avatar">${esc(String(viewer.name || "用").slice(0, 1))}</span><div><small>当前模拟账号</small><strong>${esc(viewer.name)} <em>${esc(viewer.role)}</em></strong><div class="approval-viewer-relations">${relationshipTags}</div></div></div><div class="approval-viewer-switch ${modal.viewerPickerOpen ? "open" : ""}"><button type="button" class="btn approval-viewer-trigger" data-action="toggle-approval-viewer" aria-haspopup="listbox" aria-expanded="${Boolean(modal.viewerPickerOpen)}">切换模拟账号 <span aria-hidden="true">⌄</span></button>${modal.viewerPickerOpen ? `<div class="approval-viewer-popover" role="listbox"><div class="approval-viewer-popover-head"><strong>选择查看身份</strong><span>切换后仅改变可见内容与可操作范围</span></div><div class="approval-viewer-options">${optionRows}</div></div>` : ""}</div><div class="approval-viewer-permission"><strong>身份权限</strong><span>${esc(approvalViewerPermissionMessage(approval, context))}</span></div></section>`;
+  }
+
+  function approvalNodeTypeFor(operation, sequence) {
+    return "generic";
+  }
+
+  function approvalNodeTypeLabel(type, sequence = 0) {
+    if (type === "projectManager") return "项目经理";
+    if (type === "qualityRepresentative") return "质量代表";
+    return sequence ? `第 ${sequence} 级审批人` : "通用审批人";
+  }
+
+  function materialFileSnapshot(file) {
+    return { name: String(file.name || "文件"), size: Number(file.size || 0), sizeMb: (Number(file.size || 0) / 1024 / 1024).toFixed(2), type: String(file.type || ""), uploadedAt: now() };
+  }
+
+  function materialValidation(files, rule) {
+    const list = Array.isArray(files) ? files : [];
+    if (list.length > rule.maxFiles) return `${rule.label}最多上传 ${rule.maxFiles} 个文件`;
+    for (const file of list) {
+      const extension = String(file.name || "").split(".").pop()?.toLowerCase() || "";
+      if (!rule.extensions.includes(extension)) return `${rule.label}仅支持 ${rule.extensions.map(item => `.${item}`).join("、")} 格式`;
+      if (Number(file.size || 0) > rule.maxSizeMb * 1024 * 1024) return `${rule.label}单个文件不能超过 ${rule.maxSizeMb} MB`;
+    }
+    return "";
+  }
+
+  function materialListLabel(files) {
+    return Array.isArray(files) && files.length ? files.map(file => file.name).join("、") : "未上传";
+  }
+
+  function approvalDisplayApprover(approval) {
+    if (!Array.isArray(approval.tasks)) return approval.approver || "-";
+    const currentTask = currentApprovalTask(approval);
+    if (currentTask) return `${currentTask.approverNameSnapshot}（${approvalTaskRoleLabel(approval, currentTask)}）`;
+    const handled = approval.tasks.filter(task => ["已通过", "已驳回"].includes(task.status));
+    return handled.length ? handled.map(task => task.approverNameSnapshot).join(" → ") : approval.approver || "-";
+  }
+
+  function normalizeApprovalPolicyDraftNodes(draft) {
+    let nodes = Array.isArray(draft.nodes) ? draft.nodes.slice(0, 5) : [];
+    if (!nodes.length) nodes.push({ sequence: 1, type: "generic", approverUserId: "", approverName: "", timeoutUnit: "hour", timeoutValue: 24 });
+    draft.nodes = nodes.map((node, index) => ({
+      ...node,
+      sequence: index + 1,
+      type: "generic",
+      timeoutUnit: normalizeTimeout(node).unit,
+      timeoutValue: normalizeTimeout(node).value,
+      timeoutHours: normalizeTimeout(node).unit === "day" ? normalizeTimeout(node).value * 24 : normalizeTimeout(node).value
+    }));
+    draft.levelCount = draft.nodes.length;
+    return draft.nodes;
+  }
+
+  function clearApprovalPolicyNodeErrors() {
+    Object.keys(state.errors).forEach(key => {
+      if (key === "policyNodes" || key.startsWith("policyNode") || key.startsWith("policyTimeout")) delete state.errors[key];
+    });
+  }
+
+  function markApprovalPolicyDirty() {
+    if (state.drawer?.type !== "approvalPolicy") return;
+    state.drawer.dirty = true;
+    const saveButton = app.querySelector('[data-action="save-approval-policy"]');
+    if (saveButton) saveButton.disabled = false;
+    const version = app.querySelector("[data-policy-version]");
+    if (version && state.drawer.policyId && !version.textContent.includes("有未保存修改")) version.textContent += " · 有未保存修改";
+  }
+
+  function approvalPolicyNodeIssue(policy) {
+    if (!String(policy?.name || "").trim()) return "未填写审批方案名称";
+    if (!Array.isArray(policy?.operations) || !policy.operations.length) return "未配置审批操作范围";
+    const nodes = Array.isArray(policy?.nodes) ? policy.nodes : [];
+    if (!nodes.length || nodes.length > 5) return "审批节点数量须为 1–5 级";
+    const seen = new Set();
+    for (const node of nodes) {
+      const user = db.users.find(item => item.userId === node.approverUserId);
+      if (!user || user.status !== "active" || !user.lines.includes(policy.productLine)) return "存在已停用或不属于该产品线的审批人";
+      if (seen.has(node.approverUserId)) return "同一审批人不能重复配置到多个节点";
+      seen.add(node.approverUserId);
+      const timeout = normalizeTimeout(node);
+      if (!Number.isFinite(timeout.value) || timeout.value < 1 || (timeout.unit === "hour" ? timeout.value > 168 : timeout.value > 30)) return "节点超时时间配置无效";
+    }
+    return "";
+  }
+
+  function saveApprovalPolicy() {
+    const drawer = state.drawer;
+    if (drawer?.type !== "approvalPolicy") return false;
+    const draft = drawer.policyDraft;
+    state.errors = {};
+    const nodes = normalizeApprovalPolicyDraftNodes(draft);
+    const existing = drawer.policyId ? db.approvalPolicies.find(policy => policy.id === drawer.policyId) : null;
+    if (existing && !drawer.dirty) {
+      toast("未检测到审批方案变更", "warning");
+      return false;
+    }
+    draft.name = String(draft.name || "").trim();
+    if (!draft.name) state.errors.policyName = "请输入审批方案名称";
+    if (String(draft.description || "").length > 200) state.errors.policyDescription = "方案说明不能超过 200 个字符";
+    if (!draft.operations.length) state.errors.policyOperations = "请至少选择一种审批操作";
+    if (!nodes.length || nodes.length > 5) state.errors.policyNodes = "审批节点数量须为 1–5 级";
+    const configuredApprovers = new Map();
+    nodes.forEach((node, index) => {
+      const user = db.users.find(item => item.userId === node.approverUserId);
+      if (!user || user.status !== "active" || !user.lines.includes(draft.productLine)) state.errors[`policyNode${index}`] = "请选择该产品线下的启用平台用户";
+      if (user && configuredApprovers.has(user.userId)) {
+        const previousIndex = configuredApprovers.get(user.userId);
+        state.errors[`policyNode${previousIndex}`] = "同一审批人不能重复配置到多个节点";
+        state.errors[`policyNode${index}`] = "同一审批人不能重复配置到多个节点";
+      } else if (user) configuredApprovers.set(user.userId, index);
+      const timeout = normalizeTimeout(node);
+      const max = timeout.unit === "day" ? 30 : 168;
+      if (!Number.isFinite(timeout.value) || timeout.value < 1 || timeout.value > max) state.errors[`policyTimeout${index}`] = `请输入 1–${max} ${timeout.unit === "day" ? "自然日" : "小时"}`;
+    });
+    const conflict = conflictingApprovalPolicy(draft.productLine, draft.operations, existing?.id || null, draft.status !== "disabled");
+    if (conflict) state.errors.policyOperations = `审批操作与方案“${conflict.name}”重复，请调整操作范围`;
+    if (Object.keys(state.errors).length) {
+      renderShell();
+      return false;
+    }
+    const stamp = now();
+    const resolvedNodes = nodes.map((node, index) => {
+      const user = db.users.find(item => item.userId === node.approverUserId);
+      const timeout = normalizeTimeout(node);
+      return { sequence: index + 1, type: "generic", approverUserId: user?.userId || node.approverUserId || "", approverName: user?.name || node.approverName || "", timeoutUnit: timeout.unit, timeoutValue: timeout.value, timeoutHours: timeout.unit === "day" ? timeout.value * 24 : timeout.value };
+    });
+    if (existing) {
+      existing.versionNumber = Number(existing.versionNumber || 1) + 1;
+      Object.assign(existing, {
+        name: draft.name,
+        description: String(draft.description || "").trim(),
+        operations: [...draft.operations],
+        levelCount: draft.levelCount,
+        nodes: resolvedNodes,
+        copyUserIds: [...new Set(draft.copyUserIds || [])],
+        status: draft.status === "disabled" ? "disabled" : "enabled",
+        policyVersion: `${existing.id}-V${existing.versionNumber}`,
+        updatedAt: stamp,
+        updatedBy: "汤彦珊"
+      });
+      existing.history.unshift({ policyVersion: existing.policyVersion, name: existing.name, description: existing.description, status: existing.status, operations: clone(existing.operations), nodes: clone(existing.nodes), copyUserIds: clone(existing.copyUserIds), updatedAt: stamp, updatedBy: "汤彦珊" });
+      addOperation("审批配置", "更新", existing.name, "汤彦珊", "成功", `${existing.policyVersion}；${existing.levelCount} 级串行；${existing.operations.map(approvalOperationLabel).join("、")}`);
+    } else {
+      const id = releaseId(`POLICY-${draft.productLine}`);
+      const policy = {
+        id,
+        productLine: draft.productLine,
+        name: draft.name,
+        description: String(draft.description || "").trim(),
+        operations: [...draft.operations],
+        levelCount: draft.levelCount,
+        nodes: resolvedNodes,
+        copyUserIds: [...new Set(draft.copyUserIds || [])],
+        status: draft.status === "disabled" ? "disabled" : "enabled",
+        versionNumber: 1,
+        policyVersion: `${id}-V1`,
+        createdAt: stamp,
+        updatedAt: stamp,
+        updatedBy: "汤彦珊",
+        history: []
+      };
+      policy.history.push({ policyVersion: policy.policyVersion, name: policy.name, description: policy.description, status: policy.status, operations: clone(policy.operations), nodes: clone(policy.nodes), copyUserIds: clone(policy.copyUserIds), updatedAt: stamp, updatedBy: "汤彦珊" });
+      db.approvalPolicies.unshift(policy);
+      addOperation("审批配置", "新增", policy.name, "汤彦珊", "成功", `${policy.policyVersion}；${policy.levelCount} 级串行；${policy.operations.map(approvalOperationLabel).join("、")}`);
+    }
+    persist();
+    closeOverlay();
+    toast(existing ? "审批方案修改已保存，并生成新的版本记录" : "审批方案已保存");
+    return true;
+  }
+
   function addOperation(module, action, resource, user = "汤彦珊", result = "成功", description = "") {
     const role = db.users.find(item => item.name === user)?.role || "系统管理员";
     db.operations.unshift({ time: now(), user, role, module, action, resource, result, description: description || `${action}${module}: [${resource}]` });
+  }
+
+  function recordApprovalNotification(approval, event, recipients = [], result = "sent") {
+    if (!approval) return;
+    const names = [...new Set(recipients.filter(Boolean))];
+    if (!names.length) return;
+    const notification = { id: releaseId("NTF"), approvalId: approval.id, instanceNo: approval.instanceNo, event, channel: "钉钉", recipients: names, result, time: now() };
+    db.notifications.unshift(notification);
+    approval.notificationStatus = Array.isArray(approval.notificationStatus) ? approval.notificationStatus : [];
+    approval.notificationStatus.unshift({ event, channel: "钉钉", recipients: names, result, time: notification.time });
+  }
+
+  function terminalApprovalRecipients(approval) {
+    const users = new Set([approval.submitter, ...(approval.copyUserIds || []).map(userId => db.users.find(user => user.userId === userId)?.name)].filter(Boolean));
+    return [...users];
   }
 
   function addLifecycleEvent(identifier, event) {
@@ -1737,7 +2358,7 @@
         <div class="sidebar-title">固件发布平台</div>
         ${menuGroup("device", "设备固件", "◆", [["firmware", "固件列表"], ["modules", "模组型号"]])}
         ${menuGroup("logs", "日志管理", "▣", [["operations", "操作日志"], ["approvals", "审批日志"]])}
-        ${menuGroup("users", "用户角色", "◆", [["users", "用户列表"], ["roles", "角色权限"]])}
+        ${menuGroup("users", "系统管理", "◆", [["users", "用户列表"], ["roles", "角色权限"], ["approvalPolicies", "审批配置"]])}
       </aside>
       <button class="mobile-backdrop" data-action="toggle-nav" aria-label="关闭菜单"></button>
       <main class="content-shell">${renderPage()}</main>
@@ -1765,6 +2386,31 @@
         else if (itemRect.bottom > listRect.bottom) localeList.scrollTop += itemRect.bottom - listRect.bottom;
       }
     }
+    positionFeaturePickerFloating();
+  }
+
+  function positionFeaturePickerFloating() {
+    if (state.modal?.type !== "featurePicker") return;
+    const featureId = state.modal.versionOpen || state.modal.infoOpen;
+    if (!featureId) return;
+    const floating = app.querySelector(`[data-floating-menu][data-feature-id="${CSS.escape(featureId)}"]`);
+    const anchor = app.querySelector(`[data-action="${state.modal.versionOpen ? "toggle-feature-version-menu" : "toggle-feature-version-info"}"][data-feature-id="${CSS.escape(featureId)}"]`);
+    if (!floating || !anchor) return;
+    const anchorRect = anchor.getBoundingClientRect();
+    const floatingRect = floating.getBoundingClientRect();
+    const modalRect = app.querySelector(".modal.feature-modal")?.getBoundingClientRect();
+    const gap = 6;
+    const margin = 12;
+    let left = anchorRect.left;
+    if (left + floatingRect.width > window.innerWidth - margin) left = window.innerWidth - floatingRect.width - margin;
+    left = Math.max(margin, left);
+    let top = anchorRect.bottom + gap;
+    if (top + floatingRect.height > window.innerHeight - margin) top = Math.max(margin, anchorRect.top - floatingRect.height - gap);
+    const originLeft = modalRect?.left || 0;
+    const originTop = modalRect?.top || 0;
+    floating.style.left = `${left - originLeft}px`;
+    floating.style.top = `${top - originTop}px`;
+    if (state.modal.versionOpen) floating.style.minWidth = `${Math.max(anchorRect.width, 300)}px`;
   }
 
   function renderPage() {
@@ -1773,7 +2419,8 @@
     if (state.route === "operations") return renderOperations();
     if (state.route === "approvals") return renderApprovals();
     if (state.route === "users") return renderUsers();
-    return renderRoles();
+    if (state.route === "roles") return renderRoles();
+    return renderApprovalPolicies();
   }
 
   function pageHeader(title, tools = "", ruleContext = "") {
@@ -1796,13 +2443,14 @@
     }
     const latest = currentVersion(selected);
     const pendingApproval = selected.activeApproval ? approvalById(selected.activeApproval.approvalId) : null;
+    const pendingTask = currentApprovalTask(pendingApproval);
     return `<section class="page tint-page">
       ${header}
       <div class="firmware-layout ${selected.product === "4G模组" && state.firmwareTab !== "firmware" ? "differential-layout" : ""}">
         <aside class="identifier-panel"><h2 class="panel-heading">固件管理</h2><div class="panel-action-with-rule"><button class="btn panel-action" data-action="add-identifier">⊕ 新增标识</button>${ruleAnnotation("identifier", "FID-R01")}</div><div class="identifier-list">${identifiers.map(item => `<button class="identifier-item ${item.id === selected.id ? "active" : ""}" data-action="select-identifier" data-id="${esc(item.id)}">${esc(item.id)}</button>`).join("") || `<div class="muted" style="padding:16px">无匹配标识</div>`}</div></aside>
         <div class="firmware-main ${selected.product === "4G模组" && state.firmwareTab !== "firmware" ? "differential-main" : ""}">
           <div class="summary-band ${selected.product === "4G模组" ? "four-g-summary" : ""}"><div class="summary-head"><div class="module-title-row"><h2>${esc(selected.id)}</h2></div><div class="summary-actions"><button class="btn small" data-action="refresh">↻ 刷新</button><div class="action-with-rules"><div class="popover-wrap"><button class="btn small" data-action="identifier-actions" aria-expanded="${state.popover === "identifier"}">••• 更多</button>${state.popover === "identifier" ? `<div class="action-popover compact-popover"><button data-action="edit-identifier">编辑</button><button class="danger-item" data-action="delete-identifier">删除</button></div>` : ""}</div>${ruleAnnotation("identifier", "FID-R02")}</div></div></div>${renderIdentifierMeta(selected)}</div>
-          ${pendingApproval ? `<div class="approval-banner"><div><strong>${pendingApproval.type === "rollback" ? "回滚审批中" : pendingApproval.type === "delist" ? "下架审批中" : "发布审批中"}</strong><span>${esc(pendingApproval.version)} · 提交人 ${esc(pendingApproval.submitter)} · ${esc(pendingApproval.submitTime)}</span></div><button class="btn small primary" data-action="view-active-approval">查看审批</button></div>` : ""}
+          ${pendingApproval ? `<div class="approval-banner ${pendingApproval.executionStatus === "执行失败" ? "execution-failed" : pendingTask?.status === "已超时" ? "overdue" : ""}"><div><strong>${pendingApproval.executionStatus === "执行失败" ? `${approvalOperationLabel(pendingApproval.type)}执行失败` : pendingTask?.status === "已超时" ? `${approvalTaskRoleLabel(pendingApproval, pendingTask)}节点已超时` : `等待${approvalTaskRoleLabel(pendingApproval, pendingTask)}`}</strong><span>${esc(pendingApproval.version)} · ${pendingApproval.executionStatus === "执行失败" ? "审批已通过，等待执行补偿" : `${esc(pendingTask?.approverNameSnapshot || pendingApproval.approver)} · ${esc(pendingTask?.status === "已超时" ? "超时后仍可继续审批" : `截止 ${pendingTask?.deadlineAt || "-"}`)}`} · ${esc(pendingApproval.submitTime)}</span></div><button class="btn small primary" data-action="view-active-approval">${pendingApproval.executionStatus === "执行失败" ? "处理异常" : "查看审批"}</button></div>` : ""}
           <div class="tab-strip firmware-tabs"><button class="tab ${state.firmwareTab === "firmware" ? "active" : ""}" data-action="firmware-subtab" data-tab="firmware">固件列表</button><button class="tab ${state.firmwareTab === "lifecycle" ? "active" : ""}" data-action="firmware-subtab" data-tab="lifecycle">发布日志</button>${selected.product === "4G模组" ? `<button class="tab ${state.firmwareTab === "onlineDifferential" ? "active" : ""}" data-action="firmware-subtab" data-tab="onlineDifferential">在线差分</button><button class="tab ${state.firmwareTab === "differentialPackages" ? "active" : ""}" data-action="firmware-subtab" data-tab="differentialPackages">差分包列表</button>` : ""}</div>
           ${renderFirmwareTabContent(selected, latest)}
         </div>
@@ -1838,7 +2486,7 @@
   }
 
   function lifecycleFlowStatusLabel(status) {
-    return ({ active: "当前生效", superseded: "历史发布", pending: "审批中", rejected: "审批驳回", failed: "发布失败", rolled_back: "已回滚", delisted: "已下架", completed: "已完成" })[status] || status;
+    return ({ active: "当前生效", superseded: "历史发布", pending: "审批中", rejected: "审批驳回", withdrawn: "审批已撤回", failed: "发布失败", rolled_back: "已回滚", delisted: "已下架", completed: "已完成" })[status] || status;
   }
 
   function lifecycleFlowStatusClass(status) {
@@ -2005,7 +2653,7 @@
   }
 
   function renderColumnPopover() {
-    const labels = { url: "下载地址", size: "文件大小（M）", models: "适用机型", devices: "关联设备数", features: "功能点数", creator: "创建人", note: "平台发布说明", updated: "更新时间" };
+    const labels = { url: "下载地址", size: "文件大小（M）", models: "适用机型", devices: "关联设备数", features: "功能项数", creator: "创建人", note: "平台发布说明", updated: "更新时间" };
     return `<div class="action-popover column-popover"><strong>列设置</strong><label class="check"><input type="checkbox" checked disabled>固件版本号</label>${Object.entries(labels).map(([key, label]) => `<label class="check"><input type="checkbox" data-column="${key}" ${state.columns[key] ? "checked" : ""}>${label}</label>`).join("")}<label class="check"><input type="checkbox" checked disabled>操作</label></div>`;
   }
 
@@ -2033,7 +2681,7 @@
     const columns = state.columns;
     const pageSize = state.pageSizes.firmware;
     const rows = identifier.versions.slice((state.firmwarePage - 1) * pageSize, state.firmwarePage * pageSize);
-    const headers = [`<th style="width:150px">固件版本号</th>`, columns.url && `<th style="width:230px">下载地址</th>`, columns.size && `<th style="width:105px">文件大小（M）</th>`, columns.models && `<th style="width:125px">适用机型</th>`, columns.devices && `<th style="width:145px" title="符合该版本适用机型的绑定设备数"><span class="table-rule-header">关联设备数${ruleAnnotation("identifier", "FID-R04")}</span></th>`, columns.features && `<th style="width:90px">功能点数</th>`, columns.creator && `<th style="width:120px">创建人</th>`, columns.note && `<th style="width:190px">平台发布说明</th>`, columns.updated && `<th style="width:170px">更新时间</th>`, `<th style="width:220px"><span class="table-rule-header table-operation-rules">操作${ruleAnnotations([["detail", "DET-R03"], ["publish", "PUB-R01"], ["publish", "PUB-R02"], ["version", "VER-R05"], ["version", "VER-R08"]])}</span></th>`].filter(Boolean).join("");
+    const headers = [`<th style="width:150px">固件版本号</th>`, columns.url && `<th style="width:230px">下载地址</th>`, columns.size && `<th style="width:105px">文件大小（M）</th>`, columns.models && `<th style="width:125px">适用机型</th>`, columns.devices && `<th style="width:145px" title="符合该版本适用机型的绑定设备数"><span class="table-rule-header">关联设备数${ruleAnnotation("identifier", "FID-R04")}</span></th>`, columns.features && `<th style="width:90px">功能项数</th>`, columns.creator && `<th style="width:120px">创建人</th>`, columns.note && `<th style="width:190px">平台发布说明</th>`, columns.updated && `<th style="width:170px">更新时间</th>`, `<th style="width:220px"><span class="table-rule-header table-operation-rules">操作${ruleAnnotations([["detail", "DET-R03"], ["publish", "PUB-R01"], ["publish", "PUB-R02"], ["version", "VER-R05"], ["version", "VER-R08"]])}</span></th>`].filter(Boolean).join("");
     return `<div class="table-wrap firmware-table-wrap"><table class="data-table firmware-version-table ${state.density}"><thead><tr>${headers}</tr></thead><tbody>${rows.map(version => {
       const editable = canEditVersion(identifier, version);
       const publishable = versionPublishEligibility(identifier, version).allowed;
@@ -2069,7 +2717,7 @@
     const filtered = db.approvals.filter(item => (!query || item.version.toLowerCase().includes(query)) && (!state.filters.approvalStart || item.submitTime.slice(0, 10) >= state.filters.approvalStart) && (!state.filters.approvalEnd || item.submitTime.slice(0, 10) <= state.filters.approvalEnd));
     const pageSize = state.pageSizes.approvals;
     const rows = filtered.slice((state.approvalPage - 1) * pageSize, state.approvalPage * pageSize);
-    return `<section class="page plain-page">${pageHeader("审批日志")}<div class="filter-bar"><input class="field search-field" data-draft="approval" value="${esc(state.draftFilters.approval ?? state.filters.approval)}" placeholder="固件版本号" aria-label="固件版本号"><div class="date-range"><input class="date-field" type="date" data-draft="approvalStart" value="${esc(state.draftFilters.approvalStart ?? state.filters.approvalStart)}" aria-label="开始日期"><span>至</span><input class="date-field" type="date" data-draft="approvalEnd" value="${esc(state.draftFilters.approvalEnd ?? state.filters.approvalEnd)}" aria-label="结束日期"></div><span class="action-with-rules"><button class="btn primary" data-action="query-approvals">查询</button>${ruleAnnotation("audit", "AUD-R06")}</span><button class="btn" data-action="reset-approvals">重置</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>固件版本号</th><th>审批类型</th><th>提交人</th><th>提交时间</th><th>审批人</th><th><span class="table-rule-header">审批状态${ruleAnnotation("audit", "AUD-R05")}</span></th><th>审批时间</th><th>说明</th></tr></thead><tbody>${rows.map(item => { const statusClass = item.status === "审批通过" ? "success" : /驳回|失效|过期/.test(item.status) ? "danger" : "warning"; return `<tr><td>${esc(item.version)}</td><td>${esc(item.event)}</td><td>${esc(item.submitter)}</td><td>${esc(item.submitTime)}</td><td>${esc(item.approver)}</td><td><span class="tag ${statusClass}">${esc(item.status)}</span></td><td>${esc(item.approveTime)}</td><td>${esc(item.note)}</td></tr>`; }).join("")}</tbody></table></div>${pagination(filtered.length, state.approvalPage, "approval-page", "approvals")}</section>`;
+    return `<section class="page plain-page">${pageHeader("审批日志")}<div class="filter-bar"><input class="field search-field" data-draft="approval" value="${esc(state.draftFilters.approval ?? state.filters.approval)}" placeholder="固件版本号" aria-label="固件版本号"><div class="date-range"><input class="date-field" type="date" data-draft="approvalStart" value="${esc(state.draftFilters.approvalStart ?? state.filters.approvalStart)}" aria-label="开始日期"><span>至</span><input class="date-field" type="date" data-draft="approvalEnd" value="${esc(state.draftFilters.approvalEnd ?? state.filters.approvalEnd)}" aria-label="结束日期"></div><span class="action-with-rules"><button class="btn primary" data-action="query-approvals">查询</button>${ruleAnnotation("audit", "AUD-R06")}</span><button class="btn" data-action="reset-approvals">重置</button></div><div class="table-wrap"><table class="data-table approval-log-table"><thead><tr><th>固件版本号</th><th>审批类型</th><th>产品线</th><th>策略版本</th><th>提交人 / 时间</th><th>当前审批人 / 节点</th><th><span class="table-rule-header">审批状态${ruleAnnotation("audit", "AUD-R05")}</span></th><th>执行状态</th><th>操作</th></tr></thead><tbody>${rows.map(item => { const approvalStatus = item.approvalStatus || item.status; const statusClass = approvalStatus === "审批通过" ? "success" : /驳回|撤回|失效|过期|超时/.test(approvalStatus) ? "danger" : "warning"; const executionClass = item.executionStatus === "执行成功" ? "success" : /失败|终止/.test(item.executionStatus) ? "danger" : "warning"; return `<tr><td><strong>${esc(item.version)}</strong></td><td>${esc(item.event)}</td><td>${esc(item.productLine || item.firmwareId?.split(".").slice(0, 3).join(".") || "-")}</td><td>${esc(item.policyVersion || "LEGACY")}</td><td>${esc(item.submitter)}<small class="table-subline">${esc(item.submitTime)}</small></td><td>${esc(approvalDisplayApprover(item))}<small class="table-subline">${(item.tasks || []).length} 级串行</small></td><td><span class="tag ${statusClass}">${esc(approvalStatus)}</span></td><td><span class="tag ${executionClass}">${esc(item.executionStatus || "-")}</span></td><td>${item.id ? `<button class="link-btn" data-action="open-approval-log" data-approval-id="${esc(item.id)}">详情</button>` : "-"}</td></tr>`; }).join("")}</tbody></table></div>${pagination(filtered.length, state.approvalPage, "approval-page", "approvals")}</section>`;
   }
 
   function renderUsers() {
@@ -2080,7 +2728,53 @@
     const rows = filtered.slice((state.userPage - 1) * pageSize, state.userPage * pageSize);
     const draftLines = state.userLineDraft || lineFilters;
     const linePopover = state.popover === "userLine" ? `<div class="action-popover user-line-popover"><div class="user-line-options">${productLines.map(line => `<label class="check"><input type="checkbox" data-user-line-filter="${esc(line)}" ${draftLines.includes(line) ? "checked" : ""}>${esc(line)}</label>`).join("")}</div><div class="filter-popover-actions"><button class="btn small primary" data-action="apply-user-line-filter">筛选</button><button class="btn small" data-action="reset-user-line-filter">重置</button></div></div>` : "";
-    return `<section class="page plain-page">${pageHeader("用户列表")}<div class="filter-bar"><input class="field search-field" data-draft="user" value="${esc(state.draftFilters.user ?? state.filters.user)}" placeholder="请输入用户账号名称，按enter搜索" aria-label="用户账号名称"><button class="btn primary" data-action="query-users">查询</button><button class="btn" data-action="reset-users">重置</button></div><div class="user-table-area"><div class="table-wrap"><table class="data-table"><thead><tr><th style="width:190px">账号名称</th><th style="width:190px">关联角色</th><th>所属产线 <button class="table-filter-btn ${lineFilters.length ? "active" : ""}" data-action="user-line-filter" aria-label="按所属产线过滤">▽</button></th><th style="width:190px">创建时间</th><th style="width:245px">操作</th></tr></thead><tbody>${rows.map(item => `<tr><td>${esc(item.name)}</td><td>${esc(item.role)}</td><td class="cell-truncate" title="${esc(item.lines.join(" / "))}">${esc(item.lines.join(" / "))}</td><td>${esc(item.created)}</td><td><div class="cell-actions"><button class="link-btn" data-action="user-detail" data-user-index="${db.users.indexOf(item)}">详情</button><span class="action-with-rules"><button class="link-btn" data-action="user-permissions" data-user-index="${db.users.indexOf(item)}">权限配置</button>${ruleAnnotation("audit", "AUD-R04")}</span></div></td></tr>`).join("")}</tbody></table></div>${linePopover}</div>${pagination(filtered.length, state.userPage, "user-page", "users")}</section>`;
+    return `<section class="page plain-page">${pageHeader("用户列表")}<div class="filter-bar"><input class="field search-field" data-draft="user" value="${esc(state.draftFilters.user ?? state.filters.user)}" placeholder="请输入用户账号名称，按enter搜索" aria-label="用户账号名称"><button class="btn primary" data-action="query-users">查询</button><button class="btn" data-action="reset-users">重置</button></div><div class="user-table-area"><div class="table-wrap"><table class="data-table"><thead><tr><th style="width:190px">账号名称</th><th style="width:150px">用户 ID</th><th style="width:170px">关联角色</th><th>所属产线 <button class="table-filter-btn ${lineFilters.length ? "active" : ""}" data-action="user-line-filter" aria-label="按所属产线过滤">▽</button></th><th style="width:100px">账号状态</th><th style="width:190px">创建时间</th><th style="width:245px">操作</th></tr></thead><tbody>${rows.map(item => `<tr><td>${esc(item.name)}</td><td>${esc(item.userId)}</td><td>${esc(item.role)}</td><td class="cell-truncate" title="${esc(item.lines.join(" / "))}">${esc(item.lines.join(" / "))}</td><td><span class="tag ${item.status === "active" ? "success" : ""}">${item.status === "active" ? "启用" : "停用"}</span></td><td>${esc(item.created)}</td><td><div class="cell-actions"><button class="link-btn" data-action="user-detail" data-user-index="${db.users.indexOf(item)}">详情</button><span class="action-with-rules"><button class="link-btn" data-action="user-permissions" data-user-index="${db.users.indexOf(item)}">权限配置</button>${ruleAnnotation("audit", "AUD-R04")}</span></div></td></tr>`).join("")}</tbody></table></div>${linePopover}</div>${pagination(filtered.length, state.userPage, "user-page", "users")}</section>`;
+  }
+
+  function newApprovalPolicyDraft(productLine) {
+    return {
+      name: `${productLine} 固件变更审批`,
+      productLine,
+      description: "",
+      operations: [],
+      levelCount: 1,
+      status: "enabled",
+      copyUserIds: [],
+      nodes: [{ sequence: 1, type: "generic", approverUserId: "", approverName: "", timeoutUnit: "hour", timeoutValue: 24, timeoutHours: 24 }]
+    };
+  }
+
+  function renderApprovalPolicies() {
+    const productLine = state.selectedPolicyProductLine || productLines[0];
+    const policies = approvalPoliciesForLine(productLine);
+    const pageSize = state.pageSizes.approvalPolicies || 10;
+    const totalPages = Math.max(1, Math.ceil(policies.length / pageSize));
+    state.approvalPolicyPage = Math.min(Math.max(1, state.approvalPolicyPage || 1), totalPages);
+    const visiblePolicies = policies.slice((state.approvalPolicyPage - 1) * pageSize, state.approvalPolicyPage * pageSize);
+    const coverages = approvalOperationCatalog.map(operation => ({ operation: operation.value, operationLabel: operation.label, coverage: policyCoverage(productLine, operation.value) }));
+    const lineItems = productLines.map(line => {
+      const lineCoverages = approvalOperationCatalog.map(operation => policyCoverage(line, operation.value));
+      const configuredCount = lineCoverages.filter(coverage => coverage.status === "configured").length;
+      const hasConflict = lineCoverages.some(coverage => coverage.status === "conflict");
+      return `<button class="policy-line-item ${line === productLine ? "active" : ""}" data-action="select-policy-line" data-product-line="${esc(line)}"><span>${esc(line)}</span><small class="${hasConflict ? "conflict" : ""}">${hasConflict ? "配置冲突" : `${configuredCount} / 3`}</small></button>`;
+    }).join("");
+    const policyRows = visiblePolicies.map(policy => {
+      const approvers = policy.nodes.map(node => node.approverName || "未选择").join(" → ");
+      return `<tr><td><div class="policy-name-cell"><strong>${esc(policy.name)}</strong><small>${esc(policy.id)}</small>${policy.description ? `<em>${esc(policy.description)}</em>` : ""}</div></td><td><div class="policy-operation-tags">${policy.operations.map(operation => `<span class="policy-operation-tag ${operation}">${esc(approvalOperationLabel(operation))}</span>`).join("") || "-"}</div></td><td><div class="policy-flow-cell"><strong>${policy.levelCount} 级审批</strong><small title="${esc(approvers)}">${esc(approvers || "未配置审批人")}</small><small>终态抄送 ${(policy.copyUserIds || []).length} 人</small></div></td><td><span class="tag ${policy.status === "enabled" ? "success" : ""}">${policy.status === "enabled" ? "已启用" : "已停用"}</span><strong class="policy-version-code">${esc(policy.policyVersion.replace(`${policy.id}-`, ""))}</strong></td><td>${esc(policy.updatedAt)}</td><td><div class="cell-actions policy-row-actions"><button class="link-btn" data-action="edit-approval-policy" data-policy-id="${esc(policy.id)}">编辑</button><button class="link-btn" data-action="toggle-approval-policy" data-policy-id="${esc(policy.id)}">${policy.status === "enabled" ? "停用" : "启用"}</button><button class="link-btn" data-action="policy-version-history" data-policy-id="${esc(policy.id)}">版本记录</button></div></td></tr>`;
+    }).join("");
+    const operationCards = coverages.map(item => {
+      const coverage = item.coverage;
+      const icon = item.operation === "publish" ? "↗" : item.operation === "rollback" ? "↻" : "▣";
+      const configured = coverage.status === "configured";
+      const conflict = coverage.status === "conflict";
+      const cardStatus = configured ? "已配置" : conflict ? "配置冲突" : "待配置";
+      const cardDetail = configured ? `${coverage.policies[0].levelCount} 级审批` : conflict ? "请调整重复方案的操作范围" : "尚未配置审批方案";
+      return `<article class="policy-operation-card ${item.operation} ${coverage.status}"><span class="policy-operation-icon">${icon}</span><div><strong>${esc(item.operationLabel)}</strong><span class="policy-card-status ${configured ? "configured" : conflict ? "conflict" : ""}">${cardStatus}</span><small>${esc(cardDetail)}</small></div></article>`;
+    }).join("");
+    const tableContent = policies.length
+      ? `<div class="table-wrap"><table class="data-table policy-table"><thead><tr><th>方案名称</th><th>操作范围</th><th>审批流程</th><th>当前版本</th><th>更新时间</th><th>操作</th></tr></thead><tbody>${policyRows}</tbody></table></div>${pagination(policies.length, state.approvalPolicyPage, "approval-policy-page", "approvalPolicies")}`
+      : `<div class="policy-empty"><div class="empty-illustration">▤</div><strong>${esc(productLine)} 暂未配置审批方案</strong><p>发布、回滚、下架均不可提交审批。</p></div>`;
+    return `<section class="page policy-page"><div class="policy-breadcrumb"><span>审批配置</span><i>/</i><strong>${esc(productLine)}</strong></div><div class="policy-layout"><aside class="policy-line-panel" aria-label="产品线"><h2>产品线</h2><div class="policy-line-list">${lineItems}</div></aside><main class="policy-main"><header class="policy-overview"><div><span>当前产品线</span><h2>配置 ${esc(productLine)} 产品线的固件发布审批流程</h2><p>发布、回滚与下架均支持配置 1–5 级串行审批，可共用方案或分别配置。</p></div></header><section class="policy-operation-section"><div class="policy-section-title"><h2>审批操作</h2><span>每项操作只能由一个已启用审批方案负责</span></div><div class="policy-operation-cards">${operationCards}</div></section><section class="policy-list-section"><div class="policy-section-title"><div><h2>审批方案列表</h2><span>按角色权限控制查看、新建、编辑、启停和版本记录；保存后自动生成新版本。</span></div><button class="btn primary" data-action="add-approval-policy">＋ 新建审批方案</button></div>${tableContent}</section></main></div></section>`;
   }
 
   function renderRoles() {
@@ -2099,7 +2793,7 @@
       const menuKey = `menu-${row.menu}`;
       const pageKey = row.page ? `page-${row.page}` : "";
       const checked = key => system || permissions[key] === true;
-      return `<tr><td><label class="check"><input type="checkbox" data-permission="${esc(menuKey)}" data-prefix="${prefix}" ${checked(menuKey) ? "checked" : ""} ${editable && !system ? "" : "disabled"}>${esc(row.menu)}</label></td><td>${row.page ? `<label class="check"><input type="checkbox" data-permission="${esc(pageKey)}" data-prefix="${prefix}" ${checked(pageKey) ? "checked" : ""} ${editable && !system ? "" : "disabled"}>${esc(row.page)}</label>` : "-"}</td><td><div class="check-grid">${row.actions.length ? row.actions.map(action => { const key = `action-${action}`; return `<label class="check"><input type="checkbox" data-permission="${esc(key)}" data-prefix="${prefix}" ${checked(key) ? "checked" : ""} ${editable && !system ? "" : "disabled"}>${esc(action)}</label>`; }).join("") : "-"}</div></td></tr>`;
+      return `<tr><td><label class="check"><input type="checkbox" data-permission="${esc(menuKey)}" data-prefix="${prefix}" ${checked(menuKey) ? "checked" : ""} ${editable && !system ? "" : "disabled"}>${esc(row.menu)}</label></td><td>${row.page ? `<label class="check"><input type="checkbox" data-permission="${esc(pageKey)}" data-prefix="${prefix}" ${checked(pageKey) ? "checked" : ""} ${editable && !system ? "" : "disabled"}>${esc(row.page)}</label>` : "-"}</td><td><div class="check-grid">${row.actions.length ? row.actions.map(action => { const key = `action-${action}`; const adminOnly = systemAdminOnlyActions.has(action); return `<label class="check ${adminOnly ? "admin-only-permission" : ""}" ${adminOnly ? `title="仅系统管理员可执行"` : ""}><input type="checkbox" data-permission="${esc(key)}" data-prefix="${prefix}" ${system || (!adminOnly && checked(key)) ? "checked" : ""} ${editable && !system && !adminOnly ? "" : "disabled"}>${esc(action)}${adminOnly ? `<small>管理员专属</small>` : ""}</label>`; }).join("") : "-"}</div></td></tr>`;
     }).join("")}</tbody></table></div>`;
   }
 
@@ -2132,6 +2826,7 @@
       "下架审批已提交": [["delist", "DEL-R06"], ["delist", "DEL-R07"]],
       "固件版本下架成功": [["delist", "DEL-R08"], ["delist", "DEL-R09"]],
       "删除固件版本": [["version", "VER-R08"]],
+      "选择配置功能": [["version", "VER-R03"], ["version", "VER-R09"], ["version", "VER-R10"]],
       "警告提示": [["differential", "DIF-R07"], ["differential", "DIF-R08"]],
       "新增角色": [["audit", "AUD-R04"]],
       "编辑角色": [["audit", "AUD-R04"]],
@@ -2150,7 +2845,9 @@
   }
 
   function modalFrame(title, body, footer = "", wide = false, nested = false) {
-    return `<section class="modal ${wide ? "wide" : ""} ${body.includes('class="app-reminder-layout"') ? "release-modal" : ""} ${body.includes('class="feature-picker"') ? "feature-modal" : ""} ${nested ? "nested-modal" : ""} ${animateCurrentModal ? "is-entering" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header class="dialog-header"><div class="frame-title-with-rules"><h2>${esc(title)}</h2>${ruleAnnotations(frameRuleItems(title, "modal"))}</div><button class="close-btn" data-action="${nested ? "close-modal" : "close-overlay"}" aria-label="关闭">×</button></header><div class="dialog-body">${body}</div>${footer ? `<footer class="dialog-footer">${footer}</footer>` : ""}</section>`;
+    const featureModal = body.includes("feature-picker-modal");
+    const approvalDetailModal = /审批详情$/.test(title);
+    return `<section class="modal ${wide ? "wide" : ""} ${approvalDetailModal ? "approval-detail-modal" : ""} ${body.includes('class="app-reminder-layout"') ? "release-modal" : ""} ${featureModal ? "feature-modal" : ""} ${nested ? "nested-modal" : ""} ${animateCurrentModal ? "is-entering" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header class="dialog-header"><div class="frame-title-with-rules"><h2>${esc(title)}</h2>${featureModal ? "" : ruleAnnotations(frameRuleItems(title, "modal"))}</div><button class="close-btn" data-action="${nested ? "close-modal" : "close-overlay"}" aria-label="关闭">×</button></header><div class="dialog-body">${body}</div>${footer ? `<footer class="dialog-footer">${footer}</footer>` : ""}</section>`;
   }
 
   function drawerFrame(title, body, footer = "", narrow = false) {
@@ -2199,7 +2896,13 @@
       return `<div class="feature-snapshot-row ${changed ? "changed" : ""}"><span>${esc(next?.name || previous?.name || id)}</span><strong>${changed ? `${esc(previousValue)} <b>→</b> ${esc(targetValue)}` : esc(targetValue)}</strong><p>${esc(next?.versionDescription || previous?.versionDescription || "-")}</p><em>${changed ? next ? previous ? "版本变化" : "新增" : "移除" : "无变化"}</em></div>`;
     });
     const changedCount = ids.filter(id => currentFeatures.get(id)?.featureVersionId !== targetFeatures.get(id)?.featureVersionId).length;
-    return `<section class="publish-snapshot"><div class="publish-snapshot-head"><div><h3>${annotatedLabel("发布内容快照", [["publish", "PUB-R04"]])}</h3><span>提交后与提醒策略一起进入审批快照</span></div><strong>功能点 ${targetFeatures.size} 项 · ${changedCount} 项变化</strong></div><div class="publish-summary-grid"><span>${annotatedLabel("预计影响设备", [["identifier", "FID-R04"]])}<strong>${formatDeviceCount(target.associatedDeviceCount)} 台</strong></span><span>适用机型<strong>${esc(target.models)}</strong></span><span>平台发布说明<strong>${esc(target.platformReleaseNotes)}</strong></span></div><div class="feature-snapshot"><div class="feature-snapshot-head"><span>功能点</span><strong>当前版本 → 目标版本</strong><p>版本说明</p><em>结果</em></div>${rows.join("") || `<div class="feature-snapshot-empty">目标版本未配置功能点</div>`}</div></section>`;
+    return `<section class="publish-snapshot"><div class="publish-snapshot-head"><div><h3>${annotatedLabel("发布内容快照", [["publish", "PUB-R04"]])}</h3><span>提交后与提醒策略一起进入审批快照</span></div><strong>功能项 ${targetFeatures.size} 项 · ${changedCount} 项变化</strong></div><div class="publish-summary-grid"><span>${annotatedLabel("预计影响设备", [["identifier", "FID-R04"]])}<strong>${formatDeviceCount(target.associatedDeviceCount)} 台</strong></span><span>适用机型<strong>${esc(target.models)}</strong></span><span>平台发布说明<strong>${esc(target.platformReleaseNotes)}</strong></span></div><div class="feature-snapshot"><div class="feature-snapshot-head"><span>功能项</span><strong>当前版本 → 目标版本</strong><p>版本说明</p><em>结果</em></div>${rows.join("") || `<div class="feature-snapshot-empty">目标版本未配置功能项</div>`}</div></section>`;
+  }
+
+  function renderMaterialUploadField(fieldId, files, rule, errorKey, readonly = false, materialKind = errorKey) {
+    const list = Array.isArray(files) ? files : [];
+    const rows = list.length ? `<div class="approval-material-list">${list.map((file, index) => `<div class="approval-material-item"><span class="approval-material-icon">▤</span><div><strong title="${esc(file.name)}">${esc(file.name)}</strong><small>${esc(file.sizeMb || ((Number(file.size || 0) / 1024 / 1024).toFixed(2)))} MB · ${esc(file.uploadedAt || "已随审批快照保存")}</small></div><div class="approval-material-actions"><button class="link-btn" type="button" data-action="download-approval-material" data-material-kind="${esc(materialKind)}" data-material-index="${index}">查看</button>${readonly ? "" : `<button class="link-btn danger-link" type="button" data-action="remove-approval-material" data-material-kind="${esc(materialKind)}" data-material-index="${index}">移除</button>`}</div></div>`).join("")}</div>` : `<div class="approval-material-empty">尚未上传${rule.label}</div>`;
+    return `<section class="approval-material-upload ${readonly ? "readonly" : ""}"><div class="field-rule-row"><div><strong>${esc(rule.label)}</strong><span>支持 PDF、DOC/DOCX、XLS/XLSX；最多 ${rule.maxFiles} 个，单个不超过 ${rule.maxSizeMb} MB</span></div>${readonly ? `<span class="tag blue">快照只读</span>` : `<label class="btn small"><input id="${fieldId}" class="hidden" type="file" multiple accept=".${rule.extensions.join(',.')}">上传附件</label>`}</div>${rows}${errorKey ? errorFor(errorKey) : ""}</section>`;
   }
 
   function renderRollbackResultModal(modal) {
@@ -2212,19 +2915,91 @@
 
   function renderApprovalSimulation(modal) {
     const approval = approvalById(modal.approvalId);
+    if (!approval) return modalFrame("审批详情", `<div class="empty-state compact-empty"><div>审批记录已不存在</div></div>`, `<button class="btn primary" data-action="close-overlay">关闭</button>`);
     const rollback = approval.type === "rollback";
     const delist = approval.type === "delist";
+    const publish = approval.type === "publish";
     const actionLabel = delist ? "下架" : rollback ? "回滚" : "发布";
+    const viewerContext = approvalViewerContext(approval, modal.viewerId);
+    const viewerBar = renderApprovalViewerSwitch(approval, modal, viewerContext);
     const snapshot = delist
       ? `<div class="approval-snapshot"><span>审批事件<strong>${esc(approval.event)}</strong></span><span>下架版本<strong>${esc(approval.version)}</strong></span><span>关联设备快照<strong>${formatDeviceCount(approval.associatedDeviceCount)} 台</strong></span><span>适用机型<strong>${esc(approval.models)}</strong></span><span>下架原因<strong>${esc(approval.reasonType)}</strong></span><span>提交人<strong>${esc(approval.submitter)}</strong></span><span>提交时间<strong>${esc(approval.submitTime)}</strong></span><span>具体说明<strong>${esc(approval.reason)}</strong></span></div>`
-      : `<div class="approval-snapshot"><span>审批事件<strong>${esc(approval.event)}</strong></span><span>目标版本<strong>${esc(approval.version)}</strong></span><span>APP 提醒<strong>${esc(reminderLabel(approval.reminderPolicy))}</strong></span><span>APP 说明<strong>${Object.keys(approval.appReleaseNotes || {}).length} 种语言</strong></span><span>功能点<strong>${(approval.associatedFeatures || []).length} 项配置</strong></span><span>提交人<strong>${esc(approval.submitter)}</strong></span><span>提交时间<strong>${esc(approval.submitTime)}</strong></span></div>`;
-    return modalFrame(delist ? "下架审批已提交" : rollback ? "回滚审批已提交" : "发布审批已提交", `${ruleContextBar([delist ? "delist" : rollback ? "rollback" : "publish", "concurrency"])}<div class="approval-submit-result"><div class="approval-result-icon">✓</div><h3>审批单已进入钉钉审批</h3><p>当前发布版本保持不变，审批通过后平台会重新校验快照并执行${actionLabel}事务。</p>${snapshot}<div class="prototype-simulation-note">原型审批模拟</div></div>`, `<button class="btn danger" data-action="simulate-approval-reject">模拟审批驳回</button><button class="btn primary" data-action="simulate-approval-approve">模拟审批通过</button>`, true);
+      : `<div class="approval-snapshot"><span>审批事件<strong>${esc(approval.event)}</strong></span><span>目标版本<strong>${esc(approval.version)}</strong></span><span>APP 提醒<strong>${esc(reminderLabel(approval.reminderPolicy))}</strong></span><span>APP 说明<strong>${Object.keys(approval.appReleaseNotes || {}).length} 种语言</strong></span><span>功能项<strong>${(approval.associatedFeatures || []).length} 项配置</strong></span><span>提交人<strong>${esc(approval.submitter)}</strong></span><span>提交时间<strong>${esc(approval.submitTime)}</strong></span></div>`;
+    const tasks = approval.tasks || [];
+    const activeTask = currentApprovalTask(approval);
+    const taskRows = tasks.map(task => {
+      const statusClass = task.status === "已通过" ? "success" : task.status === "已驳回" || task.status === "已超时" ? "danger" : task.status === "审批中" ? "blue" : "";
+      const replaceable = viewerContext.canReplaceTask && ["审批中", "未激活"].includes(task.status);
+      const active = ["审批中", "已超时"].includes(task.status);
+      const timing = task.status === "已超时"
+        ? `已于 ${esc(task.timedOutAt || task.deadlineAt || "-")} 超时，仍可处理`
+        : task.status === "审批中"
+          ? `截止 ${esc(task.deadlineAt)}`
+          : task.completedAt && task.completedAt !== "-" ? esc(task.completedAt) : "等待上一级通过";
+      const decision = task.decision ? `<small class="approval-task-decision">${task.status === "已通过" && task.timedOutAt ? "超时后" : ""}${esc(task.decision)}${task.decisionNote ? `：${esc(task.decisionNote)}` : ""}</small>` : "";
+      return `<div class="approval-task-row ${active ? "active" : ""} ${task.status === "已超时" ? "overdue" : ""}"><span class="approval-task-index">${task.sequence}</span><div><span class="approval-node-role">${esc(approvalTaskRoleLabel(approval, task))}</span><strong>${esc(task.approverNameSnapshot)}</strong><small>${esc(task.approverUserId || "历史用户")} · 时限 ${esc(timeoutLabel(task))}</small>${decision}</div><div><span class="tag ${statusClass}">${esc(task.status)}</span><small>${timing}</small></div>${replaceable ? `<button class="link-btn" data-action="replace-approval-task" data-task-sequence="${task.sequence}">替换</button>` : `<span></span>`}</div>`;
+    }).join("");
+    const executionClass = approval.executionStatus === "执行成功" ? "success" : approval.executionStatus === "执行失败" || approval.executionStatus === "已终止" ? "danger" : "warning";
+    const headerCopy = approval.executionStatus === "执行失败" ? "业务执行失败，审批结果仍有效" : approval.approvalStatus === "审批中" ? `等待${approvalTaskRoleLabel(approval, activeTask)}处理` : `${approval.approvalStatus} · ${approval.executionStatus}`;
+    const failureNotice = approval.executionStatus === "执行失败" ? `<div class="execution-failure-notice"><strong>审批已通过，业务执行未完成</strong><span>${esc(approval.executionMessage || "版本状态复检或发布事务执行失败")}。固件标识继续锁定，可由管理员重试或终止并转人工补偿。</span></div>` : "";
+    const canEditMinutes = viewerContext.canUploadMinutes;
+    const materials = publish ? `<section class="approval-audit-materials" data-approval-section="materials"><div class="policy-section-head"><div><h3>审计材料</h3><span>提交后形成只读快照；材料变更需撤回并重新发起审批</span></div><span class="approval-section-count">${(approval.testReportFiles || []).length + (approval.meetingMinutesFiles || []).length} 个附件</span></div>${renderMaterialUploadField("approval-test-report-readonly", approval.testReportFiles || [], releaseMaterialRules.testReport, "", true, "testReport")}${renderMaterialUploadField("meeting-minutes-file", approval.meetingMinutesFiles || [], releaseMaterialRules.meetingMinutes, "meetingMinutes", !canEditMinutes, "meetingMinutes")}</section>` : "";
+    const copyUsers = (approval.copyUserIds || []).map(userId => db.users.find(user => user.userId === userId)?.name).filter(Boolean);
+    const notifications = (approval.notificationStatus || []).map(item => `<div class="approval-notification-row"><span>钉钉</span><div><strong>${esc(item.event)}</strong><small>${esc(item.time)} · ${esc((item.recipients || []).join("、") || "无收件人")}</small></div><em class="${item.result === "sent" ? "sent" : ""}">${item.result === "sent" ? "已发送" : esc(item.result)}</em></div>`).join("");
+    const notificationSection = `<section class="approval-notification-section" data-approval-section="notifications"><div class="policy-section-head"><div><h3>终态结果通知</h3><span>仅审批驳回或业务执行完成时发送；超时和撤回不抄送</span></div><strong>${copyUsers.length ? esc(copyUsers.join("、")) : "未配置抄送人"}</strong></div>${notifications ? `<div class="approval-notification-list">${notifications}</div>` : `<div class="approval-material-empty">当前尚未产生终态通知</div>`}</section>`;
+    const decisionPanel = viewerContext.canDecide ? `<section class="approval-decision-panel" data-approval-section="decision"><div class="approval-decision-heading"><div><span>当前待你审批的节点</span><strong>${esc(approvalTaskRoleLabel(approval, activeTask))} · ${esc(activeTask?.approverNameSnapshot || "-")}</strong></div><span class="tag ${activeTask?.status === "已超时" ? "danger" : "blue"}">${esc(activeTask?.status || "审批中")}</span></div><div class="approval-decision-help"><span class="approval-decision-help-icon">i</span><span>${activeTask?.status === "已超时" ? "该节点已超时，但仍可继续处理；处理结果会记录超时后审批。" : "请先核对审计材料，再提交审批结果。审批通过时意见可不填，驳回时必须填写原因。"}</span></div><div class="form-field"><label>审批意见 <span class="optional-label">（审批通过时选填）</span></label><textarea class="textarea" data-modal-field="approvalNote" maxlength="300" placeholder="可填写审核结论或补充说明">${esc(modal.approvalNote || "")}</textarea><div class="helper align-right">${String(modal.approvalNote || "").length} / 300</div></div><div class="form-field required"><label>驳回原因</label><textarea class="textarea" data-modal-field="rejectionReason" maxlength="300" placeholder="点击审批驳回时必填">${esc(modal.rejectionReason || "")}</textarea>${errorFor("rejectionReason")}<div class="helper align-right">${String(modal.rejectionReason || "").length} / 300</div></div></section>` : "";
+    const footerActions = [`<button class="btn" data-action="close-overlay">关闭</button>`];
+    if (viewerContext.canWithdraw) footerActions.push(`<button class="btn danger-outline" data-action="request-withdraw-approval">撤回申请</button>`);
+    if (viewerContext.canSimulateTimeout) footerActions.push(`<button class="btn" data-action="simulate-approval-timeout" ${activeTask?.status === "已超时" ? "disabled" : ""}>模拟节点超时</button>`);
+    if (viewerContext.canDecide) {
+      const missingMinutes = publish && activeTask?.sequence === 1 && !(approval.meetingMinutesFiles || []).length;
+      footerActions.push(`<button class="btn danger" data-action="simulate-approval-reject">审批驳回</button>`);
+      footerActions.push(`<button class="btn primary" data-action="simulate-approval-approve" ${missingMinutes ? "disabled" : ""}>审批通过</button>`);
+    }
+    if (viewerContext.canHandleExecutionFailure) {
+      footerActions.push(`<button class="btn danger-outline" data-action="terminate-approved-execution">终止并释放锁</button>`);
+      footerActions.push(`<button class="btn primary" data-action="retry-approved-execution">重试执行</button>`);
+    }
+    const approvalClass = approval.approvalStatus === "审批通过" ? "success" : /驳回|撤回/.test(approval.approvalStatus) ? "danger" : "blue";
+    const sectionNav = `<nav class="approval-section-nav" aria-label="审批详情分区"><span>快速定位</span>${publish ? `<button type="button" data-action="approval-scroll-section" data-target="materials">审计材料</button>` : ""}<button type="button" data-action="approval-scroll-section" data-target="flow">审批流转</button>${viewerContext.canDecide ? `<button type="button" data-action="approval-scroll-section" data-target="decision">填写审批</button>` : ""}<button type="button" data-action="approval-scroll-section" data-target="notifications">通知记录</button></nav>`;
+    const focusStrip = activeTask ? `<div class="approval-focus-strip ${activeTask.status === "已超时" ? "overdue" : ""}"><span class="approval-focus-kicker">当前处理节点</span><div><strong>${esc(approvalTaskRoleLabel(approval, activeTask))} · ${esc(activeTask.approverNameSnapshot || "-")}</strong><small>第 ${activeTask.sequence} 级 · ${activeTask.status === "已超时" ? `已超时，原截止 ${esc(activeTask.deadlineAt || "-")}` : `截止 ${esc(activeTask.deadlineAt || "-")}`}</small></div><span class="tag ${activeTask.status === "已超时" ? "danger" : "blue"}">${esc(activeTask.status)}</span></div>` : `<div class="approval-focus-strip terminal"><span class="approval-focus-kicker">审批结果</span><div><strong>${esc(approval.approvalStatus)}</strong><small>${esc(approval.executionStatus)} · ${esc(approval.approveTime && approval.approveTime !== "-" ? approval.approveTime : approval.submitTime)}</small></div><span class="tag ${approvalClass}">${esc(approval.approvalStatus)}</span></div>`;
+    const footerHint = viewerContext.canDecide
+      ? `<strong>当前节点：${esc(approvalTaskRoleLabel(approval, activeTask))}</strong><span>${publish && activeTask?.sequence === 1 && !(approval.meetingMinutesFiles || []).length ? "请先上传会议纪要附件" : "确认审批结果后提交"}</span>`
+      : `<strong>${esc(approval.instanceNo || approval.id)}</strong><span>${viewerContext.canWithdraw ? "可撤回本次申请" : "当前为只读查看"}</span>`;
+    const footer = `<div class="approval-footer-context">${footerHint}</div><div class="approval-footer-actions">${footerActions.join("")}</div>`;
+    const replacementBoundary = approval.type === "publish"
+      ? `<div class="approval-replacement-boundary locked"><strong>审批节点快照已锁定</strong><span>发起人不能审批自己的申请；各级审批人不得重复，正式发布节点审批人不可在审批中替换。</span></div>`
+      : `<div class="approval-replacement-boundary ${viewerContext.canReplaceTask ? "" : "locked"}"><strong>${viewerContext.canReplaceTask ? "管理员可替换在途节点" : "在途节点受权限保护"}</strong><span>${viewerContext.canReplaceTask ? "仅影响当前审批实例；替换当前节点后，超时时间重新计算。" : "仅系统管理员可替换回滚或下架审批的在途节点。"}</span></div>`;
+    return modalFrame(`${actionLabel}审批详情`, `${ruleContextBar([delist ? "delist" : rollback ? "rollback" : "publish", "concurrency"])}${viewerBar}${focusStrip}${sectionNav}<div class="approval-instance-head"><div><span>${esc(approval.policyNameSnapshot || "历史审批方案")} · ${esc(approval.instanceNo || approval.id)}</span><h3>${esc(headerCopy)}</h3></div><div><span class="tag ${approvalClass}">${esc(approval.approvalStatus)}</span><span class="tag ${executionClass}">${esc(approval.executionStatus)}</span></div></div>${failureNotice}${snapshot}${materials}<section class="approval-task-section" data-approval-section="flow"><div class="policy-section-head"><div><h3>审批流转</h3><span>${esc(approval.policyVersion)} · ${tasks.length} 级串行 · 节点快照已冻结</span></div></div>${replacementBoundary}<div class="approval-task-list">${taskRows}</div></section>${decisionPanel}${notificationSection}<div class="prototype-simulation-note">角色切换仅用于原型权限演示，审批记录与钉钉通知机制保持不变</div>`, footer, true);
   }
 
   function renderModal() {
     const modal = state.modal;
+    if (modal.type === "replaceApprovalTask") {
+      const approval = approvalById(modal.approvalId);
+      const task = approval?.tasks?.find(item => item.sequence === modal.taskSequence);
+      const assignedUserIds = new Set((approval?.tasks || []).filter(item => item.sequence !== task?.sequence).map(item => item.approverUserId));
+      const candidates = approvalPolicyCandidates(approval?.productLine || "").filter(user => user.userId !== task?.approverUserId && !assignedUserIds.has(user.userId));
+      if (!approval || !task) return modalFrame("替换审批人", `<div class="empty-state compact-empty"><div>审批节点已不存在</div></div>`, `<button class="btn primary" data-action="close-overlay">关闭</button>`);
+      if (approval.type === "publish") return modalFrame("替换审批人", `<div class="empty-state compact-empty"><div>发布审批不允许替换审批人，请返回审批详情继续处理。</div></div>`, `<button class="btn primary" data-action="cancel-replace-approval-task">返回审批详情</button>`);
+      const candidateNotice = candidates.length ? "" : `<div class="error-text replacement-candidate-empty">当前产品线没有未占用的启用用户，请先维护用户后再替换。</div>`;
+      return modalFrame("替换审批人", `<div class="replace-task-summary"><span>审批方案<strong>${esc(approval.policyNameSnapshot || approval.policyVersion)}</strong></span><span>审批节点<strong>第 ${task.sequence} 级 · ${esc(task.status)}</strong></span><span>当前审批人<strong>${esc(task.approverNameSnapshot)} · ${esc(task.approverUserId)}</strong></span></div><div class="form-field required"><label>新审批人</label><select class="select" data-modal-field="replacementUserId" ${candidates.length ? "" : "disabled"}><option value="">请选择该产品线下未占用的启用用户</option>${candidates.map(user => `<option value="${esc(user.userId)}" ${modal.replacementUserId === user.userId ? "selected" : ""}>${esc(user.name)} · ${esc(user.role)} · ${esc(user.userId)}</option>`).join("")}</select>${candidateNotice}${errorFor("replacementUser")}</div><div class="form-field required replacement-reason-field"><label>替换原因</label><textarea class="textarea" data-modal-field="replacementReason" maxlength="200" placeholder="请填写离职、休假、职责调整等替换原因">${esc(modal.replacementReason || "")}</textarea>${errorFor("replacementReason")}</div><div class="notice">替换只影响当前审批实例，不修改审批方案版本。若替换当前节点，超时时间将从替换完成时重新计算。</div>`, `<button class="btn" data-action="cancel-replace-approval-task">取消</button><button class="btn primary" data-action="confirm-replace-approval-task" ${candidates.length ? "" : "disabled"}>确认替换</button>`);
+    }
+    if (modal.type === "withdrawApproval") {
+      const approval = approvalById(modal.approvalId);
+      if (!approval || approval.approvalStatus !== "审批中") return modalFrame("撤回审批申请", `<div class="empty-state compact-empty"><div>该审批已结束，不能撤回</div></div>`, `<button class="btn primary" data-action="close-overlay">关闭</button>`);
+      return modalFrame("撤回审批申请", `<div class="withdraw-approval-summary"><span>审批单<strong>${esc(approval.instanceNo || approval.id)}</strong></span><span>固件版本<strong>${esc(approval.version)}</strong></span><span>当前节点<strong>${esc(approvalTaskRoleLabel(approval, currentApprovalTask(approval)))}</strong></span></div><div class="notice">撤回后本次审批立即结束，材料与审批记录转为只读；再次发布必须新建审批并重新走完整流程。本期撤回不发送终态抄送。</div><div class="form-field required withdrawal-reason-field"><label>撤回原因</label><textarea class="textarea" data-modal-field="withdrawalReason" maxlength="300" placeholder="请说明撤回原因">${esc(modal.withdrawalReason || "")}</textarea>${errorFor("withdrawalReason")}</div>`, `<button class="btn" data-action="cancel-withdraw-approval">取消</button><button class="btn danger" data-action="confirm-withdraw-approval">确认撤回</button>`);
+    }
+    if (modal.type === "retryApprovedExecution") {
+      const approval = approvalById(modal.approvalId);
+      if (!approval || approval.executionStatus !== "执行失败") return modalFrame("管理员兜底重试", `<div class="empty-state compact-empty"><div>该审批当前不需要执行补偿</div></div>`, `<button class="btn primary" data-action="close-overlay">关闭</button>`);
+      return modalFrame("管理员兜底重试", `<div class="withdraw-approval-summary"><span>审批单<strong>${esc(approval.instanceNo || approval.id)}</strong></span><span>固件版本<strong>${esc(approval.version)}</strong></span><span>原发起人<strong>${esc(approval.submitter)}</strong></span></div><div class="notice">审批结果保持有效。管理员仅在发起人无法处理时兜底重试，重试原因将写入操作日志。</div><div class="form-field required withdrawal-reason-field"><label>兜底重试原因</label><textarea class="textarea" data-modal-field="adminRetryReason" maxlength="300" placeholder="请说明代发起人执行重试的原因">${esc(modal.adminRetryReason || "")}</textarea>${errorFor("adminRetryReason")}</div>`, `<button class="btn" data-action="cancel-admin-retry-execution">取消</button><button class="btn primary" data-action="confirm-admin-retry-execution">确认重试</button>`);
+    }
     if (modal.type === "discardVersionChanges") {
       return modalFrame("放弃未保存的修改？", `<p class="confirm-copy">当前版本信息尚未保存，关闭后本次修改将丢失。</p>`, `<button class="btn" data-action="close-modal">继续编辑</button><button class="btn danger" data-action="confirm-discard-version">放弃修改</button>`, false, true);
+    }
+    if (modal.type === "discardApprovalPolicyChanges") {
+      return modalFrame("放弃未保存的修改？", `<p class="confirm-copy">审批方案存在未保存的修改，关闭后本次配置将丢失。</p>`, `<button class="btn" data-action="close-modal">继续编辑</button><button class="btn danger" data-action="confirm-discard-version">放弃修改</button>`, false, true);
     }
     if (modal.type === "addIdentifier") {
       const modelOptions = [...new Set(db.identifiers.map(item => item.models).filter(Boolean))];
@@ -2267,7 +3042,9 @@
       const identifier = activeIdentifier();
       const targetVersion = findVersion(modal.version);
       const current = currentVersion(identifier);
-      return modalFrame("提交固件发布审批", `<div class="release-impact"><div><span>当前发布版本</span><strong>${esc(current?.version || "-")}</strong></div><div class="impact-arrow">→</div><div><span>${annotatedLabel("目标发布版本", [["publish", "PUB-R03"]])}</span><strong>${esc(targetVersion.version)}</strong></div></div><div class="app-reminder-layout"><div class="publish-primary-column"><section class="app-reminder-choice"><div class="field-rule-row"><div class="section-label required">APP 提醒方式</div>${ruleAnnotations([["reminder", "REM-R01"], ["reminder", "REM-R03"]])}</div>${renderReminderOptions(modal.reminderPolicy)}${errorFor("reminderPolicy")}</section>${renderReleaseSnapshot(current, targetVersion)}</div>${renderAppReminderPreview(modal, targetVersion)}</div>`, `<button class="btn" data-action="close-overlay">取消</button><span class="action-with-rules"><button class="btn primary" data-action="confirm-publish">提交发布审批</button>${ruleAnnotations([["publish", "PUB-R03"], ["concurrency", "CON-R01"]])}</span>`, true);
+      const policy = activeApprovalPolicy(identifier.product, "publish");
+      const approverSummary = policy?.nodes?.map((node, index) => `${index + 1}. ${node.approverName || "待配置"}`).join(" → ") || "未配置";
+      return modalFrame("提交固件发布审批", `<div class="release-impact"><div><span>当前发布版本</span><strong>${esc(current?.version || "-")}</strong></div><div class="impact-arrow">→</div><div><span>${annotatedLabel("目标发布版本", [["publish", "PUB-R03"]])}</span><strong>${esc(targetVersion.version)}</strong></div></div><div class="formal-release-boundary"><strong>正式发布需完成审批与材料审计</strong><span>提交后测试报告进入不可替换的审批快照；第 1 级审批节点须上传会议纪要，各级按方案顺序全部通过后自动正式发布。</span></div><div class="release-approval-summary"><span>审批顺序<strong>${esc(approverSummary)}</strong></span><span>终态抄送<strong>${policy?.copyUserIds?.length ? `${policy.copyUserIds.length} 位用户` : "未配置"}</strong></span></div>${renderMaterialUploadField("test-report-file", modal.testReportFiles || [], releaseMaterialRules.testReport, "testReport")}<div class="app-reminder-layout"><div class="publish-primary-column"><section class="app-reminder-choice"><div class="field-rule-row"><div class="section-label required">APP 提醒方式</div>${ruleAnnotations([["reminder", "REM-R01"], ["reminder", "REM-R03"]])}</div>${renderReminderOptions(modal.reminderPolicy)}${errorFor("reminderPolicy")}</section>${renderReleaseSnapshot(current, targetVersion)}</div>${renderAppReminderPreview(modal, targetVersion)}</div>`, `<button class="btn" data-action="close-overlay">取消</button><span class="action-with-rules"><button class="btn primary" data-action="confirm-publish">提交发布审批</button>${ruleAnnotations([["publish", "PUB-R03"], ["concurrency", "CON-R01"]])}</span>`, true);
     }
     if (modal.type === "rollback") {
       const identifier = activeIdentifier();
@@ -2275,7 +3052,7 @@
       const targetVersion = rollbackTarget(identifier);
       const currentLocales = Object.keys(current.appReleaseNotes || {});
       const targetLocales = Object.keys(targetVersion.appReleaseNotes || {});
-      return modalFrame("撤销并回滚版本", `<div class="rollback-heading"><strong>${annotatedLabel(`当前版本 ${current.version} 将被撤销`, [["rollback", "RBK-R01"], ["rollback", "RBK-R02"]])}</strong><span>审批通过后恢复至唯一回滚目标 ${esc(targetVersion.version)}</span></div><div class="rollback-compare"><div class="compare-head"><span>${annotatedLabel("对比项", [["rollback", "RBK-R03"]])}</span><strong>当前发布版本</strong><strong>回滚目标版本</strong><span>变化</span></div>${[["固件版本号", current.version, targetVersion.version, "切换目标"], ["版本状态", "当前发布", "历史发布", "恢复生效"], ["适用机型", current.models, targetVersion.models, current.models === targetVersion.models ? "无变化" : "存在差异"], ["功能点配置", `${current.associatedFeatures.length} 项`, `${targetVersion.associatedFeatures.length} 项`, current.associatedFeatures.length === targetVersion.associatedFeatures.length ? "无变化" : "存在差异"], ["APP 说明", `${currentLocales.length} 种语言`, `${targetLocales.length} 种语言`, sameValues(currentLocales, targetLocales) ? "无变化" : "覆盖变化"]].map(row => `<div class="compare-row"><span>${esc(row[0])}</span><strong>${esc(row[1])}</strong><strong>${esc(row[2])}</strong><em class="${row[3].includes("差异") || row[3].includes("变化") ? "changed" : ""}">${esc(row[3])}</em></div>`).join("")}</div><div class="form-field required"><div class="field-rule-row"><label>本次 APP 提醒方式</label>${ruleAnnotations([["reminder", "REM-R02"], ["reminder", "REM-R03"]])}</div>${renderReminderOptions(modal.reminderPolicy)}${errorFor("reminderPolicy")}</div><div class="form-field required"><div class="field-rule-row"><label>回滚原因</label>${ruleAnnotation("rollback", "RBK-R03")}</div><textarea class="textarea" data-modal-field="reason" maxlength="500" placeholder="请说明问题表现、影响范围、回滚原因及后续处理计划">${esc(modal.reason || "")}</textarea>${errorFor("rollbackReason")}<div class="helper align-right">${(modal.reason || "").length} / 500</div></div>`, `<button class="btn" data-action="close-overlay">取消</button><span class="action-with-rules"><button class="btn primary" data-action="confirm-rollback">提交回滚审批</button>${ruleAnnotations([["rollback", "RBK-R04"], ["concurrency", "CON-R01"]])}</span>`, true);
+      return modalFrame("撤销并回滚版本", `<div class="rollback-heading"><strong>${annotatedLabel(`当前版本 ${current.version} 将被撤销`, [["rollback", "RBK-R01"], ["rollback", "RBK-R02"]])}</strong><span>审批通过后恢复至唯一回滚目标 ${esc(targetVersion.version)}</span></div><div class="rollback-compare"><div class="compare-head"><span>${annotatedLabel("对比项", [["rollback", "RBK-R03"]])}</span><strong>当前发布版本</strong><strong>回滚目标版本</strong><span>变化</span></div>${[["固件版本号", current.version, targetVersion.version, "切换目标"], ["版本状态", "当前发布", "历史发布", "恢复生效"], ["适用机型", current.models, targetVersion.models, current.models === targetVersion.models ? "无变化" : "存在差异"], ["功能项配置", `${current.associatedFeatures.length} 项`, `${targetVersion.associatedFeatures.length} 项`, current.associatedFeatures.length === targetVersion.associatedFeatures.length ? "无变化" : "存在差异"], ["APP 说明", `${currentLocales.length} 种语言`, `${targetLocales.length} 种语言`, sameValues(currentLocales, targetLocales) ? "无变化" : "覆盖变化"]].map(row => `<div class="compare-row"><span>${esc(row[0])}</span><strong>${esc(row[1])}</strong><strong>${esc(row[2])}</strong><em class="${row[3].includes("差异") || row[3].includes("变化") ? "changed" : ""}">${esc(row[3])}</em></div>`).join("")}</div><div class="form-field required"><div class="field-rule-row"><label>本次 APP 提醒方式</label>${ruleAnnotations([["reminder", "REM-R02"], ["reminder", "REM-R03"]])}</div>${renderReminderOptions(modal.reminderPolicy)}${errorFor("reminderPolicy")}</div><div class="form-field required"><div class="field-rule-row"><label>回滚原因</label>${ruleAnnotation("rollback", "RBK-R03")}</div><textarea class="textarea" data-modal-field="reason" maxlength="500" placeholder="请说明问题表现、影响范围、回滚原因及后续处理计划">${esc(modal.reason || "")}</textarea>${errorFor("rollbackReason")}<div class="helper align-right">${(modal.reason || "").length} / 500</div></div>`, `<button class="btn" data-action="close-overlay">取消</button><span class="action-with-rules"><button class="btn primary" data-action="confirm-rollback">提交回滚审批</button>${ruleAnnotations([["rollback", "RBK-R04"], ["concurrency", "CON-R01"]])}</span>`, true);
     }
     if (modal.type === "delist") {
       const identifier = activeIdentifier();
@@ -2332,50 +3109,83 @@
   function renderFeaturePicker() {
     const modal = state.modal;
     const identifier = activeIdentifier();
-    const availableFeatures = availableAssociatedFeatures();
+    const allSources = availableAssociatedFeatures();
     const query = String(modal.query || "").trim().toLowerCase();
-    const categories = [...new Set(availableFeatures.map(feature => feature.category))];
-    const category = modal.featureCategory || "";
-    const filtered = availableFeatures.filter(feature =>
-      (!query || `${feature.name} ${feature.identifier} ${feature.category}`.toLowerCase().includes(query)) &&
-      (!category || feature.category === category)
-    );
-    const requiredSources = requiredFeatureSourcesForProduct(identifier.product);
-    const requiredIds = new Set(requiredSources.map(feature => feature.id));
-    const optionalSources = optionalFeatureSourcesForProduct(identifier.product);
-    const selectedIds = [...new Set([...requiredIds, ...(modal.selectedIds || [])])];
+    const category = String(modal.featureCategory || "");
+    const categoryOptions = [...new Set(allSources.map(feature => feature.category).filter(Boolean))].sort((left, right) => left.localeCompare(right, "zh-CN"));
+    const matchesFilter = feature => {
+      const searchable = `${feature.name} ${feature.identifier} ${feature.category || ""} ${feature.description || ""}`.toLowerCase();
+      return (!query || searchable.includes(query)) && (!category || feature.category === category);
+    };
+    const requiredSources = requiredFeatureSourcesForProduct(identifier.product).filter(matchesFilter);
+    const allRequiredIds = new Set(requiredFeatureSourcesForProduct(identifier.product).map(feature => feature.id));
+    const optionalSources = optionalFeatureSourcesForProduct(identifier.product).filter(matchesFilter);
+    const selectedIds = [...new Set([...allRequiredIds, ...(modal.selectedIds || [])])];
     const currentSnapshots = state.drawer?.associatedFeatures || [];
-    const selected = selectedIds.map(id => availableFeatures.find(feature => feature.id === id) || sourceFeatureBySnapshot(currentSnapshots.find(feature => feature.id === id)) || currentSnapshots.find(feature => feature.id === id)).filter(Boolean);
-    const selectableFiltered = filtered.filter(feature => !requiredIds.has(feature.id) && (defaultFeatureVersion(feature) || selectedIds.includes(feature.id)));
-    const allSelected = selectableFiltered.length && selectableFiltered.every(feature => selectedIds.includes(feature.id));
-    const optionList = filtered.map(feature => {
-      const eligible = eligibleFeatureVersions(feature);
-      const checked = selectedIds.includes(feature.id);
-      const unavailable = !eligible.length;
-      const required = requiredIds.has(feature.id);
-      const control = required ? `<span class="required-feature-lock" title="固件必配功能由系统自动配置">✓</span>` : `<input type="checkbox" data-feature-choice="${esc(feature.id)}" ${checked ? "checked" : ""} ${unavailable && !checked ? "disabled" : ""}>`;
-      const content = `${control}<span class="feature-image-placeholder">${esc(feature.imageLabel)}</span><span class="feature-source-copy"><strong>${esc(feature.name)}</strong><small>${esc(feature.identifier)} · ${esc(feature.category)}</small></span><span class="feature-source-version"><strong>${eligible.length ? `${eligible.length} 个可用版本` : "暂无可关联版本"}</strong><small>${esc(defaultFeatureVersion(feature)?.code || featureVersionStatusLabel(feature.versions[0]))}</small></span>`;
-      return required ? `<div class="feature-source-option selected required-feature">${content}</div>` : `<label class="feature-source-option ${checked ? "selected" : ""} ${unavailable ? "unavailable" : ""}">${content}</label>`;
-    }).join("");
-    const selectedList = selected.map(feature => {
-      const source = associatedFeatureCatalog.find(item => item.id === feature.id);
+    const firmwareVersion = state.drawer?.formDraft?.version || state.upload?.version || "待解析";
+    const versionSelections = modal.versionSelections || {};
+    const hasSelection = id => Object.prototype.hasOwnProperty.call(versionSelections, id);
+    const selectionFor = (source, previous = null) => hasSelection(source.id)
+      ? versionSelections[source.id]
+      : previous?.featureVersionId || defaultConfigurableFeatureVersion(source)?.id || "";
+    const sourceFor = feature => associatedFeatureCatalog.find(item => item.id === feature?.id) || sourceFeatureBySnapshot(feature);
+    const selected = selectedIds.map(id => availableAssociatedFeatures().find(feature => feature.id === id) || sourceFor(currentSnapshots.find(feature => feature.id === id)) || currentSnapshots.find(feature => feature.id === id)).filter(Boolean);
+    const selectedOptionalCount = selected.filter(feature => !allRequiredIds.has(feature.id)).length;
+    const selectedRequiredCount = selected.filter(feature => allRequiredIds.has(feature.id)).length;
+    const selectedCount = selected.length;
+    const missingVersionFeatures = selected.filter(feature => {
+      const source = sourceFor(feature);
       const previous = currentSnapshots.find(item => item.id === feature.id);
-      const required = isRequiredFeature(source || feature);
-      if (!source) return `<article class="selected-feature-version invalid"><div class="selected-feature-head"><div><strong>${esc(feature.name || "未知功能点")}</strong><small>${esc(feature.identifier || "来源已失效")}</small></div>${required ? "" : `<button class="link-btn danger-link" data-action="unselect-feature" data-feature-id="${esc(feature.id)}">移除</button>`}</div><div class="feature-version-error">该功能点已不在机型平台功能目录中${required ? "，请联系机型平台管理员恢复功能源" : "，请移除后再发布"}</div></article>`;
-      const selectedVersionId = modal.versionSelections?.[source.id] || previous?.featureVersionId || defaultFeatureVersion(source)?.id || "";
-      const selectedVersion = source.versions.find(version => version.id === selectedVersionId) || null;
-      const draftSnapshot = selectedVersion ? associatedFeatureSnapshot(source, selectedVersion.id, previous) : { id: source.id, name: source.name };
-      const issue = featureAssociationIssue(draftSnapshot, identifier.product);
-      const versionOptions = source.versions.map(version => {
-        const selectable = version.status === "published";
-        const date = version.releasedAt || version.createdAt || "-";
-        return `<option value="${esc(version.id)}" ${version.id === selectedVersionId ? "selected" : ""} ${selectable ? "" : "disabled"}>${esc(version.code)} · ${esc(featureVersionStatusLabel(version))} · ${esc(date)}</option>`;
+      return !source || !selectionFor(source, previous) || !configurableFeatureVersions(source).length;
+    });
+    const canConfirm = missingVersionFeatures.length === 0 && selected.every(feature => {
+      const source = sourceFor(feature);
+      const previous = currentSnapshots.find(item => item.id === feature.id);
+      const selectedVersionId = source ? selectionFor(source, previous) : "";
+      const version = source?.versions?.find(item => item.id === selectedVersionId);
+      if (!source || !version) return false;
+      const issue = featureAssociationIssue(associatedFeatureSnapshot(source, version.id, previous), identifier.product);
+      return !issue || version.status === "testing";
+    });
+
+    const versionStatusLabelForPicker = version => version?.status === "testing" ? "测试中" : version ? "已发布" : "";
+    const versionStatusClass = version => version?.status === "testing" ? "warning" : "success";
+    const renderVersionMenu = (source, selectedVersionId) => {
+      if (modal.versionOpen !== source.id) return "";
+      const options = (source.versions || []).map(version => {
+        const selectable = ["published", "testing"].includes(version.status);
+        return `<button type="button" class="feature-version-option ${version.id === selectedVersionId ? "selected" : ""} ${selectable ? "" : "disabled"}" data-action="select-feature-version" data-feature-id="${esc(source.id)}" data-version-id="${esc(version.id)}" ${selectable ? "" : "disabled"}><span class="feature-version-radio" aria-hidden="true"></span><span class="feature-version-option-copy"><span class="feature-version-option-head"><strong>${esc(version.code)}</strong><span class="tag ${versionStatusClass(version)}">${esc(versionStatusLabelForPicker(version))}</span></span><small>${esc(version.description || "暂无版本说明")}</small></span></button>`;
       }).join("");
-      return `<article class="selected-feature-version ${required ? "required" : ""} ${issue ? "invalid" : ""}"><div class="selected-feature-head"><div><strong>${esc(source.name)}</strong><small>${esc(source.identifier)} · ${esc(source.category)}</small></div>${required ? "" : `<button class="link-btn danger-link" data-action="unselect-feature" data-feature-id="${esc(source.id)}">移除</button>`}</div><div class="feature-version-control"><div><label>配置版本 ${ruleAnnotations([["version", "VER-R09"], ["version", "VER-R10"]])}</label><select class="select" data-feature-version data-feature-id="${esc(source.id)}" aria-label="${esc(source.name)}配置版本">${versionOptions}</select></div><span class="tag ${issue ? "danger" : "success"}">${esc(featureVersionStatusLabel(selectedVersion))}</span></div><p>${esc(selectedVersion?.description || "请选择可用于固件关联的功能版本")}</p>${issue ? `<div class="feature-version-error">${esc(issue)}，请切换其他可用版本</div>` : `<small class="feature-version-source">来源更新时间 ${esc(selectedVersion?.releasedAt || selectedVersion?.createdAt || "-")}</small>`}</article>`;
-    }).join("");
-    const selectedOptionalCount = selectedIds.filter(id => !requiredIds.has(id)).length;
-    const body = `${ruleContextBar(["version"])}<div class="feature-source-context"><div><span>功能来源</span><strong>机型平台 · 功能管理</strong></div><div><span>当前产品线</span><strong>${esc(identifier.product)}</strong></div><div><span>功能范围</span><strong>必配 ${requiredSources.length} 项 · 可选 ${optionalSources.length} 项</strong></div>${ruleAnnotation("version", "VER-R03")}</div><div class="feature-picker"><section class="feature-picker-main"><div class="picker-toolbar"><label class="check"><input type="checkbox" data-action="toggle-all-features" ${allSelected ? "checked" : ""} ${selectableFiltered.length ? "" : "disabled"}>可选 ${selectedOptionalCount} / ${optionalSources.length}</label><input class="field" data-feature-search value="${esc(modal.query || "")}" placeholder="搜索功能名称或功能标识，按 Enter"><select class="select" data-modal-field="featureCategory" aria-label="功能分类"><option value="">全部分类</option>${categories.map(item => `<option value="${esc(item)}" ${category === item ? "selected" : ""}>${esc(item)}</option>`).join("")}</select></div><div class="feature-source-list">${optionList || `<div class="empty-state compact-empty"><div>当前产品线下暂无匹配功能点</div></div>`}</div></section><aside class="feature-selected"><div class="feature-selected-title"><div><h3>功能配置（${selected.length}）</h3><span>选择功能并配置可用版本</span></div>${ruleAnnotation("version", "VER-R11")}</div><div class="selected-feature-list">${selectedList || `<div class="empty-state compact-empty"><div>当前暂无可配置功能点</div></div>`}</div>${errorFor("featurePicker")}</aside></div>`;
-    return modalFrame("选择并配置功能点", body, `<button class="btn" data-action="close-modal">取消</button><button class="btn primary" data-action="confirm-feature-picker">确认配置（必配 ${requiredSources.length} · 可选 ${selectedOptionalCount}）</button>`, true, true);
+      return `<div class="feature-version-menu" data-floating-menu="version" data-feature-id="${esc(source.id)}">${options || `<div class="feature-version-menu-empty">暂无可用版本</div>`}</div>`;
+    };
+    const renderVersionInfo = (source, selectedVersion) => {
+      if (modal.infoOpen !== source.id || !selectedVersion) return "";
+      return `<aside class="feature-version-info-popover" data-floating-menu="info" data-feature-id="${esc(source.id)}"><div class="feature-version-info-head"><strong>${esc(selectedVersion.code)}</strong><span class="tag ${versionStatusClass(selectedVersion)}">${esc(versionStatusLabelForPicker(selectedVersion))}</span></div><div class="feature-version-info-body"><strong>版本说明</strong><p>${esc(selectedVersion.description || "暂无版本说明")}</p></div><button type="button" class="link-btn feature-version-switch" data-action="switch-feature-version" data-feature-id="${esc(source.id)}">切换版本 <span aria-hidden="true">→</span></button></aside>`;
+    };
+    const renderRow = (feature, required = false) => {
+      const checked = selectedIds.includes(feature.id);
+      const configurable = configurableFeatureVersions(feature);
+      const unsupported = feature.supported === false || configurable.length === 0;
+      const previous = currentSnapshots.find(item => item.id === feature.id);
+      const selectedVersionId = selectionFor(feature, previous);
+      const selectedVersion = feature.versions?.find(version => version.id === selectedVersionId) || null;
+      const missingVersion = checked && !selectedVersion;
+      const selectedSnapshot = selectedVersion ? associatedFeatureSnapshot(feature, selectedVersion.id, previous) : null;
+      const issue = selectedSnapshot ? featureAssociationIssue(selectedSnapshot, identifier.product) : "";
+      const testingOnly = selectedVersion?.status === "testing" && /仍在测试中$/.test(issue);
+      const blockingIssue = missingVersion ? "请选择功能版本" : testingOnly ? "" : issue;
+      const title = unsupported ? (feature.unsupportedReason || `当前固件版本 ${firmwareVersion} 暂不支持此功能`) : "";
+      const description = unsupported ? title : (feature.description || `${feature.category || "功能"} · 功能配置`);
+      const control = `<input type="checkbox" data-feature-choice="${esc(feature.id)}" ${checked ? "checked" : ""} ${required || unsupported ? "disabled" : ""} aria-label="${esc(feature.name)}">`;
+      const tag = unsupported ? `<span class="tag danger">不支持</span>` : required ? `<span class="tag blue">必配</span>` : "";
+      const versionControl = checked && !unsupported ? `<div class="feature-config-controls"><div class="feature-version-field"><span>功能版本</span><div class="feature-version-select-wrap"><button type="button" class="feature-version-trigger ${missingVersion ? "invalid" : ""}" data-action="toggle-feature-version-menu" data-feature-id="${esc(feature.id)}" aria-expanded="${modal.versionOpen === feature.id}"><span>${selectedVersion ? esc(selectedVersion.code) : "请选择版本"}</span>${selectedVersion ? `<span class="tag ${versionStatusClass(selectedVersion)}">${esc(versionStatusLabelForPicker(selectedVersion))}</span>` : ""}<span class="feature-version-chevron" aria-hidden="true">⌄</span></button>${renderVersionMenu(feature, selectedVersionId)}</div>${missingVersion ? `<div class="feature-version-error">请选择功能版本</div>` : blockingIssue ? `<div class="feature-version-error">${esc(blockingIssue)}</div>` : ""}</div>${selectedVersion ? `<button type="button" class="link-btn feature-version-info-link" data-action="toggle-feature-version-info" data-feature-id="${esc(feature.id)}" aria-expanded="${modal.infoOpen === feature.id}">查看版本说明</button>${renderVersionInfo(feature, selectedVersion)}` : ""}</div>` : "";
+      return `<article class="feature-config-row ${checked ? "selected" : ""} ${required ? "required" : ""} ${unsupported ? "unsupported" : ""} ${blockingIssue ? "invalid" : ""}" title="${esc(title)}"><div class="feature-config-check">${control}</div><span class="feature-config-icon">${esc(feature.imageLabel || "功能")}</span><div class="feature-config-copy"><div class="feature-config-name"><strong>${esc(feature.name)}</strong>${tag}</div><small>${esc(description)}</small></div>${versionControl}</article>`;
+    };
+    const group = (title, note, features, required, totalCount) => `<section class="feature-config-group"><div class="feature-config-group-head"><h3>${esc(title)} <span>（${features.length}${features.length !== totalCount ? ` / ${totalCount}` : ""}）</span></h3><span>${esc(note)}</span></div><div class="feature-config-group-list">${features.map(feature => renderRow(feature, required)).join("") || `<div class="feature-config-empty">暂无匹配的功能配置</div>`}</div></section>`;
+    const filters = `<div class="feature-config-filters"><label class="feature-config-category"><span class="sr-only">功能分类</span><select class="select" data-feature-category aria-label="功能分类"><option value="">全部分类</option>${categoryOptions.map(item => `<option value="${esc(item)}" ${item === category ? "selected" : ""}>${esc(item)}</option>`).join("")}</select></label><label class="feature-config-search"><span class="feature-config-search-icon" aria-hidden="true"></span><span class="sr-only">搜索功能名称或标识</span><input class="field" data-feature-search value="${esc(modal.query || "")}" placeholder="搜索功能名称或标识" aria-label="搜索功能名称或标识"></label></div>`;
+    const body = `<div class="feature-config-shell feature-picker-modal"><div class="feature-config-intro"><div class="feature-config-meta"><span>产品线：<strong>${esc(identifier.product)}</strong></span><span>固件版本：<strong>${esc(firmwareVersion)}</strong></span></div><div class="feature-config-tip"><span class="feature-config-tip-icon" aria-hidden="true">!</span><span>当前固件版本支持以下功能配置，请选择对应功能版本。</span></div>${filters}</div><div class="feature-config-list">${group("必配功能", "以下功能为系统必配功能，不可取消", requiredSources, true, requiredFeatureSourcesForProduct(identifier.product).length)}${group("可选功能", "根据实际业务需要选择", optionalSources, false, optionalFeatureSourcesForProduct(identifier.product).length)}</div></div>`;
+    const footer = `<div class="feature-config-footer-summary"><span>已选择 <strong>${selectedCount}</strong> 项</span><i></i><span>必配 <strong>${selectedRequiredCount}</strong> 项</span><i></i><span>可选 <strong>${selectedOptionalCount}</strong> 项</span>${missingVersionFeatures.length ? `<em>! 还有 ${missingVersionFeatures.length} 个功能未选择版本</em>` : ""}</div><div class="feature-config-footer-actions"><button class="btn" data-action="close-modal">取消</button><button class="btn primary" data-action="confirm-feature-picker" ${canConfirm ? "" : "disabled"}>确认配置</button></div>`;
+    return modalFrame("选择配置功能", body, footer, true, true);
   }
 
   function availableAssociatedFeatures() {
@@ -2386,8 +3196,86 @@
     return activeIdentifier()?.versions.find(item => item.version === version);
   }
 
+  function policyHistoryStatusLabel(status) {
+    return status === "enabled" ? "已启用" : "已停用";
+  }
+
+  function policyHistoryStatusClass(status) {
+    return status === "enabled" ? "success" : "";
+  }
+
+  function policyHistoryVersionCode(policyVersion) {
+    return String(policyVersion || "").match(/V\d+$/)?.[0] || "历史版本";
+  }
+
+  function policyHistoryTimeoutLabel(node) {
+    const timeout = normalizeTimeout(node);
+    return timeout.unit === "day" ? `${timeout.value} 个自然日` : `${timeout.value} 小时`;
+  }
+
+  function policyHistoryUserName(userId) {
+    const user = db.users.find(item => item.userId === userId);
+    return user ? `${user.name} · ${user.role}` : userId || "未选择";
+  }
+
+  function policyHistoryChanges(previous, current) {
+    if (!previous) return ["初始版本，无上一版本可对比"];
+    const changes = [];
+    if ((previous.name || "") !== (current.name || "")) changes.push(`方案名称：${previous.name || "未填写"} → ${current.name || "未填写"}`);
+    if ((previous.description || "") !== (current.description || "")) changes.push("方案说明已更新");
+    if (previous.status !== current.status) changes.push(`方案状态：${policyHistoryStatusLabel(previous.status)} → ${policyHistoryStatusLabel(current.status)}`);
+    const previousOperations = new Set(previous.operations || []);
+    const currentOperations = new Set(current.operations || []);
+    const addedOperations = [...currentOperations].filter(operation => !previousOperations.has(operation)).map(approvalOperationLabel);
+    const removedOperations = [...previousOperations].filter(operation => !currentOperations.has(operation)).map(approvalOperationLabel);
+    if (addedOperations.length) changes.push(`新增操作范围：${addedOperations.join("、")}`);
+    if (removedOperations.length) changes.push(`移除操作范围：${removedOperations.join("、")}`);
+    const previousNodes = previous.nodes || [];
+    const currentNodes = current.nodes || [];
+    if (previousNodes.length !== currentNodes.length) changes.push(`审批级数：${previousNodes.length} 级 → ${currentNodes.length} 级`);
+    const nodeChanges = currentNodes.reduce((count, node, index) => {
+      const oldNode = previousNodes[index];
+      if (!oldNode) return count + 1;
+      const approverChanged = (oldNode.approverUserId || oldNode.approverName || "") !== (node.approverUserId || node.approverName || "");
+      const oldTimeout = normalizeTimeout(oldNode);
+      const nextTimeout = normalizeTimeout(node);
+      const timeoutChanged = oldTimeout.unit !== nextTimeout.unit || oldTimeout.value !== nextTimeout.value;
+      return count + (approverChanged || timeoutChanged ? 1 : 0);
+    }, 0);
+    if (nodeChanges) changes.push(`${nodeChanges} 个审批节点配置已调整`);
+    const previousCopy = new Set(previous.copyUserIds || []);
+    const currentCopy = new Set(current.copyUserIds || []);
+    if (previousCopy.size !== currentCopy.size || [...previousCopy].some(userId => !currentCopy.has(userId))) changes.push(`终态抄送人员：${previousCopy.size} 人 → ${currentCopy.size} 人`);
+    return changes.length ? changes : ["审批配置无变化，仅生成新的版本记录"];
+  }
+
+  function renderPolicyVersionHistoryDrawer(drawer) {
+    const policy = db.approvalPolicies.find(item => item.id === drawer.policyId);
+    if (!policy) return drawerFrame("方案版本记录", `<div class="empty-state compact-empty"><div>审批方案已不存在</div></div>`, `<button class="btn primary" data-action="close-overlay">关闭</button>`);
+    const versions = Array.isArray(policy.history) ? policy.history : [];
+    const selectedVersionCode = versions.some(item => item.policyVersion === drawer.selectedVersion) ? drawer.selectedVersion : versions[0]?.policyVersion;
+    const selectedIndex = Math.max(0, versions.findIndex(item => item.policyVersion === selectedVersionCode));
+    const version = versions[selectedIndex] || null;
+    if (!version) return drawerFrame("方案版本记录", `<div class="empty-state compact-empty"><div>暂无版本记录</div></div>`, `<button class="btn primary" data-action="close-overlay">关闭</button>`);
+    const previous = versions[selectedIndex + 1] || null;
+    const currentVersion = policy.policyVersion === version.policyVersion;
+    const copyUsers = (version.copyUserIds || []).map(userId => policyHistoryUserName(userId));
+    const operations = (version.operations || []).map(operation => `<span class="policy-history-operation-tag ${esc(operation)}">${esc(approvalOperationLabel(operation))}</span>`).join("") || `<span class="muted">未配置</span>`;
+    const nodes = (version.nodes || []).map((node, index) => `<article class="policy-history-node"><span class="policy-history-node-index">${index + 1}</span><div class="policy-history-node-copy"><strong>${esc(node.approverName || policyHistoryUserName(node.approverUserId))}</strong><span>${esc(policyHistoryUserName(node.approverUserId))}</span></div><div class="policy-history-node-time"><span>审批时限</span><strong>${esc(policyHistoryTimeoutLabel(node))}</strong></div></article>`).join("") || `<div class="policy-history-empty">未配置审批节点</div>`;
+    const list = versions.map(item => {
+      const selected = item.policyVersion === version.policyVersion;
+      const itemCurrent = policy.policyVersion === item.policyVersion;
+      return `<button type="button" class="policy-history-version-item ${selected ? "active" : ""}" data-action="select-policy-history-version" data-policy-version="${esc(item.policyVersion)}" aria-pressed="${selected}"><span class="policy-history-version-badge">${esc(policyHistoryVersionCode(item.policyVersion))}</span><span class="policy-history-version-copy"><strong>${esc(item.policyVersion)}</strong><small>${esc(item.updatedAt || "-")} · ${esc(item.updatedBy || "-")}</small></span><span class="policy-history-version-state"><span class="tag ${policyHistoryStatusClass(item.status)}">${esc(policyHistoryStatusLabel(item.status))}</span>${itemCurrent ? `<em>当前</em>` : ""}</span></button>`;
+    }).join("");
+    const detail = `<div class="policy-history-detail-head"><div><span>版本快照</span><h3>${esc(version.policyVersion)}</h3><p>${esc(version.updatedAt || "-")} · ${esc(version.updatedBy || "-")}</p></div><div class="policy-history-detail-status"><span class="tag ${policyHistoryStatusClass(version.status)}">${esc(policyHistoryStatusLabel(version.status))}</span>${currentVersion ? `<span class="tag blue">当前版本</span>` : ""}</div></div><section class="policy-history-section policy-history-basic"><div class="policy-history-section-head"><div><h4>基本信息</h4><span>该版本保存时的完整方案快照</span></div></div><div class="policy-history-info-grid"><div><span>方案名称</span><strong>${esc(version.name || policy.name)}</strong></div><div><span>所属产品线</span><strong>${esc(policy.productLine)}</strong></div><div class="full"><span>方案说明</span><p>${esc(version.description || "未填写方案说明")}</p></div></div></section><section class="policy-history-section"><div class="policy-history-section-head"><div><h4>操作范围</h4><span>同一版本内共用下方审批节点</span></div><strong>${(version.operations || []).length} 项操作</strong></div><div class="policy-history-operation-tags">${operations}</div></section><section class="policy-history-section"><div class="policy-history-section-head"><div><h4>审批节点</h4><span>按实际流转顺序展示审批人和时限</span></div><strong>${(version.nodes || []).length} 级串行</strong></div><div class="policy-history-node-list">${nodes}</div></section><section class="policy-history-section"><div class="policy-history-section-head"><div><h4>终态结果抄送</h4><span>审批结束后通知，不参与审批处理</span></div><strong>${copyUsers.length} 人</strong></div>${copyUsers.length ? `<div class="policy-history-copy-list">${copyUsers.map(name => `<span>${esc(name)}</span>`).join("")}</div>` : `<div class="policy-history-empty">未配置终态抄送人员</div>`}</section><section class="policy-history-section policy-history-change-section"><div class="policy-history-section-head"><div><h4>版本变化</h4><span>${previous ? `相比 ${esc(previous.policyVersion)} 的变更` : "当前版本没有更早的版本"}</span></div></div><ul class="policy-history-change-list">${policyHistoryChanges(previous, version).map(change => `<li>${esc(change)}</li>`).join("")}</ul></section>`;
+    const body = `<div class="policy-history-shell"><aside class="policy-history-list"><div class="policy-history-list-head"><div><strong>${esc(policy.name)}</strong><span>${esc(policy.productLine)} · 共 ${versions.length} 个版本</span></div></div><div class="policy-history-version-list">${list}</div></aside><main class="policy-history-detail">${detail}</main></div>`;
+    return drawerFrame("方案版本记录", body, `<button class="btn" data-action="close-overlay">关闭</button>`);
+  }
+
   function renderDrawer() {
     const drawer = state.drawer;
+    if (drawer.type === "approvalPolicy") return renderApprovalPolicyDrawer(drawer);
+    if (drawer.type === "policyVersionHistory") return renderPolicyVersionHistoryDrawer(drawer);
     if (drawer.type === "addVersion") return renderVersionFormDrawer("新增固件版本", null);
     if (drawer.type === "editVersion") return renderVersionFormDrawer("编辑固件版本", findVersion(drawer.version));
     if (drawer.type === "versionDetail") return renderVersionDetail(findVersion(drawer.version));
@@ -2395,6 +3283,98 @@
     if (drawer.type === "userDetail") return renderUserDetail(db.users[drawer.userIndex]);
     if (drawer.type === "userPermissions") return renderUserPermissions(db.users[drawer.userIndex]);
     return "";
+  }
+
+  function approvalPolicyPreviewDefinition(operation, productLine) {
+    const definitions = {
+      publish: {
+        title: "固件版本发布",
+        fields: [["所属产品线", productLine, false], ["发布固件版本", "提交时带入", true], ["测试报告", "发起人必须上传", true], ["会议纪要", "第 1 级审批时上传", true], ["适用机型", "提交时带入", true]],
+        reasonLabel: "发布原因",
+        boundary: "按方案配置顺序逐级审批，全部通过后系统自动正式发布"
+      },
+      rollback: {
+        title: "固件版本回滚",
+        fields: [["所属产品线", productLine, false], ["当前固件版本", "提交时带入", true], ["回滚目标版本", "系统自动锁定", true], ["APP 升级提醒", "提交时带入", true]],
+        reasonLabel: "回滚原因",
+        boundary: "回滚审批在途节点仅系统管理员可替换"
+      },
+      delist: {
+        title: "固件版本下架",
+        fields: [["所属产品线", productLine, false], ["下架固件版本", "当前发布版本", true], ["适用机型", "提交时带入", true], ["影响设备数", "提交时计算", true]],
+        reasonLabel: "下架原因",
+        boundary: "下架审批在途节点仅系统管理员可替换"
+      }
+    };
+    return definitions[operation] || null;
+  }
+
+  function renderApprovalPolicyPreview(drawer, nodes) {
+    const draft = drawer.policyDraft;
+    const selectedOperations = approvalOperationCatalog.filter(operation => draft.operations.includes(operation.value));
+    const previewOperation = selectedOperations.some(operation => operation.value === drawer.previewOperation) ? drawer.previewOperation : selectedOperations[0]?.value || "";
+    drawer.previewOperation = previewOperation;
+    const tabs = selectedOperations.map(operation => `<button type="button" class="dingtalk-preview-tab ${operation.value === previewOperation ? "active" : ""}" data-action="select-policy-preview-operation" data-operation="${operation.value}" role="tab" aria-selected="${operation.value === previewOperation}">${esc(operation.label)}</button>`).join("");
+    const definition = approvalPolicyPreviewDefinition(previewOperation, draft.productLine);
+    const previewNodes = nodes.map((node, index) => {
+      const user = db.users.find(item => item.userId === node.approverUserId);
+      return `<div class="dingtalk-node"><span>${index + 1}</span><div><strong>${esc(user?.name || "待选择审批人")}</strong><small>${esc(approvalNodeTypeLabel(node.type, index + 1))}</small><small data-policy-preview-timeout="${index}">时限 ${esc(timeoutLabel(node))}</small></div><em>${index ? "等待上一级" : "发起后待审批"}</em></div>`;
+    }).join("");
+    const firstApprover = db.users.find(user => user.userId === nodes[0]?.approverUserId)?.name || "待选择第 1 级审批人";
+    const card = definition ? `<article class="dingtalk-card"><header class="dingtalk-card-brand"><span class="dingtalk-approval-icon">审</span><strong>审批</strong><em>模板预览</em></header><h3><span>申请人</span>提交的${esc(definition.title)}</h3><div class="dingtalk-form-fields">${definition.fields.map(([label, value, dynamic]) => `<div><span>${esc(label)}</span><strong class="${dynamic ? "dynamic-value" : ""}">${esc(value)}</strong></div>`).join("")}</div><div class="dingtalk-request-meta"><div><span>当前审批人</span><strong class="${nodes[0]?.approverUserId ? "" : "dynamic-value"}">${esc(firstApprover)}</strong></div><div><span>${esc(definition.reasonLabel)}</span><strong class="dynamic-value">提交时带入</strong></div><div><span>申请时间</span><strong class="dynamic-value">提交时生成</strong></div></div><section class="dingtalk-flow"><div class="dingtalk-flow-head"><h4>审批流程</h4><span>${nodes.length} 级串行</span></div>${previewNodes}</section><div class="dingtalk-runtime-rule">${esc(definition.boundary)}；终态结果抄送 <strong data-policy-preview-copy-count>${(draft.copyUserIds || []).length}</strong> 人。</div></article>` : `<div class="dingtalk-preview-empty"><span class="dingtalk-approval-icon">审</span><strong>选择审批操作后显示模板</strong><p>发布、回滚和下架将使用不同的业务字段。</p></div>`;
+    return `<aside class="dingtalk-preview" aria-label="钉钉审批模板预览"><div class="dingtalk-preview-head"><div><strong>钉钉审批模板预览</strong><span data-policy-preview-name>${esc(draft.name || "未命名审批方案")}</span></div>${tabs ? `<div class="dingtalk-preview-tabs" role="tablist" aria-label="审批操作预览">${tabs}</div>` : ""}</div><div class="dingtalk-preview-canvas">${card}</div><p class="dingtalk-note">灰色字段由固件申请动态带入；审批顺序、审批人和超时时间来自当前方案。</p></aside>`;
+  }
+
+  function renderApprovalPolicyDrawer(drawer) {
+    const draft = drawer.policyDraft;
+    const candidates = approvalPolicyCandidates(draft.productLine);
+    const editingPolicy = drawer.policyId ? db.approvalPolicies.find(policy => policy.id === drawer.policyId) : null;
+    const nodes = normalizeApprovalPolicyDraftNodes(draft);
+    const nodeRows = nodes.map((node, index) => {
+      const timeout = normalizeTimeout(node);
+      const max = timeout.unit === "day" ? 30 : 168;
+      const selectedUser = candidates.find(user => user.userId === node.approverUserId);
+      const pickerOpen = drawer.nodeUserPickerOpen === index;
+      const options = candidates.map(user => {
+        const selected = user.userId === node.approverUserId;
+        const usedByAnotherNode = nodes.some((item, nodeIndex) => nodeIndex !== index && item.approverUserId === user.userId);
+        const searchValue = `${user.name} ${user.role} ${user.userId}`.toLowerCase();
+        return `<button type="button" class="policy-user-option ${selected ? "selected" : ""}" data-action="select-policy-node-user" data-node-index="${index}" data-user-id="${esc(user.userId)}" data-policy-user-search-value="${esc(searchValue)}" role="option" aria-selected="${selected}" ${usedByAnotherNode ? "disabled" : ""}><span class="policy-user-avatar">${esc(String(user.name || "用").slice(0, 1))}</span><span><strong>${esc(user.name)}</strong><small>${esc(user.role)} · ${esc(user.userId)}</small></span><em>${selected ? "已选择" : usedByAnotherNode ? "已配置" : ""}</em></button>`;
+      }).join("");
+      const picker = `<div class="policy-user-picker ${pickerOpen ? "open" : ""}"><button type="button" class="policy-user-picker-trigger ${selectedUser ? "has-value" : ""}" data-action="toggle-policy-node-user-picker" data-node-index="${index}" aria-haspopup="listbox" aria-expanded="${pickerOpen}" ${candidates.length ? "" : "disabled"}><span><strong class="${selectedUser ? "" : "placeholder"}">${esc(selectedUser?.name || "请选择平台用户")}</strong><small>${selectedUser ? `${esc(selectedUser.role)} · ${esc(selectedUser.userId)}` : "支持按姓名、角色或用户 ID 搜索"}</small></span><i aria-hidden="true">⌄</i></button>${pickerOpen ? `<div class="policy-user-picker-popover"><label class="policy-user-search"><span aria-hidden="true">⌕</span><input type="search" data-policy-node-user-search="${index}" placeholder="搜索姓名、角色或用户 ID" aria-label="搜索${esc(approvalNodeTypeLabel(node.type, index + 1))}" autocomplete="off"></label><div class="policy-user-options" role="listbox">${options}<div class="policy-user-empty hidden" data-policy-user-empty>未找到匹配用户</div></div></div>` : ""}</div>`;
+      return `<div class="policy-node-row"><span class="policy-node-sequence">${index + 1}</span><div class="form-field required policy-node-approver"><label>${esc(approvalNodeTypeLabel(node.type, index + 1))}</label>${picker}${state.errors[`policyNode${index}`] ? `<div class="error-text">${esc(state.errors[`policyNode${index}`])}</div>` : ""}</div><div class="form-field required policy-node-timeout"><label>审批时限</label><div class="policy-timeout-control"><input class="field" type="number" min="1" max="${max}" data-policy-node-timeout="${index}" value="${timeout.value}"><select class="select" data-policy-node-timeout-unit="${index}" aria-label="审批时限单位"><option value="hour" ${timeout.unit === "hour" ? "selected" : ""}>小时</option><option value="day" ${timeout.unit === "day" ? "selected" : ""}>自然日</option></select></div><div class="helper policy-timeout-helper">${timeout.unit === "day" ? "目标日 23:59:59 到期" : "节点激活后滚动计时"}</div>${state.errors[`policyTimeout${index}`] ? `<div class="error-text">${esc(state.errors[`policyTimeout${index}`])}</div>` : ""}</div><button type="button" class="btn icon-btn policy-node-remove" data-action="remove-policy-node" data-node-index="${index}" aria-label="删除第 ${index + 1} 级审批节点" title="删除此审批节点" ${nodes.length === 1 ? "disabled" : ""}>×</button></div>`;
+    }).join("");
+    const candidateNotice = candidates.length ? "" : `<div class="policy-node-notice">该产品线暂无可选的启用平台用户，请先在用户列表维护所属产线和账号状态。</div>`;
+    const operationDescriptions = { publish: "发布新版本固件", rollback: "回滚到历史版本", delist: "下架线上版本" };
+    const operationOptions = approvalOperationCatalog.map(operation => `<label class="policy-operation-option ${draft.operations.includes(operation.value) ? "selected" : ""}"><input type="checkbox" data-policy-operation="${operation.value}" ${draft.operations.includes(operation.value) ? "checked" : ""}><span><strong>${esc(operation.label)}</strong><small>${esc(operationDescriptions[operation.value])}</small></span></label>`).join("");
+    const versionText = editingPolicy ? `${editingPolicy.policyVersion}${drawer.dirty ? " · 有未保存修改" : ""}` : "保存后生成 V1";
+    const basicSection = `<section class="policy-editor-section"><div class="policy-section-head"><div><h3>基本信息</h3><span>方案名称、所属产品线与说明</span></div><em class="policy-editor-version" data-policy-version>${esc(versionText)}</em></div><div class="form-grid policy-basic-grid"><div class="form-field required"><label>方案名称</label><input class="field" maxlength="40" data-policy-name value="${esc(draft.name)}" placeholder="请输入审批方案名称">${state.errors.policyName ? `<div class="error-text">${esc(state.errors.policyName)}</div>` : ""}</div><div class="form-field required"><label>所属产品线</label><select class="select policy-readonly-select" disabled aria-label="所属产品线">${productLines.map(line => `<option value="${esc(line)}" ${line === draft.productLine ? "selected" : ""}>${esc(line)}</option>`).join("")}</select><div class="helper">当前为 ${esc(draft.productLine)} 产品线，不支持修改。</div></div><div class="form-field full"><label>方案说明 <span class="optional-label">（选填）</span></label><textarea class="textarea policy-description" maxlength="200" data-policy-description placeholder="说明该方案的适用场景">${esc(draft.description || "")}</textarea><div class="helper align-right">${String(draft.description || "").length} / 200</div>${state.errors.policyDescription ? `<div class="error-text">${esc(state.errors.policyDescription)}</div>` : ""}</div></div></section>`;
+    const operationSection = `<section class="policy-editor-section"><div class="policy-section-head"><div><h3>操作范围</h3><span>支持多选，同一方案可覆盖发布、回滚和下架</span></div><em class="policy-editor-version">已选择 ${draft.operations.length} / ${approvalOperationCatalog.length} 项</em></div><div class="policy-operation-options">${operationOptions}</div>${state.errors.policyOperations ? `<div class="error-text policy-section-error">${esc(state.errors.policyOperations)}</div>` : ""}<p class="policy-editor-rule">同一产品线的同一操作只能配置在一个已启用方案中；同一方案内所选操作共用当前审批节点与终态抄送配置。</p></section>`;
+    const nodeSection = `<section class="policy-editor-section policy-editor-node-section"><div class="policy-section-head policy-node-head"><div><h3>审批节点</h3><span>1–5 级单人串行审批，可自由添加或删除；页面顺序即实际流转顺序</span></div><button type="button" class="btn small" data-action="add-policy-node" ${nodes.length >= 5 ? "disabled" : ""}>＋ 添加审批节点</button></div>${candidateNotice}${state.errors.policyNodes ? `<div class="error-text policy-section-error">${esc(state.errors.policyNodes)}</div>` : ""}<div class="policy-node-list">${nodeRows}</div><div class="policy-node-limit">当前 ${nodes.length} / 5 级${nodes.length >= 5 ? "，已达到上限" : ""}</div><p class="policy-editor-rule">节点超时只标记“已超时”，不会自动通过、驳回或结束；原审批人仍可继续处理。</p></section>`;
+    const selectedCopyIds = draft.copyUserIds || [];
+    const selectedCopyUsers = selectedCopyIds.map(userId => db.users.find(user => user.userId === userId) || { userId, name: userId, role: "历史用户" });
+    const copyPickerOpen = Boolean(drawer.copyUserPickerOpen);
+    const copyUserTab = drawer.copyUserTab === "selected" ? "selected" : "all";
+    const copyUserSearch = String(drawer.copyUserSearch || "");
+    const normalizedCopySearch = copyUserSearch.trim().toLowerCase();
+    const visibleCopyCandidates = candidates.filter(user => {
+      if (copyUserTab === "selected" && !selectedCopyIds.includes(user.userId)) return false;
+      const searchValue = `${user.name} ${user.role} ${user.userId}`.toLowerCase();
+      return !normalizedCopySearch || searchValue.includes(normalizedCopySearch);
+    });
+    const copyOptions = visibleCopyCandidates.map(user => {
+      const selected = selectedCopyIds.includes(user.userId);
+      const searchValue = `${user.name} ${user.role} ${user.userId}`.toLowerCase();
+      return `<label class="policy-copy-option ${selected ? "selected" : ""}" data-policy-copy-search-value="${esc(searchValue)}"><input type="checkbox" data-policy-copy-user="${esc(user.userId)}" ${selected ? "checked" : ""}><span><strong>${esc(user.name)}</strong><small>${esc(user.role)} · ${esc(user.userId)}</small></span></label>`;
+    }).join("");
+    const copySummary = selectedCopyUsers.length ? `<div class="policy-copy-summary-list">${selectedCopyUsers.slice(0, 4).map(user => `<span class="policy-copy-chip"><span>${esc(user.name)}</span><button type="button" data-action="remove-policy-copy-user" data-user-id="${esc(user.userId)}" aria-label="移除抄送人 ${esc(user.name)}" title="移除">×</button></span>`).join("")}${selectedCopyUsers.length > 4 ? `<span class="policy-copy-more">+${selectedCopyUsers.length - 4} 人</span>` : ""}</div>` : `<span class="policy-copy-summary-empty">暂未选择抄送人</span>`;
+    const copyEmptyText = !candidates.length ? "当前产品线暂无可选用户" : copyUserTab === "selected" && !selectedCopyIds.length ? "暂未选择抄送人" : "未找到匹配用户";
+    const copySection = `<section class="policy-editor-section policy-copy-section"><div class="policy-section-head"><div><h3>终态结果抄送</h3><span>审批结束后通知所选人员，不参与审批处理</span></div><em class="policy-editor-version" data-policy-copy-count>已选择 ${selectedCopyIds.length} 人</em></div><div class="policy-copy-picker ${copyPickerOpen ? "open" : ""}"><button type="button" class="policy-copy-picker-trigger" data-action="toggle-policy-copy-picker" aria-haspopup="dialog" aria-expanded="${copyPickerOpen}" ${candidates.length ? "" : "disabled"}><span class="policy-copy-trigger-icon" aria-hidden="true">⌕</span><span><strong>${selectedCopyIds.length ? `已选择 ${selectedCopyIds.length} 名抄送人` : "选择抄送人员"}</strong><small>${selectedCopyIds.length ? "可继续搜索添加或取消选择" : "支持按姓名、角色或用户 ID 搜索"}</small></span><i aria-hidden="true">⌄</i></button>${copyPickerOpen ? `<div class="policy-copy-popover" role="dialog" aria-label="选择终态结果抄送人员"><label class="policy-copy-search"><span aria-hidden="true">⌕</span><input type="search" data-policy-copy-search value="${esc(copyUserSearch)}" placeholder="搜索姓名、角色或用户 ID" aria-label="搜索终态结果抄送用户" autocomplete="off"></label><div class="policy-copy-popover-toolbar"><div class="policy-copy-tabs" role="tablist" aria-label="抄送人筛选"><button type="button" class="${copyUserTab === "all" ? "active" : ""}" data-action="select-policy-copy-tab" data-tab="all" role="tab" aria-selected="${copyUserTab === "all"}">全部用户</button><button type="button" class="${copyUserTab === "selected" ? "active" : ""}" data-action="select-policy-copy-tab" data-tab="selected" role="tab" aria-selected="${copyUserTab === "selected"}">已选用户（${selectedCopyIds.length}）</button></div><button type="button" class="link-btn" data-action="clear-policy-copy-users" ${selectedCopyIds.length ? "" : "disabled"}>清空已选</button></div><div class="policy-copy-list">${copyOptions || `<div class="policy-copy-empty">${esc(copyEmptyText)}</div>`}</div><div class="policy-copy-popover-footer"><span>已选择 <strong>${selectedCopyIds.length}</strong> 人</span><button type="button" class="btn small primary" data-action="close-policy-copy-picker">完成</button></div></div>` : ""}</div><div class="policy-copy-summary">${copySummary}</div><p class="policy-editor-rule">仅在审批驳回、正式发布成功或发布失败时按原审批通知机制同步钉钉；超时和撤回本期不抄送。</p></section>`;
+    const versionNote = `<div class="policy-editor-save-note"><strong>版本记录</strong><span>${editingPolicy ? "保存修改后生成新的方案版本，已提交审批继续使用原版本快照。" : "保存后立即作为当前审批方案，并生成 V1 版本记录。"}</span></div>`;
+    const body = `<form id="approval-policy-form"><div class="policy-editor-layout"><main class="policy-editor-form">${basicSection}${operationSection}${nodeSection}${copySection}${versionNote}</main>${renderApprovalPolicyPreview(drawer, nodes)}</div></form>`;
+    const saveButton = `<button class="btn primary" type="button" data-action="save-approval-policy" ${editingPolicy && !drawer.dirty ? "disabled" : ""}>${editingPolicy ? "保存修改" : "保存方案"}</button>`;
+    const footer = `<button class="btn" type="button" data-action="close-overlay">取消</button>${saveButton}`;
+    return drawerFrame(editingPolicy ? "编辑审批方案" : "新建审批方案", body, footer);
   }
 
   function renderDifferentialTaskDetail(taskId) {
@@ -2458,9 +3438,8 @@
     const inheritanceSummary = !editing ? `<div class="feature-inheritance-summary"><div><span class="inheritance-icon">↳</span><span>${inheritedSource ? `已继承版本 <strong>${esc(inheritedSource)}</strong> 的功能配置` : "已加载产品线默认必配功能"}</span></div><span>${associatedFeatures.length} 项，可继续调整</span>${ruleAnnotation("version", "VER-R18")}</div>` : "";
     const featurePointRows = associatedFeatures.map(feature => {
       const issue = featureAssociationIssue(feature, activeIdentifier().product);
-      const source = sourceFeatureBySnapshot(feature);
-      const liveVersion = sourceFeatureVersion(source, feature);
-      return `<tr><td><div class="feature-point-name"><span class="feature-image-placeholder">${esc(feature.imageLabel || "功能")}</span><span><strong>${esc(feature.name)}</strong><small>${esc(feature.identifier || "-")} · ${esc(feature.category || "-")}</small></span></div></td><td><strong>${esc(feature.version || "-")}</strong><small class="table-subline">${esc(feature.versionDescription || "-")}</small>${issue ? `<small class="table-subline danger-text">${esc(issue)} · ${esc(featureVersionStatusLabel(liveVersion))}</small>` : ""}</td></tr>`;
+      const displayStatus = featureVersionDisplayStatus(feature);
+      return `<tr><td><div class="feature-point-name"><span class="feature-image-placeholder">${esc(feature.imageLabel || "功能")}</span><span><strong>${esc(feature.name)}</strong><small>${esc(feature.category || "-")}</small></span></div></td><td><div class="feature-config-version"><strong>${esc(feature.version || "-")}</strong><span class="tag ${displayStatus.className}">${esc(displayStatus.label)}</span></div><small class="table-subline">${esc(feature.versionDescription || "-")}</small>${issue ? `<small class="table-subline danger-text">${esc(issue)}</small>` : ""}</td></tr>`;
     }).join("");
     const formBody = `<form id="version-form" class="version-form">
       <input type="hidden" name="mode" value="${editing ? "edit" : "add"}">
@@ -2470,7 +3449,7 @@
         <div class="package-scope-grid"><div>${packagePanel}${errorFor("file")}${errorFor("version")}</div><div class="form-field required version-model-field"><div class="field-rule-row"><label>适用机型</label>${ruleAnnotation("version", "VER-R14")}</div><select class="select" name="models" data-version-draft="models">${modelOptions.map(model => `<option value="${esc(model)}" ${model === formDraft.models ? "selected" : ""}>${esc(model)}</option>`).join("")}</select>${errorFor("models")}</div></div>
       </section>
       <section class="version-form-section feature-point-section">
-        <div class="version-section-head"><div><h3>${annotatedLabel("功能配置", [["version", "VER-R03"]])}</h3><p>必配 ${requiredCount} 项 · 可选 ${optionalCount} 项</p></div><span class="action-with-rules"><button class="btn primary small" type="button" data-action="add-associated-feature">配置功能</button>${ruleAnnotation("version", "VER-R15")}</span></div>${inheritanceSummary}
+        <div class="version-section-head"><div><h3>${annotatedLabel("功能项配置", [["version", "VER-R03"]])}</h3><p>必配 ${requiredCount} 项 · 可选 ${optionalCount} 项</p></div><span class="action-with-rules"><button class="btn primary small" type="button" data-action="add-associated-feature">配置功能项</button>${ruleAnnotation("version", "VER-R15")}</span></div>${inheritanceSummary}
         ${errorFor("associatedFeatures")}<div class="table-wrap"><table class="data-table associated-table compact-feature-table"><thead><tr><th>功能名称</th><th>配置版本</th></tr></thead><tbody>${featurePointRows}</tbody></table></div>${associatedFeatures.length ? "" : `<div class="empty-state compact-empty"><div>当前产品线暂无可配置功能</div></div>`}
       </section>
       <section class="version-form-section release-copy-section">
@@ -2493,10 +3472,16 @@
     const fileName = String(version.url || "").split("/").pop() || "-";
     const statusClass = version.status === "current" ? "success" : ["withdrawn", "delisted"].includes(version.status) ? "danger" : version.status === "approval" ? "blue" : "";
     let tabContent = "";
-    if (tab === "related") tabContent = `<div class="detail-section-toolbar"><div><strong>功能点配置</strong><span>发布时冻结 ${associatedFeatures.length} 项功能点配置</span></div></div>${associatedFeatures.length ? `<div class="table-wrap detail-table-wrap"><table class="data-table detail-content-table feature-point-detail-table"><thead><tr><th>功能名称</th><th>功能标识</th><th>功能分类</th><th>配置版本</th><th>版本说明</th></tr></thead><tbody>${associatedFeatures.map(feature => `<tr><td><div class="feature-point-name"><span class="feature-image-placeholder">${esc(feature.imageLabel || "功能")}</span><strong>${esc(feature.name)}</strong></div></td><td>${esc(feature.identifier || "-")}</td><td>${esc(feature.category || "-")}</td><td><strong>${esc(feature.version || "-")}</strong><small class="table-subline">${esc(feature.sourceUpdatedAt || "-")}</small></td><td>${esc(feature.versionDescription || "-")}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty-state detail-empty-state"><div><div class="empty-illustration">▤</div><strong>未记录功能点配置</strong><span>该版本没有可展示的功能点快照</span></div></div>`}`;
+    if (tab === "related") {
+      const featureRows = associatedFeatures.map(feature => {
+        const displayStatus = featureVersionDisplayStatus(feature);
+        return `<tr><td><div class="feature-point-name"><span class="feature-image-placeholder">${esc(feature.imageLabel || "功能")}</span><strong>${esc(feature.name)}</strong></div></td><td>${esc(feature.category || "-")}</td><td><strong>${esc(feature.version || "-")}</strong></td><td><span class="tag ${displayStatus.className}">${esc(displayStatus.label)}</span></td><td>${esc(feature.versionDescription || "-")}</td></tr>`;
+      }).join("");
+      tabContent = `<div class="detail-section-toolbar"><div><strong>功能项配置</strong><span>发布时冻结 ${associatedFeatures.length} 项功能项配置</span></div></div>${associatedFeatures.length ? `<div class="table-wrap detail-table-wrap"><table class="data-table detail-content-table feature-point-detail-table"><thead><tr><th>功能名称</th><th>功能分类</th><th>配置版本</th><th>版本状态</th><th>版本说明</th></tr></thead><tbody>${featureRows}</tbody></table></div>` : `<div class="empty-state detail-empty-state"><div><div class="empty-illustration">▤</div><strong>未记录功能项配置</strong><span>该版本没有可展示的功能项快照</span></div></div>`}`;
+    }
     if (tab === "approvals") {
       const rows = db.approvals.filter(item => item.version === version.version);
-      tabContent = `<div class="detail-section-toolbar"><div><strong>审批日志</strong><span>共 ${rows.length} 条与当前版本关联的审批记录</span></div></div>${rows.length ? `<div class="approval-timeline">${rows.map(row => { const approvalTitle = row.event || (row.type === "rollback" ? "版本回滚" : row.type === "delist" ? "版本下架" : "正常发布"); const approvalClass = row.status === "审批通过" ? "success" : row.status === "审批驳回" ? "danger" : row.status === "审批中" ? "blue" : "warning"; const approvalStatus = row.status === "审批通过" ? "已通过" : row.status === "审批过期" ? "已过期" : row.status; return `<article class="approval-card"><div class="approval-card-head"><div><strong>${esc(approvalTitle)}审批</strong><span>${esc(row.submitTime)}</span></div><span class="tag ${approvalClass}">${esc(approvalStatus)}</span></div><div class="approval-meta"><span>提交人<strong>${esc(row.submitter)}</strong></span><span>提交时间<strong>${esc(row.submitTime)}</strong></span><span>审批人<strong>${esc(row.approver)}</strong></span><span>审批时间<strong>${esc(row.approveTime)}</strong></span><span>说明<strong>${esc(row.note)}</strong></span></div></article>`; }).join("")}</div>` : `<div class="empty-state detail-empty-state"><div><div class="empty-illustration">▤</div><strong>暂无审批记录</strong></div></div>`}`;
+      tabContent = `<div class="detail-section-toolbar"><div><strong>审批日志</strong><span>共 ${rows.length} 条与当前版本关联的审批记录</span></div></div>${rows.length ? `<div class="approval-timeline">${rows.map(row => { const approvalTitle = row.event || (row.type === "rollback" ? "版本回滚" : row.type === "delist" ? "版本下架" : "正常发布"); const approvalStatus = row.approvalStatus || row.status; const approvalClass = approvalStatus === "审批通过" ? "success" : /驳回|超时|过期|失效/.test(approvalStatus) ? "danger" : "blue"; const nodeChain = (row.tasks || []).map(task => `${task.sequence}. ${task.approverNameSnapshot}（${task.status}）`).join(" → "); return `<article class="approval-card"><div class="approval-card-head"><div><strong>${esc(approvalTitle)}审批</strong><span>${esc(row.submitTime)} · ${esc(row.policyVersion || "LEGACY")}</span></div><span class="tag ${approvalClass}">${esc(approvalStatus)}</span></div><div class="approval-meta"><span>提交人<strong>${esc(row.submitter)}</strong></span><span>审批链路<strong>${esc(nodeChain || row.approver)}</strong></span><span>审批时间<strong>${esc(row.approveTime)}</strong></span><span>执行状态<strong>${esc(row.executionStatus || "-")}</strong></span><span>说明<strong>${esc(row.note)}</strong></span></div>${row.id ? `<button class="link-btn approval-card-detail" data-action="open-approval-log" data-approval-id="${esc(row.id)}">查看审批详情</button>` : ""}</article>`; }).join("")}</div>` : `<div class="empty-state detail-empty-state"><div><div class="empty-illustration">▤</div><strong>暂无审批记录</strong></div></div>`}`;
     }
     if (tab === "appNotes") {
       const maintainable = !activeIdentifier().activeApproval && version.status === "current";
@@ -2507,18 +3492,19 @@
     if (tab === "releases") {
       tabContent = `<div class="detail-section-toolbar"><div><strong>发布记录</strong><span>共 ${releaseRecords.length} 条版本生效或退出当前状态的记录</span></div></div>${releaseRecords.length ? `<div class="release-event-list">${releaseRecords.map(item => { const isRollback = item.action === "rollback"; const isDelist = item.action === "delist"; const actionLabel = isRollback ? "回滚恢复" : isDelist ? "版本下架" : "正常发布"; const direction = isDelist ? esc(item.fromVersion || version.version) : `${esc(item.fromVersion || "-")} → ${esc(item.toVersion || "-")}`; const eventStatus = item.status === "active" ? "当前生效" : item.status === "rolled_back" ? "已回滚" : item.status === "delisted" ? "已下架" : "历史事件"; return `<article><div class="release-event-mark ${item.action}">${isRollback ? "回" : isDelist ? "下" : "发"}</div><div><strong>${actionLabel} · ${direction}</strong><span>${esc(item.effectiveAt)} · ${esc(item.operator)}</span><small>${esc(eventStatus)}${isDelist ? "" : ` · ${esc(reminderLabel(item.reminderPolicy))}`}</small></div></article>`; }).join("")}</div>` : `<div class="empty-state detail-empty-state"><div><div class="empty-illustration">▤</div><strong>暂无发布记录</strong></div></div>`}`;
     }
-    return drawerFrame("固件版本详情", `${ruleContextBar(["detail", tab === "appNotes" ? "locale" : "detail"])}<section class="version-detail-overview"><div class="version-detail-heading"><div><span>固件版本</span><h3>${esc(version.version)} <span class="tag ${statusClass}">${esc(versionStatusLabel(version.status))}</span></h3><p>固件标识 ${esc(activeIdentifier().id)} · 记录版本 R${Number(version.recordVersion || 1)}</p></div></div><div class="version-detail-summary"><div><span>适用机型</span><strong>${esc(version.models || "-")}</strong></div><div><span>关联设备</span><strong>${formatDeviceCount(version.associatedDeviceCount)} 台</strong></div><div><span>${effectiveEvent ? "最近生效时间" : "生效状态"}</span><strong>${esc(effectiveTime)}</strong></div><div><span>APP 提醒方式</span><strong>${esc(reminderText)}</strong></div></div><div class="version-detail-note"><span>平台发布说明</span><p>${esc(version.platformReleaseNotes || "-")}</p></div></section><section class="version-artifact-section"><div class="version-detail-section-head"><h3>固件包信息</h3><span>制品与修订信息</span></div><div class="version-artifact-grid"><div class="wide"><span>文件名</span><strong title="${esc(fileName)}">${esc(fileName)}</strong></div><div><span>文件大小</span><strong>${esc(version.size)} MB</strong></div><div class="wide"><span>MD5</span><strong class="mono-value">${esc(version.md5 || "-")}</strong></div><div><span>记录版本</span><strong>R${Number(version.recordVersion || 1)}</strong></div><div><span>创建人</span><strong>${esc(version.creator || "-")}</strong></div><div><span>创建时间</span><strong>${esc(version.created || version.updated || "-")}</strong></div><div><span>最后更新时间</span><strong>${esc(version.updated || "-")}</strong></div></div><div class="version-download-row"><div><span>下载地址</span><strong title="${esc(version.url)}">${esc(version.url)}</strong></div><div class="version-download-actions"><button class="btn icon-btn" title="复制下载地址" aria-label="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button><a class="btn icon-btn" href="${esc(version.url)}" download title="下载固件" aria-label="下载固件">⇩</a></div></div></section><div class="tab-strip detail-tabs"><button class="tab ${tab === "related" ? "active" : ""}" data-action="detail-tab" data-tab="related">功能点配置</button><button class="tab ${tab === "appNotes" ? "active" : ""}" data-action="detail-tab" data-tab="appNotes">APP 更新说明</button><button class="tab ${tab === "releases" ? "active" : ""}" data-action="detail-tab" data-tab="releases">发布记录</button><button class="tab ${tab === "approvals" ? "active" : ""}" data-action="detail-tab" data-tab="approvals">审批日志</button></div><div class="detail-tab-content">${tabContent}</div>`);
+    return drawerFrame("固件版本详情", `${ruleContextBar(["detail", tab === "appNotes" ? "locale" : "detail"])}<section class="version-detail-overview"><div class="version-detail-heading"><div><span>固件版本</span><h3>${esc(version.version)} <span class="tag ${statusClass}">${esc(versionStatusLabel(version.status))}</span></h3><p>固件标识 ${esc(activeIdentifier().id)} · 记录版本 R${Number(version.recordVersion || 1)}</p></div></div><div class="version-detail-summary"><div><span>适用机型</span><strong>${esc(version.models || "-")}</strong></div><div><span>关联设备</span><strong>${formatDeviceCount(version.associatedDeviceCount)} 台</strong></div><div><span>${effectiveEvent ? "最近生效时间" : "生效状态"}</span><strong>${esc(effectiveTime)}</strong></div><div><span>APP 提醒方式</span><strong>${esc(reminderText)}</strong></div></div><div class="version-detail-note"><span>平台发布说明</span><p>${esc(version.platformReleaseNotes || "-")}</p></div></section><section class="version-artifact-section"><div class="version-detail-section-head"><h3>固件包信息</h3><span>制品与修订信息</span></div><div class="version-artifact-grid"><div class="wide"><span>文件名</span><strong title="${esc(fileName)}">${esc(fileName)}</strong></div><div><span>文件大小</span><strong>${esc(version.size)} MB</strong></div><div class="wide"><span>MD5</span><strong class="mono-value">${esc(version.md5 || "-")}</strong></div><div><span>记录版本</span><strong>R${Number(version.recordVersion || 1)}</strong></div><div><span>创建人</span><strong>${esc(version.creator || "-")}</strong></div><div><span>创建时间</span><strong>${esc(version.created || version.updated || "-")}</strong></div><div><span>最后更新时间</span><strong>${esc(version.updated || "-")}</strong></div></div><div class="version-download-row"><div><span>下载地址</span><strong title="${esc(version.url)}">${esc(version.url)}</strong></div><div class="version-download-actions"><button class="btn icon-btn" title="复制下载地址" aria-label="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button><a class="btn icon-btn" href="${esc(version.url)}" download title="下载固件" aria-label="下载固件">⇩</a></div></div></section><div class="tab-strip detail-tabs"><button class="tab ${tab === "related" ? "active" : ""}" data-action="detail-tab" data-tab="related">功能项配置</button><button class="tab ${tab === "appNotes" ? "active" : ""}" data-action="detail-tab" data-tab="appNotes">APP 更新说明</button><button class="tab ${tab === "releases" ? "active" : ""}" data-action="detail-tab" data-tab="releases">发布记录</button><button class="tab ${tab === "approvals" ? "active" : ""}" data-action="detail-tab" data-tab="approvals">审批日志</button></div><div class="detail-tab-content">${tabContent}</div>`);
   }
 
   function renderUserDetail(user) {
     const changeLogs = user.changeLogs || [];
-    return drawerFrame("用户详情", `${ruleContextBar(["audit"])}<div class="detail-hero"><h3>${esc(user.name)}　<span class="tag blue">${esc(user.role)}</span></h3></div><div class="drawer-section"><h3>所属产线</h3><div class="table-wrap"><table class="data-table detail-content-table"><thead><tr><th>产线</th><th>是否审批人</th></tr></thead><tbody>${user.lines.map(line => `<tr><td>${esc(line)}</td><td><label class="toggle"><input type="checkbox" ${user.approverLines.includes(line) ? "checked" : ""} disabled><span></span></label></td></tr>`).join("")}</tbody></table></div></div><div class="form-grid" style="margin-top:20px"><div class="form-field"><label>创建时间</label><strong>${esc(user.created)}</strong></div><div class="form-field"><label>备注</label><strong>${esc(user.note || "-")}</strong></div></div><div class="drawer-section"><h3>权限范围</h3>${renderPermissionTable(db.roles.find(role => role.name === user.role) || db.roles[0], false, "detail")}</div><div class="drawer-section"><h3>变更日志</h3><div class="table-wrap"><table class="data-table detail-content-table"><thead><tr><th>变更时间</th><th>变更人</th><th>变更动作</th><th>变更内容</th></tr></thead><tbody>${changeLogs.map(log => `<tr><td>${esc(log.time)}</td><td>${esc(log.operator)}</td><td>${esc(log.action)}</td><td>${esc(log.content)}</td></tr>`).join("")}</tbody></table></div>${changeLogs.length ? "" : `<div class="empty-state compact-empty"><div><div class="empty-illustration">▤</div>暂无数据</div></div>`}</div>`);
+    const lineTags = user.lines.length ? user.lines.map(line => `<span class="tag blue user-detail-line-tag">${esc(line)}</span>`).join("") : `<span class="user-detail-lines-empty">未配置所属产线</span>`;
+    return drawerFrame("用户详情", `${ruleContextBar(["audit"])}<div class="detail-hero"><h3>${esc(user.name)}　<span class="tag blue">${esc(user.role)}</span> <span class="tag ${user.status === "active" ? "success" : ""}">${user.status === "active" ? "启用" : "停用"}</span></h3><p>${esc(user.userId)}</p></div><div class="drawer-section user-detail-lines"><h3>所属产线</h3><div class="user-detail-line-tags">${lineTags}</div></div><div class="form-grid" style="margin-top:20px"><div class="form-field"><label>创建时间</label><strong>${esc(user.created)}</strong></div><div class="form-field"><label>备注</label><strong>${esc(user.note || "-")}</strong></div></div><div class="drawer-section"><h3>权限范围</h3>${renderPermissionTable(db.roles.find(role => role.name === user.role) || db.roles[0], false, "detail")}</div><div class="drawer-section"><h3>变更日志</h3><div class="table-wrap"><table class="data-table detail-content-table"><thead><tr><th>变更时间</th><th>变更人</th><th>变更动作</th><th>变更内容</th></tr></thead><tbody>${changeLogs.map(log => `<tr><td>${esc(log.time)}</td><td>${esc(log.operator)}</td><td>${esc(log.action)}</td><td>${esc(log.content)}</td></tr>`).join("")}</tbody></table></div>${changeLogs.length ? "" : `<div class="empty-state compact-empty"><div><div class="empty-illustration">▤</div>暂无数据</div></div>`}</div>`);
   }
 
   function renderUserPermissions(user) {
-    const draft = state.drawer.userDraft || { lines: [...user.lines], approverLines: [...user.approverLines], note: user.note, role: user.role };
+    const draft = state.drawer.userDraft || { lines: [...user.lines], note: user.note, role: user.role, status: user.status };
     const selectedRole = db.roles.find(role => role.name === draft.role) || db.roles[0];
-    return drawerFrame("权限配置", `${ruleContextBar(["audit"])}<form id="user-permissions-form"><div class="drawer-section" style="margin-top:0"><h3>基本信息</h3><div class="form-grid single"><div class="form-field required"><label>账号名称</label><input class="field" value="${esc(user.name)}" disabled placeholder="请输入账号名称"></div><div class="form-field required"><label>所属产线</label><div class="check-grid line-tags">${productLines.map(line => `<label class="check"><input type="checkbox" data-user-line="${esc(line)}" ${draft.lines.includes(line) ? "checked" : ""}>${esc(line)}</label>`).join("")}</div><div class="table-wrap"><table class="data-table detail-content-table"><thead><tr><th>产线</th><th>是否审批人</th></tr></thead><tbody>${draft.lines.map(line => `<tr><td>${esc(line)}</td><td><label class="toggle"><input type="checkbox" data-approver-line="${esc(line)}" ${draft.approverLines.includes(line) ? "checked" : ""}><span></span></label></td></tr>`).join("")}</tbody></table></div></div><div class="form-field"><label>备注</label><textarea class="textarea" data-user-note maxlength="200" placeholder="请输入备注说明信息，例如成员职责">${esc(draft.note)}</textarea><div class="helper align-right">${draft.note.length} / 200</div></div><div class="form-field required"><label>关联角色</label><select class="select" name="role" data-change="permission-role">${db.roles.map(role => `<option ${role.name === selectedRole.name ? "selected" : ""}>${esc(role.name)}</option>`).join("")}</select></div></div></div><div class="drawer-section"><h3>角色权限预览</h3>${renderPermissionTable(selectedRole, false, "user")}</div></form>`, `<button class="btn" data-action="close-overlay">取 消</button><button class="btn primary" type="submit" form="user-permissions-form">完 成</button>`);
+    return drawerFrame("权限配置", `${ruleContextBar(["audit"])}<form id="user-permissions-form"><div class="drawer-section" style="margin-top:0"><h3>基本信息</h3><div class="form-grid single"><div class="form-field required"><label>账号名称</label><input class="field" value="${esc(user.name)} · ${esc(user.userId)}" disabled></div><div class="form-field required"><label>账号状态</label><select class="select" data-change="user-status"><option value="active" ${draft.status === "active" ? "selected" : ""}>启用</option><option value="disabled" ${draft.status === "disabled" ? "selected" : ""}>停用</option></select><div class="helper">停用用户不能被新方案选择。承担在途发布节点时不可停用；回滚、下架节点可由管理员替换。</div></div><div class="form-field required"><label>所属产线</label><div class="check-grid line-tags">${productLines.map(line => `<label class="check"><input type="checkbox" data-user-line="${esc(line)}" ${draft.lines.includes(line) ? "checked" : ""}>${esc(line)}</label>`).join("")}</div></div><div class="form-field"><label>备注</label><textarea class="textarea" data-user-note maxlength="200" placeholder="请输入备注说明信息，例如成员职责">${esc(draft.note)}</textarea><div class="helper align-right">${draft.note.length} / 200</div></div><div class="form-field required"><label>关联角色</label><select class="select" name="role" data-change="permission-role">${db.roles.map(role => `<option ${role.name === selectedRole.name ? "selected" : ""}>${esc(role.name)}</option>`).join("")}</select></div></div></div><div class="drawer-section"><h3>角色权限预览</h3>${renderPermissionTable(selectedRole, false, "user")}</div></form>`, `<button class="btn" data-action="close-overlay">取 消</button><button class="btn primary" type="submit" form="user-permissions-form">完 成</button>`);
   }
 
   function closeOverlay() {
@@ -2530,13 +3516,16 @@
     renderShell();
   }
 
-  function requestCloseOverlay() {
-    if (["addVersion", "editVersion"].includes(state.drawer?.type) && state.drawer.dirty && !state.modal) {
-      state.modal = { type: "discardVersionChanges" };
+  function requestCloseOverlay(nextRoute = null) {
+    const dirtyVersion = ["addVersion", "editVersion"].includes(state.drawer?.type) && state.drawer.dirty;
+    const dirtyPolicy = state.drawer?.type === "approvalPolicy" && state.drawer.dirty;
+    if ((dirtyVersion || dirtyPolicy) && !state.modal) {
+      state.modal = { type: dirtyPolicy ? "discardApprovalPolicyChanges" : "discardVersionChanges", nextRoute };
       renderShell();
       return;
     }
     closeOverlay();
+    if (nextRoute) navigate(nextRoute);
   }
 
   function navigate(route) {
@@ -2608,6 +3597,17 @@
       toast("当前固件标识已有生效审批，请先处理现有审批", "warning");
       return null;
     }
+    const coverage = policyCoverage(identifier.product, type);
+    const policy = activeApprovalPolicy(identifier.product, type);
+    if (!policy) {
+      toast(coverage.status === "conflict" ? `当前产品线的${approvalOperationLabel(type)}审批方案存在冲突，请联系系统管理员` : `当前产品线未配置${approvalOperationLabel(type)}审批方案，请联系系统管理员`, "warning");
+      return null;
+    }
+    const policyNodeIssue = approvalPolicyNodeIssue(policy);
+    if (policyNodeIssue) {
+      toast(`当前审批方案不可用：${policyNodeIssue}，请联系系统管理员`, "warning");
+      return null;
+    }
     const isRollback = type === "rollback";
     const isDelist = type === "delist";
     const current = currentVersion(identifier);
@@ -2630,16 +3630,42 @@
         toast(`${featureError}，无法提交发布审批`, "warning");
         return null;
       }
+      const reportError = materialValidation(config.testReportFiles, releaseMaterialRules.testReport);
+      if (reportError || !config.testReportFiles?.length) {
+        toast(reportError || "请上传测试报告后再提交正式发布审批", "warning");
+        return null;
+      }
+    }
+    if (policy.nodes.some(node => node.approverName === "汤彦珊")) {
+      toast("发起人不能审批自己的申请", "warning");
+      return null;
     }
     const flowId = releaseId(isDelist ? "FLOW-DELIST" : isRollback ? "FLOW-ROLLBACK" : "FLOW-PUB");
+    const submitTime = now();
+    const tasks = policy.nodes.map((node, index) => ({
+      sequence: index + 1,
+      type: "generic",
+      approverUserId: node.approverUserId,
+      approverNameSnapshot: node.approverName,
+      status: index === 0 ? "审批中" : "未激活",
+      startedAt: index === 0 ? submitTime : "-",
+      deadlineAt: index === 0 ? deadlineFrom(submitTime, node) : "-",
+      timeoutUnit: normalizeTimeout(node).unit,
+      timeoutValue: normalizeTimeout(node).value,
+      timeoutHours: normalizeTimeout(node).unit === "day" ? normalizeTimeout(node).value * 24 : normalizeTimeout(node).value,
+      completedAt: "-",
+      replacementHistory: []
+    }));
     const approval = {
       id: releaseId("APR"),
       version: target.version,
       event: isDelist ? "下架当前发布版本" : isRollback ? "撤销并回滚固件版本" : "发布当前固件版本",
       submitter: "汤彦珊",
-      submitTime: now(),
-      approver: "-",
+      submitTime,
+      approver: tasks[0]?.approverNameSnapshot || "-",
       status: "审批中",
+      approvalStatus: "审批中",
+      executionStatus: "未执行",
       approveTime: "-",
       note: isDelist ? `${config.reasonType}：${config.reason}` : isRollback ? config.reason : target.platformReleaseNotes,
       type,
@@ -2656,19 +3682,67 @@
       reasonType: config.reasonType || "",
       models: target.models,
       associatedDeviceCount: target.associatedDeviceCount,
+      testReportFiles: type === "publish" ? clone(config.testReportFiles || []) : [],
+      meetingMinutesFiles: [],
+      copyUserIds: clone(policy.copyUserIds || []),
+      notificationStatus: [],
       snapshotRecordVersion: target.recordVersion,
       previousTargetStatus: isRollback || isDelist ? null : target.status,
       sourceReleaseId: sourceEvent?.id || null,
-      flowId
+      flowId,
+      productLine: identifier.product,
+      policyId: policy.id,
+      policyVersion: policy.policyVersion,
+      policyNameSnapshot: policy.name,
+      currentTaskIndex: 0,
+      tasks
     };
     db.approvals.unshift(approval);
     identifier.activeApproval = { approvalId: approval.id, type, version: target.version };
     if (!isRollback && !isDelist) target.status = "approval";
-    addOperation(isDelist ? "固件下架" : isRollback ? "固件回滚" : "固件申请", "提交审批", target.version, "汤彦珊", "成功", isDelist ? `${config.reasonType}；当前版本在审批期间继续生效` : "");
-    addLifecycleEvent(identifier, { flowId, flowType: isDelist ? "delist" : isRollback ? "rollback" : "publish", flowStatus: "pending", fromVersion: current?.version || null, toVersion: isDelist ? null : target.version, stage: "approval", title: isDelist ? "提交下架审批" : isRollback ? "提交回滚审批" : "提交发布审批", operator: approval.submitter, result: "success", summary: isDelist ? `已锁定 ${target.version} R${target.recordVersion} 及影响范围快照，审批期间当前版本继续生效` : `审批快照已锁定，目标版本 ${target.version}` });
+    addOperation(isDelist ? "固件下架" : isRollback ? "固件回滚" : "固件申请", "提交审批", target.version, "汤彦珊", "成功", `${policy.policyVersion}；${policy.levelCount} 级串行${type === "publish" ? `；测试报告 ${config.testReportFiles.length} 个` : isDelist ? `；${config.reasonType}；当前版本在审批期间继续生效` : ""}`);
+    addLifecycleEvent(identifier, { flowId, flowType: isDelist ? "delist" : isRollback ? "rollback" : "publish", flowStatus: "pending", fromVersion: current?.version || null, toVersion: isDelist ? null : target.version, stage: "approval", title: isDelist ? "提交下架审批" : isRollback ? "提交回滚审批" : "提交发布审批", operator: approval.submitter, result: "success", summary: `${isDelist ? `已锁定 ${target.version} R${target.recordVersion} 及影响范围` : `审批快照已锁定，目标版本 ${target.version}`}；采用 ${policy.policyVersion}，共 ${policy.levelCount} 级串行审批` });
     state.expandedLifecycleFlows = [flowId];
     persist();
     return approval;
+  }
+
+  function approveCurrentApprovalTask(approval, context = {}) {
+    if (!approval || approval.approvalStatus !== "审批中") return { ok: false, message: "当前审批已结束" };
+    const task = currentApprovalTask(approval);
+    if (!task) return { ok: false, message: "当前没有可处理的审批节点" };
+    if (approval.type === "publish" && task.sequence === 1) {
+      const files = approval.meetingMinutesFiles || [];
+      const materialError = materialValidation(files, releaseMaterialRules.meetingMinutes);
+      if (materialError || !files.length) return { ok: false, message: materialError || "请先上传会议纪要附件" };
+    }
+    const identifier = db.identifiers.find(item => item.id === approval.firmwareId);
+    const stamp = now();
+    const timedOut = task.status === "已超时";
+    task.status = "已通过";
+    task.completedAt = stamp;
+    task.decision = "通过";
+    task.decisionNote = String(context.note || "").trim();
+    approval.approver = task.approverNameSnapshot;
+    addOperation(approval.type === "delist" ? "固件下架" : approval.type === "rollback" ? "固件回滚" : "固件申请", `第 ${task.sequence} 级审批通过`, approval.version, task.approverNameSnapshot, "成功", `${approval.policyVersion}；钉钉节点回调成功${timedOut ? "；超时后处理" : ""}`);
+    if (identifier) addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: approval.type, flowStatus: "pending", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", sequence: 10 + task.sequence, title: `第 ${task.sequence} 级审批通过`, operator: task.approverNameSnapshot, operatorType: "钉钉审批", result: "success", summary: `${approval.policyVersion} 的第 ${task.sequence}/${approval.tasks.length} 级节点已通过${timedOut ? "（超时后处理）" : ""}` });
+    const nextTask = approval.tasks[task.sequence];
+    if (nextTask) {
+      nextTask.status = "审批中";
+      nextTask.startedAt = stamp;
+      nextTask.deadlineAt = deadlineFrom(stamp, nextTask);
+      approval.currentTaskIndex = nextTask.sequence - 1;
+      approval.approver = nextTask.approverNameSnapshot;
+      persist();
+      return { ok: true, complete: false, task: nextTask };
+    }
+    approval.currentTaskIndex = approval.tasks.length - 1;
+    approval.status = "审批通过";
+    approval.approvalStatus = "审批通过";
+    approval.approveTime = stamp;
+    approval.executionStatus = "执行中";
+    persist();
+    return { ok: true, complete: true };
   }
 
   function executeApprovedRelease(approval) {
@@ -2676,13 +3750,14 @@
     if (!identifier || identifier.activeApproval?.approvalId !== approval.id) return { ok: false, message: "审批已失效，当前固件状态已发生变化" };
     const current = currentVersion(identifier);
     const stamp = now();
+    const finalApprover = approval.tasks?.[approval.tasks.length - 1]?.approverNameSnapshot || approval.approver || "审批人";
     if (approval.type === "delist") {
       const target = identifier.versions.find(version => version.version === approval.fromVersion);
       const sourceEvent = activeRelease(identifier);
       if (!target || current?.version !== approval.fromVersion || target.status !== "current") return { ok: false, message: "当前发布版本已变化，原下架审批失效" };
       if (Number(target.recordVersion) !== Number(approval.snapshotRecordVersion)) return { ok: false, message: "当前版本记录已发生变化，原下架审批快照失效" };
       if (!sourceEvent || sourceEvent.id !== approval.sourceReleaseId || sourceEvent.status !== "active") return { ok: false, message: "当前发布事件已变化，原下架审批失效" };
-      addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: "delist", flowStatus: "completed", fromVersion: target.version, toVersion: null, stage: "approval", title: "下架审批通过", time: stamp, operator: "IPC 产品线负责人", operatorType: "钉钉审批", result: "success", summary: "审批回调、当前版本及影响范围快照复检通过" });
+      addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: "delist", flowStatus: "completed", fromVersion: target.version, toVersion: null, stage: "approval", title: "下架审批通过", time: stamp, operator: finalApprover, operatorType: "钉钉审批", result: "success", summary: "全部审批节点通过，当前版本及影响范围快照复检通过" });
       target.status = "delisted";
       target.latest = false;
       sourceEvent.status = "delisted";
@@ -2696,8 +3771,11 @@
       identifier.activeApproval = null;
       identifier.lastDelisted = { version: target.version, time: stamp, reasonType: approval.reasonType, reason: approval.reason, sourceReleaseId: sourceEvent.id, approvalId: approval.id };
       approval.status = "审批通过";
-      approval.approver = "IPC 产品线负责人";
+      approval.approvalStatus = "审批通过";
+      approval.executionStatus = "执行成功";
+      approval.approver = finalApprover;
       approval.approveTime = stamp;
+      recordApprovalNotification(approval, "下架执行成功", terminalApprovalRecipients(approval));
       addOperation("固件下架", "下架生效", target.version, "发布服务", "成功", `${approval.reasonType}；当前发布版本已清空，固件包保留`);
       addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: "delist", flowStatus: "completed", fromVersion: target.version, toVersion: null, stage: "delist", title: "停止提供当前发布版本", time: stamp, operator: "发布服务", operatorType: "系统", result: "success", summary: `${target.version} → 暂无当前发布版本；固件包与已升级设备不受影响` });
       addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: "delist", flowStatus: "completed", fromVersion: target.version, toVersion: null, stage: "cache", title: "升级检查缓存失效", time: stamp, operator: "发布服务", operatorType: "系统", result: "success", summary: "新发起的升级检查不再返回该版本；OTA 已有任务不在本平台承诺停止" });
@@ -2710,7 +3788,7 @@
       if (target.status !== "approval" || (current?.version || null) !== (approval.fromVersion || null)) return { ok: false, message: "当前发布版本已变化，原发布审批失效" };
       const featureError = featureConfigurationError(approval.associatedFeatures || [], identifier.product);
       if (featureError) return { ok: false, message: `${featureError}，原发布审批失效` };
-      addLifecycleEvent(identifier, { flowId: approval.flowId || releaseId("FLOW"), flowType: "publish", flowStatus: "active", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: "发布审批通过", time: stamp, operator: "IPC 产品线负责人", operatorType: "钉钉审批", result: "success", summary: "审批回调与版本快照校验通过" });
+      addLifecycleEvent(identifier, { flowId: approval.flowId || releaseId("FLOW"), flowType: "publish", flowStatus: "active", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: "发布审批通过", time: stamp, operator: finalApprover, operatorType: "钉钉审批", result: "success", summary: "全部审批节点通过，版本快照校验通过" });
       identifier.versions.forEach(version => { version.latest = false; if (version.status === "current") version.status = "historical"; });
       target.status = "current";
       target.latest = true;
@@ -2731,7 +3809,7 @@
       addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: "publish", flowStatus: "active", fromVersion: current?.version || null, toVersion: target.version, stage: "release", title: "当前发布版本切换", time: stamp, operator: "发布服务", operatorType: "系统", result: "success", summary: `${current?.version || "首次发布"} -> ${target.version}，生成 ${event.id}` });
     } else {
       if (!identifier.rollbackAvailable || current?.version !== approval.fromVersion || identifier.rollbackTargetVersion !== target.version) return { ok: false, message: "唯一回滚目标已变化，原回滚审批失效" };
-      addLifecycleEvent(identifier, { flowId: approval.flowId || releaseId("FLOW"), flowType: "rollback", flowStatus: "active", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: "回滚审批通过", time: stamp, operator: "IPC 产品线负责人", operatorType: "钉钉审批", result: "success", summary: "审批回调与版本快照校验通过" });
+      addLifecycleEvent(identifier, { flowId: approval.flowId || releaseId("FLOW"), flowType: "rollback", flowStatus: "active", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: "回滚审批通过", time: stamp, operator: finalApprover, operatorType: "钉钉审批", result: "success", summary: "全部审批节点通过，版本快照校验通过" });
       current.status = "withdrawn";
       current.latest = false;
       target.status = "current";
@@ -2753,8 +3831,11 @@
     }
     identifier.activeApproval = null;
     approval.status = "审批通过";
-    approval.approver = "IPC 产品线负责人";
+    approval.approvalStatus = "审批通过";
+    approval.executionStatus = "执行成功";
+    approval.approver = finalApprover;
     approval.approveTime = stamp;
+    recordApprovalNotification(approval, approval.type === "publish" ? "正式发布成功" : approval.type === "rollback" ? "回滚执行成功" : "下架执行成功", terminalApprovalRecipients(approval));
     persist();
     return { ok: true, version: target.version, type: approval.type };
   }
@@ -2766,17 +3847,75 @@
     if (target?.status === "approval") target.status = approval.previousTargetStatus || "unpublished";
   }
 
-  function rejectReleaseApproval(approval) {
+  function rejectReleaseApproval(approval, rejectionReason = "") {
     const identifier = db.identifiers.find(item => item.id === approval.firmwareId);
+    const task = currentApprovalTask(approval);
+    const approverName = task?.approverNameSnapshot || approval.approver || "审批人";
+    const timedOut = task?.status === "已超时";
+    if (task) {
+      task.status = "已驳回";
+      task.completedAt = now();
+      task.decision = "驳回";
+      task.decisionNote = rejectionReason;
+    }
     restorePublishApprovalTarget(approval);
     if (identifier?.activeApproval?.approvalId === approval.id) identifier.activeApproval = null;
     approval.status = "审批驳回";
-    approval.approver = "IPC 产品线负责人";
+    approval.approvalStatus = "审批驳回";
+    approval.executionStatus = "不适用";
+    approval.approver = approverName;
     approval.approveTime = now();
-    approval.note = approval.type === "delist" ? `${approval.reasonType}：${approval.reason}` : approval.reason || "当前发布风险未确认，审批驳回";
-    addOperation(approval.type === "delist" ? "固件下架" : approval.type === "rollback" ? "固件回滚" : "固件申请", "审批驳回", approval.version, "彭冬柏", "成功", approval.note);
-    if (identifier) addLifecycleEvent(identifier, { flowId: approval.flowId || releaseId("FLOW"), flowType: approval.type === "delist" ? "delist" : approval.type === "rollback" ? "rollback" : "publish", flowStatus: "rejected", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: approval.type === "delist" ? "下架审批驳回" : approval.type === "rollback" ? "回滚审批驳回" : "发布审批驳回", operator: "IPC 产品线负责人", operatorType: "钉钉审批", result: "rejected", summary: approval.note });
+    approval.note = rejectionReason || (approval.type === "delist" ? `${approval.reasonType}：${approval.reason}` : approval.reason || "当前发布风险未确认，审批驳回");
+    approval.rejectionReason = rejectionReason || approval.note;
+    addOperation(approval.type === "delist" ? "固件下架" : approval.type === "rollback" ? "固件回滚" : "固件申请", timedOut ? "超时后审批驳回" : "审批驳回", approval.version, approverName, "成功", approval.note);
+    if (identifier) addLifecycleEvent(identifier, { flowId: approval.flowId || releaseId("FLOW"), flowType: approval.type === "delist" ? "delist" : approval.type === "rollback" ? "rollback" : "publish", flowStatus: "rejected", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: approval.type === "delist" ? "下架审批驳回" : approval.type === "rollback" ? "回滚审批驳回" : "发布审批驳回", operator: approverName, operatorType: "钉钉审批", result: "rejected", summary: `${timedOut ? "超时后处理；" : ""}${approval.note}` });
+    recordApprovalNotification(approval, "审批驳回", terminalApprovalRecipients(approval));
     persist();
+  }
+
+  function withdrawReleaseApproval(approval, reason) {
+    if (!approval || approval.approvalStatus !== "审批中") return { ok: false, message: "当前审批已结束，不能撤回" };
+    const identifier = db.identifiers.find(item => item.id === approval.firmwareId);
+    const task = currentApprovalTask(approval);
+    const stamp = now();
+    if (task) {
+      task.status = "已撤回";
+      task.completedAt = stamp;
+      task.decision = "撤回";
+      task.decisionNote = reason;
+    }
+    restorePublishApprovalTarget(approval);
+    if (identifier?.activeApproval?.approvalId === approval.id) identifier.activeApproval = null;
+    approval.status = "审批已撤回";
+    approval.approvalStatus = "审批已撤回";
+    approval.executionStatus = "不适用";
+    approval.withdrawalReason = reason;
+    approval.withdrawnAt = stamp;
+    approval.approveTime = stamp;
+    if (identifier) {
+      setLifecycleFlowStatus(identifier, approval.flowId, "withdrawn");
+      addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: approval.type, flowStatus: "withdrawn", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: `${approvalOperationLabel(approval.type)}审批已撤回`, operator: approval.submitter, operatorType: "发起人", result: "withdrawn", summary: reason });
+    }
+    addOperation("固件审批", "撤回申请", approval.version, approval.submitter, "成功", `${reason}；本次审批结束，再次操作需新建审批`);
+    persist();
+    return { ok: true };
+  }
+
+  function retryApprovedReleaseExecution(approval, operator, reason = "") {
+    if (!approval || approval.approvalStatus !== "审批通过" || approval.executionStatus !== "执行失败") return { ok: false, message: "当前审批不允许重试执行" };
+    approval.executionStatus = "补偿中";
+    const result = executeApprovedRelease(approval);
+    const reasonSuffix = reason ? `；兜底原因：${reason}` : "";
+    if (!result.ok) {
+      approval.executionStatus = "执行失败";
+      approval.executionMessage = result.message;
+      addOperation("固件审批", "重试执行", approval.version, operator, "失败", `${result.message}${reasonSuffix}`);
+      persist();
+      return result;
+    }
+    addOperation("固件审批", "重试执行", approval.version, operator, "成功", `审批通过结果幂等重放成功${reasonSuffix}`);
+    persist();
+    return result;
   }
 
   app.addEventListener("click", async event => {
@@ -2786,11 +3925,43 @@
     }
     const routeButton = event.target.closest("[data-route]");
     if (routeButton) {
+      if (state.drawer?.dirty && routeButton.dataset.route !== state.route) {
+        requestCloseOverlay(routeButton.dataset.route);
+        return;
+      }
       navigate(routeButton.dataset.route);
       return;
     }
     const target = event.target.closest("[data-action]");
     if (!target) {
+      if (state.drawer?.type === "approvalPolicy") {
+        let pickerClosed = false;
+        if (Number.isInteger(state.drawer.nodeUserPickerOpen) && !event.target.closest(".policy-user-picker")) {
+          state.drawer.nodeUserPickerOpen = null;
+          pickerClosed = true;
+        }
+        if (state.drawer.copyUserPickerOpen && !event.target.closest(".policy-copy-picker")) {
+          state.drawer.copyUserPickerOpen = false;
+          state.drawer.copyUserSearch = "";
+          state.drawer.copyUserTab = "all";
+          pickerClosed = true;
+        }
+        if (pickerClosed) {
+          renderShell();
+          return;
+        }
+      }
+      if (state.modal?.type === "approvalSimulation" && state.modal.viewerPickerOpen && !event.target.closest(".approval-viewer-switch")) {
+        state.modal.viewerPickerOpen = false;
+        renderShell();
+        return;
+      }
+      if (state.modal?.type === "featurePicker" && (state.modal.versionOpen || state.modal.infoOpen) && !event.target.closest(".feature-version-select-wrap") && !event.target.closest(".feature-version-info-popover")) {
+        state.modal.versionOpen = null;
+        state.modal.infoOpen = null;
+        renderShell();
+        return;
+      }
       const noteHost = activeAppNoteEditorHost();
       if (noteHost?.container.translationTargetsOpen && !event.target.closest(".translation-target-popover")) {
         noteHost.container.translationTargetsOpen = false;
@@ -2808,6 +3979,31 @@
     if (state.rulePanel && action !== "open-rule-panel" && action !== "close-rule-panel") dismissRulePopover();
     const popoverToggles = ["identifier-actions", "density-menu", "column-settings", "role-more", "user-line-filter", "role-user-line-filter"];
     if (state.popover && !popoverToggles.includes(action) && !event.target.closest(".action-popover")) state.popover = null;
+
+    if (action === "toggle-approval-viewer" && state.modal?.type === "approvalSimulation") {
+      state.modal.viewerPickerOpen = !state.modal.viewerPickerOpen;
+      renderShell();
+      return;
+    }
+    if (action === "select-approval-viewer" && state.modal?.type === "approvalSimulation") {
+      const approval = approvalById(state.modal.approvalId);
+      const option = approvalViewerOptions(approval).find(item => item.viewerId === target.dataset.viewerId);
+      if (!option) return;
+      state.modal.viewerId = option.viewerId;
+      state.modal.viewerPickerOpen = false;
+      state.modal.approvalNote = "";
+      state.modal.rejectionReason = "";
+      state.errors = {};
+      renderShell();
+      return;
+    }
+
+    if (action === "approval-scroll-section" && state.modal?.type === "approvalSimulation") {
+      const section = app.querySelector(`[data-approval-section="${target.dataset.target}"]`);
+      if (!section) return;
+      section.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
 
     if (action === "open-rule-panel") {
       const context = target.dataset.ruleContext;
@@ -2853,6 +4049,37 @@
       renderShell();
       return;
     }
+    if (action === "toggle-feature-version-menu" && state.modal?.type === "featurePicker") {
+      const id = target.dataset.featureId;
+      state.modal.versionOpen = state.modal.versionOpen === id ? null : id;
+      state.modal.infoOpen = null;
+      renderShell();
+      return;
+    }
+    if (action === "select-feature-version" && state.modal?.type === "featurePicker") {
+      const feature = associatedFeatureCatalog.find(item => item.id === target.dataset.featureId);
+      const version = feature?.versions?.find(item => item.id === target.dataset.versionId);
+      if (!feature || !version || !["published", "testing"].includes(version.status)) return;
+      state.modal.versionSelections[target.dataset.featureId] = target.dataset.versionId;
+      state.modal.versionOpen = null;
+      state.modal.infoOpen = null;
+      delete state.errors.featurePicker;
+      renderShell();
+      return;
+    }
+    if (action === "toggle-feature-version-info" && state.modal?.type === "featurePicker") {
+      const id = target.dataset.featureId;
+      state.modal.infoOpen = state.modal.infoOpen === id ? null : id;
+      state.modal.versionOpen = null;
+      renderShell();
+      return;
+    }
+    if (action === "switch-feature-version" && state.modal?.type === "featurePicker") {
+      state.modal.infoOpen = null;
+      state.modal.versionOpen = target.dataset.featureId || null;
+      renderShell();
+      return;
+    }
     if (action === "toggle-profile") {
       state.profileOpen = !state.profileOpen;
       renderShell();
@@ -2882,8 +4109,186 @@
       return;
     }
     if (action === "confirm-discard-version") {
+      const nextRoute = state.modal?.nextRoute || null;
       if (state.drawer) state.drawer.dirty = false;
       closeOverlay();
+      if (nextRoute) navigate(nextRoute);
+      return;
+    }
+    if (action === "select-policy-line") {
+      state.selectedPolicyProductLine = target.dataset.productLine;
+      state.approvalPolicyPage = 1;
+      renderShell();
+      return;
+    }
+    if (action === "approval-policy-page") {
+      state.approvalPolicyPage = Number(target.dataset.page) || 1;
+      renderShell();
+      return;
+    }
+    if (action === "select-policy-history-version") {
+      if (state.drawer?.type !== "policyVersionHistory") return;
+      state.drawer.selectedVersion = target.dataset.policyVersion || state.drawer.selectedVersion;
+      renderShell();
+      return;
+    }
+    if (action === "add-approval-policy") {
+      state.errors = {};
+      const productLine = state.selectedPolicyProductLine || productLines[0];
+      state.drawer = { type: "approvalPolicy", policyId: null, policyDraft: newApprovalPolicyDraft(productLine), previewOperation: "", nodeUserPickerOpen: null, copyUserPickerOpen: false, copyUserTab: "all", copyUserSearch: "", dirty: false };
+      renderShell();
+      return;
+    }
+    if (action === "edit-approval-policy") {
+      const policy = db.approvalPolicies.find(item => item.id === target.dataset.policyId);
+      if (!policy) return;
+      state.errors = {};
+      state.drawer = { type: "approvalPolicy", policyId: policy.id, policyDraft: { name: policy.name, productLine: policy.productLine, description: policy.description || "", operations: [...policy.operations], levelCount: policy.levelCount, status: policy.status, copyUserIds: clone(policy.copyUserIds || []), nodes: clone(policy.nodes) }, previewOperation: policy.operations[0] || "", nodeUserPickerOpen: null, copyUserPickerOpen: false, copyUserTab: "all", copyUserSearch: "", dirty: false };
+      renderShell();
+      return;
+    }
+    if (action === "select-policy-preview-operation") {
+      if (state.drawer?.type !== "approvalPolicy") return;
+      const operation = target.dataset.operation;
+      if (!state.drawer.policyDraft.operations.includes(operation)) return;
+      state.drawer.previewOperation = operation;
+      renderShell();
+      return;
+    }
+    if (action === "toggle-policy-node-user-picker") {
+      if (state.drawer?.type !== "approvalPolicy") return;
+      const nodeIndex = Number(target.dataset.nodeIndex);
+      if (!Number.isInteger(nodeIndex) || !state.drawer.policyDraft.nodes[nodeIndex]) return;
+      state.drawer.copyUserPickerOpen = false;
+      state.drawer.copyUserSearch = "";
+      state.drawer.copyUserTab = "all";
+      state.drawer.nodeUserPickerOpen = state.drawer.nodeUserPickerOpen === nodeIndex ? null : nodeIndex;
+      renderShell();
+      if (state.drawer.nodeUserPickerOpen === nodeIndex) app.querySelector(`[data-policy-node-user-search="${nodeIndex}"]`)?.focus();
+      return;
+    }
+    if (action === "select-policy-node-user") {
+      if (state.drawer?.type !== "approvalPolicy") return;
+      const nodeIndex = Number(target.dataset.nodeIndex);
+      const user = approvalPolicyCandidates(state.drawer.policyDraft.productLine).find(item => item.userId === target.dataset.userId);
+      const nodes = normalizeApprovalPolicyDraftNodes(state.drawer.policyDraft);
+      if (!user || !nodes[nodeIndex]) return;
+      if (nodes.some((node, index) => index !== nodeIndex && node.approverUserId === user.userId)) {
+        toast("该用户已配置在其他审批节点", "warning");
+        return;
+      }
+      nodes[nodeIndex].approverUserId = user.userId;
+      nodes[nodeIndex].approverName = user.name;
+      state.drawer.nodeUserPickerOpen = null;
+      markApprovalPolicyDirty();
+      clearApprovalPolicyNodeErrors();
+      renderShell();
+      return;
+    }
+    if (action === "toggle-policy-copy-picker") {
+      if (state.drawer?.type !== "approvalPolicy") return;
+      state.drawer.nodeUserPickerOpen = null;
+      const opening = !state.drawer.copyUserPickerOpen;
+      state.drawer.copyUserPickerOpen = opening;
+      if (!opening) {
+        state.drawer.copyUserSearch = "";
+        state.drawer.copyUserTab = "all";
+      }
+      renderShell();
+      if (state.drawer.copyUserPickerOpen) app.querySelector("[data-policy-copy-search]")?.focus({ preventScroll: true });
+      return;
+    }
+    if (action === "close-policy-copy-picker") {
+      if (state.drawer?.type !== "approvalPolicy") return;
+      state.drawer.copyUserPickerOpen = false;
+      state.drawer.copyUserSearch = "";
+      state.drawer.copyUserTab = "all";
+      renderShell();
+      app.querySelector('[data-action="toggle-policy-copy-picker"]')?.focus();
+      return;
+    }
+    if (action === "select-policy-copy-tab") {
+      if (state.drawer?.type !== "approvalPolicy") return;
+      state.drawer.copyUserTab = target.dataset.tab === "selected" ? "selected" : "all";
+      renderShell();
+      app.querySelector("[data-policy-copy-search]")?.focus({ preventScroll: true });
+      return;
+    }
+    if (action === "remove-policy-copy-user") {
+      if (state.drawer?.type !== "approvalPolicy") return;
+      state.drawer.policyDraft.copyUserIds = (state.drawer.policyDraft.copyUserIds || []).filter(userId => userId !== target.dataset.userId);
+      markApprovalPolicyDirty();
+      renderShell();
+      return;
+    }
+    if (action === "clear-policy-copy-users") {
+      if (state.drawer?.type !== "approvalPolicy") return;
+      state.drawer.policyDraft.copyUserIds = [];
+      markApprovalPolicyDirty();
+      renderShell();
+      if (state.drawer.copyUserPickerOpen) app.querySelector("[data-policy-copy-search]")?.focus({ preventScroll: true });
+      return;
+    }
+    if (action === "add-policy-node") {
+      if (state.drawer?.type !== "approvalPolicy") return;
+      const nodes = normalizeApprovalPolicyDraftNodes(state.drawer.policyDraft);
+      if (nodes.length >= 5) {
+        toast("审批节点最多配置 5 级", "warning");
+        return;
+      }
+      nodes.push({ sequence: nodes.length + 1, type: "generic", approverUserId: "", approverName: "", timeoutUnit: "hour", timeoutValue: 24, timeoutHours: 24 });
+      normalizeApprovalPolicyDraftNodes(state.drawer.policyDraft);
+      clearApprovalPolicyNodeErrors();
+      state.drawer.dirty = true;
+      renderShell();
+      return;
+    }
+    if (action === "remove-policy-node") {
+      if (state.drawer?.type !== "approvalPolicy") return;
+      const nodes = normalizeApprovalPolicyDraftNodes(state.drawer.policyDraft);
+      if (nodes.length <= 1) {
+        toast("审批方案至少保留 1 个审批节点", "warning");
+        return;
+      }
+      const nodeIndex = Number(target.dataset.nodeIndex);
+      if (!Number.isInteger(nodeIndex) || nodeIndex < 0 || nodeIndex >= nodes.length) return;
+      nodes.splice(nodeIndex, 1);
+      normalizeApprovalPolicyDraftNodes(state.drawer.policyDraft);
+      clearApprovalPolicyNodeErrors();
+      state.drawer.dirty = true;
+      renderShell();
+      toast("审批节点已删除，后续级数已自动调整");
+      return;
+    }
+    if (action === "save-approval-policy") {
+      saveApprovalPolicy();
+      return;
+    }
+    if (action === "policy-version-history") {
+      const policy = db.approvalPolicies.find(item => item.id === target.dataset.policyId);
+      if (!policy) return;
+      state.modal = null;
+      state.drawer = { type: "policyVersionHistory", policyId: policy.id, selectedVersion: policy.history?.[0]?.policyVersion || policy.policyVersion };
+      renderShell();
+      return;
+    }
+    if (action === "toggle-approval-policy") {
+      const policy = db.approvalPolicies.find(item => item.id === target.dataset.policyId);
+      if (!policy) return;
+      if (policy.status !== "enabled") {
+        const conflict = conflictingApprovalPolicy(policy.productLine, policy.operations, policy.id, true);
+        if (conflict) { toast(`方案“${conflict.name}”已覆盖相同操作，请先停用该方案`, "warning"); return; }
+      }
+      policy.status = policy.status === "enabled" ? "disabled" : "enabled";
+      policy.versionNumber = Number(policy.versionNumber || 1) + 1;
+      policy.policyVersion = `${policy.id}-V${policy.versionNumber}`;
+      policy.updatedAt = now();
+      policy.updatedBy = "汤彦珊";
+      policy.history.unshift({ policyVersion: policy.policyVersion, name: policy.name, description: policy.description, status: policy.status, operations: clone(policy.operations), nodes: clone(policy.nodes), copyUserIds: clone(policy.copyUserIds || []), updatedAt: policy.updatedAt, updatedBy: policy.updatedBy });
+      addOperation("审批配置", policy.status === "enabled" ? "启用" : "停用", policy.name, "汤彦珊", "成功", `${policy.policyVersion}；仅影响后续新申请`);
+      persist();
+      renderShell();
+      toast(`审批方案已${policy.status === "enabled" ? "启用" : "停用"}`);
       return;
     }
     if (action === "select-identifier") {
@@ -3162,14 +4567,17 @@
       version.appNoteMeta = clone(meta);
       version.appNoteMeta.sourceText = notes.zh;
       activeIdentifier().aiTranslationLocales = enabledAppNoteLocales(meta).filter(locale => locale !== "zh");
-      version.recordVersion += 1;
-      version.noteRevisions.unshift({ time: now(), operator: "汤彦珊", reason: state.modal.reason.trim(), before, after: { appReleaseNotes: clone(notes), appNoteMeta: clone(meta) }, recordVersion: version.recordVersion });
+      const revisionTime = now();
+      version.updated = revisionTime;
+      version.recordVersion = Number(version.recordVersion || 1) + 1;
+      if (!Array.isArray(version.noteRevisions)) version.noteRevisions = [];
+      version.noteRevisions.unshift({ time: revisionTime, operator: "汤彦珊", reason: state.modal.reason.trim(), before, after: { appReleaseNotes: clone(notes), appNoteMeta: clone(meta) }, recordVersion: version.recordVersion });
       addOperation("APP 更新说明", "修订", version.version);
       persist();
       state.modal = null;
       state.errors = {};
       renderShell();
-      toast(version.status === "current" ? "APP 更新说明已修订，升级检查缓存已失效" : "回滚目标文案已修订，将在版本重新生效时使用");
+      toast(version.status === "current" ? `APP 更新说明已修订，文案修订记录 R${version.recordVersion} 已生成` : `回滚目标文案已修订，文案修订记录 R${version.recordVersion} 已生成`);
       return;
     }
     if (action === "publish-version") {
@@ -3191,6 +4599,9 @@
     if (action === "confirm-publish") {
       state.errors = {};
       if (!state.modal.reminderPolicy) state.errors.reminderPolicy = "请选择本次 APP 提醒方式";
+      const reportError = materialValidation(state.modal.testReportFiles || [], releaseMaterialRules.testReport);
+      if (reportError) state.errors.testReport = reportError;
+      else if (!(state.modal.testReportFiles || []).length) state.errors.testReport = "请上传测试报告附件";
       if (Object.keys(state.errors).length) { renderShell(); return; }
       const approval = submitReleaseApproval("publish", state.modal);
       if (!approval) return;
@@ -3254,20 +4665,174 @@
       renderShell();
       return;
     }
+    if (action === "download-approval-material") {
+      const index = Number(target.dataset.materialIndex);
+      const kind = target.dataset.materialKind;
+      const approval = state.modal?.type === "approvalSimulation" ? approvalById(state.modal.approvalId) : null;
+      const files = kind === "meetingMinutes" ? approval?.meetingMinutesFiles : approval?.testReportFiles || state.modal?.testReportFiles;
+      const file = files?.[index];
+      if (!file) { toast("附件记录不存在", "warning"); return; }
+      toast(`已打开附件快照：${file.name}`);
+      return;
+    }
+    if (action === "remove-approval-material") {
+      const index = Number(target.dataset.materialIndex);
+      const kind = target.dataset.materialKind;
+      if (kind === "testReport" && state.modal?.type === "publish") {
+        state.modal.testReportFiles = (state.modal.testReportFiles || []).filter((_file, fileIndex) => fileIndex !== index);
+        delete state.errors.testReport;
+        renderShell();
+        return;
+      }
+      if (kind === "meetingMinutes" && state.modal?.type === "approvalSimulation") {
+        const approval = approvalById(state.modal.approvalId);
+        const viewerContext = approvalViewerContext(approval, state.modal.viewerId);
+        if (!viewerContext.canUploadMinutes) { toast("仅当前第 1 级审批人可修改会议纪要", "warning"); return; }
+        approval.meetingMinutesFiles = (approval.meetingMinutesFiles || []).filter((_file, fileIndex) => fileIndex !== index);
+        delete state.errors.meetingMinutes;
+        persist();
+        renderShell();
+        return;
+      }
+      toast("审批材料快照不可修改", "warning");
+      return;
+    }
+    if (action === "request-withdraw-approval") {
+      const approval = approvalById(state.modal?.approvalId);
+      const viewerContext = approvalViewerContext(approval, state.modal?.viewerId);
+      if (!viewerContext.canWithdraw) { toast("仅审批发起人可撤回进行中的申请", "warning"); return; }
+      state.errors = {};
+      state.modal = { type: "withdrawApproval", approvalId: approval.id, viewerId: viewerContext.viewer.viewerId, withdrawalReason: "" };
+      renderShell();
+      return;
+    }
+    if (action === "cancel-withdraw-approval") {
+      const approvalId = state.modal?.approvalId;
+      const viewerId = state.modal?.viewerId;
+      state.errors = {};
+      state.modal = { type: "approvalSimulation", approvalId, viewerId };
+      renderShell();
+      return;
+    }
+    if (action === "confirm-withdraw-approval") {
+      const approval = approvalById(state.modal?.approvalId);
+      const viewerContext = approvalViewerContext(approval, state.modal?.viewerId);
+      if (!viewerContext.canWithdraw) { toast("当前模拟账号无权撤回该申请", "warning"); return; }
+      const reason = String(state.modal?.withdrawalReason || "").trim();
+      state.errors = {};
+      if (!reason) {
+        state.errors.withdrawalReason = "请填写撤回原因";
+        renderShell();
+        return;
+      }
+      const result = withdrawReleaseApproval(approval, reason);
+      if (!result.ok) { toast(result.message, "warning"); return; }
+      state.modal = { type: "approvalSimulation", approvalId: approval.id, viewerId: viewerContext.viewer.viewerId };
+      renderShell();
+      toast("审批申请已撤回，本次流程已结束", "warning");
+      return;
+    }
+    if (action === "replace-approval-task") {
+      const approval = approvalById(state.modal?.approvalId);
+      const viewerContext = approvalViewerContext(approval, state.modal?.viewerId);
+      const taskSequence = Number(target.dataset.taskSequence);
+      const task = approval?.tasks?.find(item => item.sequence === taskSequence);
+      if (!viewerContext.canReplaceTask) {
+        toast("仅系统管理员可替换回滚或下架审批的在途节点", "warning");
+        return;
+      }
+      if (approval?.type === "publish") {
+        toast("发布审批不允许替换审批人", "warning");
+        return;
+      }
+      if (!approval || !task || approval.approvalStatus !== "审批中" || !["审批中", "未激活"].includes(task.status)) {
+        toast("该审批节点当前不可替换", "warning");
+        return;
+      }
+      state.errors = {};
+      state.modal = { type: "replaceApprovalTask", approvalId: approval.id, viewerId: viewerContext.viewer.viewerId, taskSequence, replacementUserId: "", replacementReason: "" };
+      renderShell();
+      return;
+    }
+    if (action === "cancel-replace-approval-task") {
+      const approvalId = state.modal.approvalId;
+      const viewerId = state.modal.viewerId;
+      state.errors = {};
+      state.modal = { type: "approvalSimulation", approvalId, viewerId };
+      renderShell();
+      return;
+    }
+    if (action === "confirm-replace-approval-task") {
+      const approval = approvalById(state.modal?.approvalId);
+      const viewerContext = approvalViewerContext(approval, state.modal?.viewerId);
+      if (!viewerContext.canReplaceTask) {
+        const approvalId = approval?.id || state.modal?.approvalId;
+        state.modal = approval ? { type: "approvalSimulation", approvalId, viewerId: viewerContext.viewer.viewerId } : null;
+        state.errors = {};
+        renderShell();
+        toast("当前模拟账号无权替换审批人", "warning");
+        return;
+      }
+      if (!approval || approval.type === "publish") {
+        const approvalId = approval?.id || state.modal?.approvalId;
+        state.modal = approval ? { type: "approvalSimulation", approvalId, viewerId: viewerContext.viewer.viewerId } : null;
+        state.errors = {};
+        renderShell();
+        toast(approval ? "发布审批不允许替换审批人" : "审批记录已不存在", "warning");
+        return;
+      }
+      const task = approval.tasks?.find(item => item.sequence === state.modal.taskSequence);
+      const user = db.users.find(item => item.userId === state.modal.replacementUserId && item.status === "active" && item.lines.includes(approval.productLine));
+      const reason = String(state.modal.replacementReason || "").trim();
+      state.errors = {};
+      if (!user) state.errors.replacementUser = "请选择有效的新审批人";
+      if (user && approval.tasks.some(item => item.sequence !== task?.sequence && item.approverUserId === user.userId)) state.errors.replacementUser = "该用户已在本审批实例的其他节点中，不能重复配置";
+      if (!reason) state.errors.replacementReason = "请填写替换原因";
+      if (!task || !["审批中", "未激活"].includes(task.status)) state.errors.replacementUser = "审批节点状态已变化，不能替换";
+      if (Object.keys(state.errors).length) { renderShell(); return; }
+      const stamp = now();
+      const previousName = task.approverNameSnapshot;
+      const previousUserId = task.approverUserId;
+      task.replacementHistory.push({ fromUserId: previousUserId, fromName: previousName, toUserId: user.userId, toName: user.name, reason, operator: viewerContext.viewer.name, time: stamp });
+      task.approverUserId = user.userId;
+      task.approverNameSnapshot = user.name;
+      if (task.status === "审批中") {
+        task.startedAt = stamp;
+        task.deadlineAt = deadlineFrom(stamp, task);
+        approval.approver = user.name;
+      }
+      addOperation("在途审批", "替换审批人", approval.version, viewerContext.viewer.name, "成功", `第 ${task.sequence} 级：${previousName} → ${user.name}；${reason}；节点超时重新计时`);
+      persist();
+      state.modal = { type: "approvalSimulation", approvalId: approval.id, viewerId: viewerContext.viewer.viewerId };
+      state.errors = {};
+      renderShell();
+      toast(`第 ${task.sequence} 级审批人已替换，超时重新计时`);
+      return;
+    }
     if (action === "simulate-approval-approve") {
       const approval = approvalById(state.modal.approvalId);
+      const viewerContext = approvalViewerContext(approval, state.modal?.viewerId);
+      if (!viewerContext.canDecide) { toast("仅当前节点审批人可执行审批", "warning"); return; }
+      const progress = approveCurrentApprovalTask(approval, { note: state.modal.approvalNote });
+      if (!progress.ok) { toast(progress.message, "warning"); return; }
+      if (!progress.complete) {
+        state.modal.approvalNote = "";
+        state.modal.rejectionReason = "";
+        state.errors = {};
+        renderShell();
+        toast(`第 ${progress.task.sequence} 级审批已激活`);
+        return;
+      }
       const result = executeApprovedRelease(approval);
       if (!result.ok) {
-        restorePublishApprovalTarget(approval);
-        approval.status = "已失效";
-        approval.approveTime = now();
-        approval.note = result.message;
+        approval.executionStatus = "执行失败";
+        approval.executionMessage = result.message;
+        recordApprovalNotification(approval, approval.type === "publish" ? "正式发布失败" : `${approvalOperationLabel(approval.type)}执行失败`, terminalApprovalRecipients(approval));
         const invalidIdentifier = db.identifiers.find(item => item.id === approval.firmwareId);
-        addOperation(approval.type === "delist" ? "固件下架" : approval.type === "rollback" ? "固件回滚" : "固件申请", "审批执行失效", approval.version, "发布服务", "阻止", result.message);
-        if (invalidIdentifier) addLifecycleEvent(invalidIdentifier, { flowId: approval.flowId, flowType: approval.type === "delist" ? "delist" : approval.type === "rollback" ? "rollback" : "publish", flowStatus: "failed", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: "审批执行失效", operator: "发布服务", operatorType: "系统", result: "failed", summary: result.message });
-        activeIdentifier().activeApproval = null;
+        addOperation(approval.type === "delist" ? "固件下架" : approval.type === "rollback" ? "固件回滚" : "固件申请", "执行失败", approval.version, "发布服务", "失败", `${result.message}；审批结果保留，固件标识继续锁定`);
+        if (invalidIdentifier) addLifecycleEvent(invalidIdentifier, { flowId: approval.flowId, flowType: approval.type === "delist" ? "delist" : approval.type === "rollback" ? "rollback" : "publish", flowStatus: "failed", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "release", title: `${approvalOperationLabel(approval.type)}执行失败`, operator: "发布服务", operatorType: "系统", result: "failed", summary: `${result.message}；审批已通过，等待管理员重试或人工补偿` });
         persist();
-        closeOverlay();
+        renderShell();
         toast(result.message, "error");
         return;
       }
@@ -3287,9 +4852,114 @@
       }
       return;
     }
+    if (action === "simulate-approval-timeout") {
+      const approval = approvalById(state.modal.approvalId);
+      const viewerContext = approvalViewerContext(approval, state.modal?.viewerId);
+      const task = currentApprovalTask(approval);
+      const identifier = db.identifiers.find(item => item.id === approval?.firmwareId);
+      if (!viewerContext.canSimulateTimeout || !task) { toast("仅非发起人的系统管理员可模拟节点超时", "warning"); return; }
+      task.status = "已超时";
+      task.timedOutAt = now();
+      task.completedAt = "-";
+      approval.status = "审批中";
+      approval.approvalStatus = "审批中";
+      approval.executionStatus = "未执行";
+      approval.timeoutFlag = true;
+      approval.approver = task.approverNameSnapshot;
+      addOperation("固件审批", "节点超时", approval.version, "审批服务", "成功", `第 ${task.sequence} 级审批已超时，仍等待原审批人处理`);
+      if (identifier) addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: approval.type, flowStatus: "pending", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", title: `第 ${task.sequence} 级审批节点超时`, operator: "审批服务", operatorType: "系统", result: "failed", summary: "节点已超时，审批未自动结束，原审批人仍可继续处理" });
+      persist();
+      renderShell();
+      toast("当前审批节点已超时，仍可由原审批人继续处理", "warning");
+      return;
+    }
+    if (action === "retry-approved-execution") {
+      const approval = approvalById(state.modal.approvalId);
+      const viewerContext = approvalViewerContext(approval, state.modal?.viewerId);
+      if (!viewerContext.canHandleExecutionFailure) { toast("仅系统管理员可处置执行失败", "warning"); return; }
+      const operator = viewerContext.viewer.name;
+      if (approval.submitter !== operator) {
+        state.errors = {};
+        state.modal = { type: "retryApprovedExecution", approvalId: approval.id, viewerId: viewerContext.viewer.viewerId, adminRetryReason: "" };
+        renderShell();
+        return;
+      }
+      const result = retryApprovedReleaseExecution(approval, operator);
+      if (!result.ok) {
+        renderShell();
+        toast(`重试失败：${result.message}`, "error");
+        return;
+      }
+      if (result.type === "delist") state.modal = { type: "delistResult", version: result.version };
+      else if (result.type === "rollback") state.modal = { type: "rollbackResult", version: result.version };
+      else state.modal = null;
+      renderShell();
+      toast("业务执行重试成功");
+      return;
+    }
+    if (action === "cancel-admin-retry-execution") {
+      const approvalId = state.modal?.approvalId;
+      const viewerId = state.modal?.viewerId;
+      state.errors = {};
+      state.modal = { type: "approvalSimulation", approvalId, viewerId };
+      renderShell();
+      return;
+    }
+    if (action === "confirm-admin-retry-execution") {
+      const approval = approvalById(state.modal?.approvalId);
+      const viewerContext = approvalViewerContext(approval, state.modal?.viewerId);
+      if (!viewerContext.canHandleExecutionFailure) { toast("当前模拟账号无权重试执行", "warning"); return; }
+      const reason = String(state.modal?.adminRetryReason || "").trim();
+      state.errors = {};
+      if (!reason) {
+        state.errors.adminRetryReason = "请填写兜底重试原因";
+        renderShell();
+        return;
+      }
+      const result = retryApprovedReleaseExecution(approval, viewerContext.viewer.name, reason);
+      if (!result.ok) {
+        renderShell();
+        toast(`重试失败：${result.message}`, "error");
+        return;
+      }
+      if (result.type === "delist") state.modal = { type: "delistResult", version: result.version };
+      else if (result.type === "rollback") state.modal = { type: "rollbackResult", version: result.version };
+      else state.modal = null;
+      state.errors = {};
+      renderShell();
+      toast("管理员兜底重试成功，原因已记录");
+      return;
+    }
+    if (action === "terminate-approved-execution") {
+      const approval = approvalById(state.modal.approvalId);
+      const viewerContext = approvalViewerContext(approval, state.modal?.viewerId);
+      const identifier = db.identifiers.find(item => item.id === approval?.firmwareId);
+      if (!viewerContext.canHandleExecutionFailure) { toast("仅系统管理员可终止失败执行", "warning"); return; }
+      restorePublishApprovalTarget(approval);
+      approval.executionStatus = "已终止";
+      approval.executionMessage = `${approval.executionMessage || "业务执行失败"}；管理员终止自动执行，转人工补偿`;
+      if (identifier?.activeApproval?.approvalId === approval.id) identifier.activeApproval = null;
+      if (identifier) {
+        setLifecycleFlowStatus(identifier, approval.flowId, "failed");
+        addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: approval.type, flowStatus: "failed", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "release", title: "自动执行已终止", operator: viewerContext.viewer.name, operatorType: "系统管理员", result: "failed", summary: "审批结果保留，自动执行终止并释放固件标识锁，后续转人工补偿" });
+      }
+      addOperation("固件审批", "终止执行", approval.version, viewerContext.viewer.name, "成功", "释放固件标识锁并转人工补偿");
+      persist();
+      closeOverlay();
+      toast("自动执行已终止，固件标识锁已释放", "warning");
+      return;
+    }
     if (action === "simulate-approval-reject") {
       const approval = approvalById(state.modal.approvalId);
-      rejectReleaseApproval(approval);
+      const viewerContext = approvalViewerContext(approval, state.modal?.viewerId);
+      if (!viewerContext.canDecide) { toast("仅当前节点审批人可驳回申请", "warning"); return; }
+      const reason = String(state.modal.rejectionReason || "").trim();
+      if (!reason) {
+        state.errors.rejectionReason = "驳回原因必填";
+        renderShell();
+        return;
+      }
+      rejectReleaseApproval(approval, reason);
       closeOverlay();
       toast(approval?.type === "delist" ? "下架审批已驳回，当前发布版本继续生效" : "审批已驳回，当前发布版本保持不变", "warning");
       return;
@@ -3417,7 +5087,7 @@
         query: "",
         featureCategory: "",
         selectedIds: state.drawer.associatedFeatures.map(feature => feature.id),
-        versionSelections: Object.fromEntries(state.drawer.associatedFeatures.map(feature => [feature.id, feature.featureVersionId || defaultFeatureVersion(sourceFeatureBySnapshot(feature))?.id || ""]))
+        versionSelections: Object.fromEntries(state.drawer.associatedFeatures.map(feature => [feature.id, feature.featureVersionId || defaultConfigurableFeatureVersion(sourceFeatureBySnapshot(feature))?.id || ""]))
       };
       renderShell();
       return;
@@ -3428,13 +5098,13 @@
       const matches = availableAssociatedFeatures().filter(feature =>
         (!query || `${feature.name} ${feature.identifier} ${feature.category}`.toLowerCase().includes(query)) &&
         (!category || feature.category === category) &&
-        defaultFeatureVersion(feature) && !isRequiredFeature(feature)
+        defaultConfigurableFeatureVersion(feature) && !isRequiredFeature(feature)
       );
       const ids = matches.map(feature => feature.id);
       const allSelected = ids.every(id => state.modal.selectedIds.includes(id));
       state.modal.selectedIds = allSelected ? state.modal.selectedIds.filter(id => !ids.includes(id)) : [...new Set([...state.modal.selectedIds, ...ids])];
       if (!allSelected) matches.forEach(feature => {
-        if (!state.modal.versionSelections[feature.id]) state.modal.versionSelections[feature.id] = defaultFeatureVersion(feature)?.id || "";
+        if (!state.modal.versionSelections[feature.id]) state.modal.versionSelections[feature.id] = defaultConfigurableFeatureVersion(feature)?.id || "";
       });
       delete state.errors.featurePicker;
       renderShell();
@@ -3461,7 +5131,7 @@
         return source ? associatedFeatureSnapshot(source, state.modal.versionSelections[id], previous) : previous || null;
       }).filter(Boolean);
       const completedSnapshots = ensureRequiredFeatureSnapshots(snapshots, activeIdentifier().product);
-      const featureError = featureConfigurationError(completedSnapshots, activeIdentifier().product);
+      const featureError = featureConfigurationError(completedSnapshots, activeIdentifier().product, { allowTesting: true });
       if (featureError) {
         state.errors.featurePicker = featureError;
         renderShell();
@@ -3543,6 +5213,13 @@
       renderShell();
       return;
     }
+    if (action === "open-approval-log") {
+      const approval = approvalById(target.dataset.approvalId);
+      if (!approval) return;
+      state.modal = { type: "approvalSimulation", approvalId: approval.id };
+      renderShell();
+      return;
+    }
     if (action === "query-users") {
       state.filters.user = state.draftFilters.user || "";
       state.userPage = 1;
@@ -3579,8 +5256,8 @@
       renderShell();
       return;
     }
-    if (["firmware-page", "differential-task-page", "differential-package-page", "module-page", "operation-page", "approval-page", "user-page"].includes(action)) {
-      const key = { "firmware-page": "firmwarePage", "differential-task-page": "differentialTaskPage", "differential-package-page": "differentialPackagePage", "module-page": "modulePage", "operation-page": "operationPage", "approval-page": "approvalPage", "user-page": "userPage" }[action];
+    if (["firmware-page", "differential-task-page", "differential-package-page", "module-page", "operation-page", "approval-page", "approval-policy-page", "user-page"].includes(action)) {
+      const key = { "firmware-page": "firmwarePage", "differential-task-page": "differentialTaskPage", "differential-package-page": "differentialPackagePage", "module-page": "modulePage", "operation-page": "operationPage", "approval-page": "approvalPage", "approval-policy-page": "approvalPolicyPage", "user-page": "userPage" }[action];
       state[key] = Number(target.dataset.page);
       renderShell();
       return;
@@ -3593,7 +5270,7 @@
     if (action === "user-permissions") {
       const userIndex = Number(target.dataset.userIndex);
       const user = db.users[userIndex];
-      state.drawer = { type: "userPermissions", userIndex, userDraft: { lines: [...user.lines], approverLines: [...user.approverLines], note: user.note, role: user.role } };
+      state.drawer = { type: "userPermissions", userIndex, userDraft: { lines: [...user.lines], note: user.note, role: user.role, status: user.status } };
       renderShell();
       return;
     }
@@ -3642,6 +5319,7 @@
     }
     if (action === "save-role-permissions") {
       const changedRole = activeRole();
+      if (changedRole.name !== "系统管理员") systemAdminOnlyActions.forEach(permission => { state.tempPermissions[`action-${permission}`] = false; });
       activeRole().permissions = clone(state.tempPermissions || {});
       state.roleEditing = false;
       state.tempPermissions = null;
@@ -3710,7 +5388,14 @@
       markVersionDrawerDirty();
     }
     if (modalDraft && state.modal?.draft) state.modal.draft[modalDraft] = event.target.value;
-    if (event.target.dataset.modalField && state.modal) state.modal[event.target.dataset.modalField] = event.target.value;
+    if (event.target.dataset.modalField && state.modal) {
+      const field = event.target.dataset.modalField;
+      state.modal[field] = event.target.value;
+      if (["rejectionReason", "withdrawalReason", "adminRetryReason"].includes(field)) {
+        delete state.errors[field];
+        event.target.closest(".form-field")?.querySelector(".error-text")?.remove();
+      }
+    }
     if (event.target.dataset.modalField === "name" && state.modal?.type === "addDifferentialTask") {
       delete state.errors.differentialTaskName;
       event.target.closest(".form-field")?.querySelector(".error-text")?.remove();
@@ -3730,8 +5415,66 @@
       syncAppNoteDraftFeedback(state.modal.notesDraft, locale, meta);
     }
     if (event.target.matches("[data-revision-reason]") && state.modal) state.modal.reason = event.target.value;
-    if (event.target.matches("[data-feature-search]") && state.modal?.type === "featurePicker") state.modal.query = event.target.value;
+    if (event.target.matches("[data-feature-search]") && state.modal?.type === "featurePicker") {
+      state.modal.query = event.target.value;
+      renderShell();
+      const search = app.querySelector("[data-feature-search]");
+      if (search) {
+        search.focus();
+        search.setSelectionRange(search.value.length, search.value.length);
+      }
+      return;
+    }
     if (event.target.matches("[data-user-note]") && state.drawer?.userDraft) state.drawer.userDraft.note = event.target.value;
+    if (event.target.matches("[data-policy-name]") && state.drawer?.type === "approvalPolicy") {
+      state.drawer.policyDraft.name = event.target.value;
+      markApprovalPolicyDirty();
+      delete state.errors.policyName;
+      event.target.closest(".form-field")?.querySelector(".error-text")?.remove();
+      const previewName = app.querySelector("[data-policy-preview-name]");
+      if (previewName) previewName.textContent = event.target.value.trim() || "未命名审批方案";
+    }
+    if (event.target.matches("[data-policy-description]") && state.drawer?.type === "approvalPolicy") {
+      state.drawer.policyDraft.description = event.target.value;
+      markApprovalPolicyDirty();
+      delete state.errors.policyDescription;
+      const counter = event.target.closest(".form-field")?.querySelector(".helper.align-right");
+      if (counter) counter.textContent = `${event.target.value.length} / 200`;
+    }
+    if (event.target.dataset.policyNodeTimeout !== undefined && state.drawer?.type === "approvalPolicy") {
+      const index = Number(event.target.dataset.policyNodeTimeout);
+      const node = state.drawer.policyDraft.nodes[index];
+      node.timeoutValue = event.target.value;
+      node.timeoutHours = node.timeoutUnit === "day" ? Number(event.target.value || 1) * 24 : Number(event.target.value || 24);
+      markApprovalPolicyDirty();
+      delete state.errors[`policyTimeout${index}`];
+      event.target.closest(".form-field")?.querySelector(".error-text")?.remove();
+      const previewTimeout = app.querySelector(`[data-policy-preview-timeout="${index}"]`);
+      if (previewTimeout) previewTimeout.textContent = `时限 ${event.target.value || "-"} ${node.timeoutUnit === "day" ? "自然日" : "小时"}`;
+    }
+    if (event.target.dataset.policyNodeUserSearch !== undefined && state.drawer?.type === "approvalPolicy") {
+      const picker = event.target.closest(".policy-user-picker");
+      const query = event.target.value.trim().toLowerCase();
+      let visibleCount = 0;
+      picker?.querySelectorAll("[data-policy-user-search-value]").forEach(option => {
+        const visible = !query || option.dataset.policyUserSearchValue.includes(query);
+        option.hidden = !visible;
+        if (visible) visibleCount += 1;
+      });
+      const empty = picker?.querySelector("[data-policy-user-empty]");
+      if (empty) empty.classList.toggle("hidden", visibleCount > 0);
+      return;
+    }
+    if (event.target.matches("[data-policy-copy-search]") && state.drawer?.type === "approvalPolicy") {
+      state.drawer.copyUserSearch = event.target.value;
+      renderShell();
+      const copySearch = app.querySelector("[data-policy-copy-search]");
+      if (copySearch) {
+        copySearch.focus({ preventScroll: true });
+        copySearch.setSelectionRange(copySearch.value.length, copySearch.value.length);
+      }
+      return;
+    }
     if (event.target.dataset.appNote && state.drawer?.appReleaseNotes) {
       const locale = event.target.dataset.appNote;
       state.drawer.appReleaseNotes[locale] = event.target.value;
@@ -3749,6 +5492,73 @@
 
   app.addEventListener("change", event => {
     const target = event.target;
+    if (target.matches("[data-feature-category]") && state.modal?.type === "featurePicker") {
+      state.modal.featureCategory = target.value;
+      state.modal.versionOpen = null;
+      state.modal.infoOpen = null;
+      renderShell();
+      return;
+    }
+    if (target.dataset.change === "policy-product-line") {
+      if (state.drawer?.type === "approvalPolicy") {
+        state.drawer.policyDraft.productLine = target.value;
+        state.drawer.policyDraft.copyUserIds = [];
+        state.drawer.policyDraft.nodes = [{ sequence: 1, type: "generic", approverUserId: "", approverName: "", timeoutUnit: "hour", timeoutValue: 24, timeoutHours: 24 }];
+        state.drawer.dirty = true;
+        state.errors = {};
+      } else {
+        state.selectedPolicyProductLine = target.value;
+        state.approvalPolicyPage = 1;
+      }
+      renderShell();
+      return;
+    }
+    if (target.dataset.policyOperation && state.drawer?.type === "approvalPolicy") {
+      const operation = target.dataset.policyOperation;
+      const selected = new Set(state.drawer.policyDraft.operations);
+      if (target.checked) selected.add(operation);
+      else selected.delete(operation);
+      state.drawer.policyDraft.operations = approvalOperationCatalog.filter(item => selected.has(item.value)).map(item => item.value);
+      normalizeApprovalPolicyDraftNodes(state.drawer.policyDraft);
+      if (!state.drawer.policyDraft.operations.includes(state.drawer.previewOperation)) {
+        state.drawer.previewOperation = state.drawer.policyDraft.operations[0] || "";
+      }
+      markApprovalPolicyDirty();
+      delete state.errors.policyOperations;
+      renderShell();
+      return;
+    }
+    if (target.dataset.policyNodeTimeoutUnit !== undefined && state.drawer?.type === "approvalPolicy") {
+      const index = Number(target.dataset.policyNodeTimeoutUnit);
+      const node = state.drawer.policyDraft.nodes[index];
+      node.timeoutUnit = target.value === "day" ? "day" : "hour";
+      node.timeoutValue = node.timeoutUnit === "day" ? Math.max(1, Math.min(30, Number(node.timeoutValue || 1))) : Math.max(1, Math.min(168, Number(node.timeoutValue || 24)));
+      node.timeoutHours = node.timeoutUnit === "day" ? node.timeoutValue * 24 : node.timeoutValue;
+      markApprovalPolicyDirty();
+      delete state.errors[`policyTimeout${index}`];
+      renderShell();
+      return;
+    }
+    if (target.dataset.policyCopyUser && state.drawer?.type === "approvalPolicy") {
+      const selected = new Set(state.drawer.policyDraft.copyUserIds || []);
+      if (target.checked) selected.add(target.dataset.policyCopyUser);
+      else selected.delete(target.dataset.policyCopyUser);
+      state.drawer.policyDraft.copyUserIds = [...selected];
+      markApprovalPolicyDirty();
+      renderShell();
+      app.querySelector("[data-policy-copy-search]")?.focus({ preventScroll: true });
+      return;
+    }
+    if (target.dataset.policyNodeUser !== undefined && state.drawer?.type === "approvalPolicy") {
+      const index = Number(target.dataset.policyNodeUser);
+      const user = db.users.find(item => item.userId === target.value);
+      state.drawer.policyDraft.nodes[index].approverUserId = target.value;
+      state.drawer.policyDraft.nodes[index].approverName = user?.name || "";
+      markApprovalPolicyDirty();
+      clearApprovalPolicyNodeErrors();
+      renderShell();
+      return;
+    }
     if (target.dataset.featureVersion !== undefined && state.modal?.type === "featurePicker") {
       state.modal.versionSelections[target.dataset.featureId] = target.value;
       delete state.errors.featurePicker;
@@ -3817,7 +5627,7 @@
     if (target.dataset.pageSize) {
       const key = target.dataset.pageSize;
       state.pageSizes[key] = Number(target.value);
-      const pageKey = { firmware: "firmwarePage", differentialTasks: "differentialTaskPage", differentialPackages: "differentialPackagePage", modules: "modulePage", operations: "operationPage", approvals: "approvalPage", users: "userPage" }[key];
+      const pageKey = { firmware: "firmwarePage", differentialTasks: "differentialTaskPage", differentialPackages: "differentialPackagePage", modules: "modulePage", operations: "operationPage", approvals: "approvalPage", approvalPolicies: "approvalPolicyPage", users: "userPage" }[key];
       state[pageKey] = 1;
       renderShell();
       return;
@@ -3841,7 +5651,7 @@
       }
       state.modal.selectedIds = target.checked ? [...new Set([...state.modal.selectedIds, id])] : state.modal.selectedIds.filter(item => item !== id);
       if (target.checked && !state.modal.versionSelections[id]) {
-        state.modal.versionSelections[id] = defaultFeatureVersion(source)?.id || "";
+        state.modal.versionSelections[id] = defaultConfigurableFeatureVersion(source)?.id || "";
       }
       delete state.errors.featurePicker;
       renderShell();
@@ -3850,7 +5660,6 @@
     if (target.dataset.userLine && state.drawer?.userDraft) {
       const line = target.dataset.userLine;
       state.drawer.userDraft.lines = target.checked ? [...state.drawer.userDraft.lines, line] : state.drawer.userDraft.lines.filter(item => item !== line);
-      state.drawer.userDraft.approverLines = state.drawer.userDraft.approverLines.filter(item => state.drawer.userDraft.lines.includes(item));
       renderShell();
       return;
     }
@@ -3864,13 +5673,48 @@
       state.roleUserLineDraft = target.checked ? [...new Set([...(state.roleUserLineDraft || []), line])] : (state.roleUserLineDraft || []).filter(item => item !== line);
       return;
     }
-    if (target.dataset.approverLine && state.drawer?.userDraft) {
-      const line = target.dataset.approverLine;
-      state.drawer.userDraft.approverLines = target.checked ? [...new Set([...state.drawer.userDraft.approverLines, line])] : state.drawer.userDraft.approverLines.filter(item => item !== line);
+    if (target.dataset.change === "user-status" && state.drawer?.userDraft) {
+      state.drawer.userDraft.status = target.value;
       return;
     }
     if (target.dataset.change === "permission-role" && state.drawer?.userDraft) {
       state.drawer.userDraft.role = target.value;
+      renderShell();
+      return;
+    }
+    if (target.id === "test-report-file" && state.modal?.type === "publish") {
+      const selected = [...(target.files || [])].map(materialFileSnapshot);
+      const nextFiles = [...(state.modal.testReportFiles || []), ...selected];
+      const error = materialValidation(nextFiles, releaseMaterialRules.testReport);
+      if (error) {
+        state.errors.testReport = error;
+      } else {
+        state.modal.testReportFiles = nextFiles;
+        delete state.errors.testReport;
+      }
+      renderShell();
+      return;
+    }
+    if (target.id === "meeting-minutes-file" && state.modal?.type === "approvalSimulation") {
+      const approval = approvalById(state.modal.approvalId);
+      const viewerContext = approvalViewerContext(approval, state.modal.viewerId);
+      const task = viewerContext.activeTask;
+      if (!viewerContext.canUploadMinutes) {
+        toast("仅正式发布的当前第 1 级审批人可上传会议纪要", "warning");
+        return;
+      }
+      const selected = [...(target.files || [])].map(materialFileSnapshot);
+      const nextFiles = [...(approval.meetingMinutesFiles || []), ...selected];
+      const error = materialValidation(nextFiles, releaseMaterialRules.meetingMinutes);
+      if (error) {
+        state.errors.meetingMinutes = error;
+      } else {
+        approval.meetingMinutesFiles = nextFiles;
+        state.modal.meetingMinutesFiles = nextFiles;
+        delete state.errors.meetingMinutes;
+        addOperation("固件申请", "上传会议纪要", approval.version, task.approverNameSnapshot || "第 1 级审批人", "成功", `${nextFiles.length} 个附件，审批单 ${approval.instanceNo}`);
+        persist();
+      }
       renderShell();
       return;
     }
@@ -3928,7 +5772,7 @@
     if (event.target.dataset.pageJump) {
       event.preventDefault();
       const page = Math.min(Number(event.target.dataset.maxPage), Math.max(1, Number(event.target.value) || 1));
-      const key = { "firmware-page": "firmwarePage", "differential-task-page": "differentialTaskPage", "differential-package-page": "differentialPackagePage", "module-page": "modulePage", "operation-page": "operationPage", "approval-page": "approvalPage", "user-page": "userPage" }[event.target.dataset.pageAction];
+      const key = { "firmware-page": "firmwarePage", "differential-task-page": "differentialTaskPage", "differential-package-page": "differentialPackagePage", "module-page": "modulePage", "operation-page": "operationPage", "approval-page": "approvalPage", "approval-policy-page": "approvalPolicyPage", "user-page": "userPage" }[event.target.dataset.pageAction];
       state[key] = page;
       renderShell();
     }
@@ -4040,6 +5884,7 @@
       const appReleaseNotes = configuredAppNotes(appReleaseNoteDraft);
       const appNoteMeta = normalizeAppNoteMeta(state.drawer.appNoteMeta, appReleaseNoteDraft);
       const featureConfigs = editing ? clone(oldVersion.featureConfigs || []) : [];
+      let appNotesRevisionCreated = false;
       state.drawer.associatedFeatures = ensureRequiredFeatureSnapshots(state.drawer.associatedFeatures || [], identifier.product);
       if (!editing && !state.upload) state.errors.file = "请先上传固件包";
       if (!versionName) state.errors.version = "缺少固件版本号";
@@ -4052,7 +5897,7 @@
         state.errors[`locale-${noteError.locale}`] = noteError.message;
         state.errors.appNotes = "请完成全部启用语言并确认 AI 草稿";
       }
-      const featureError = featureConfigurationError(state.drawer.associatedFeatures, identifier.product);
+      const featureError = featureConfigurationError(state.drawer.associatedFeatures, identifier.product, { allowTesting: true });
       if (featureError) state.errors.associatedFeatures = featureError;
       if (Object.keys(state.errors).length) {
         const firstLocaleError = Object.keys(state.errors).find(key => key.startsWith("locale-"));
@@ -4071,6 +5916,11 @@
           featureConfigs: clone(oldVersion.featureConfigs || []),
           associatedFeatures: clone(oldVersion.associatedFeatures || [])
         };
+        const changedNoteLocales = changedAppNoteLocales(before.appReleaseNotes, appReleaseNotes);
+        const previousEnabledLocales = enabledAppNoteLocales(normalizeAppNoteMeta(before.appNoteMeta, before.appReleaseNotes));
+        const nextEnabledLocales = enabledAppNoteLocales(appNoteMeta);
+        const enabledLocalesChanged = !sameValues(previousEnabledLocales, nextEnabledLocales);
+        const appNotesChanged = changedNoteLocales.length > 0 || enabledLocalesChanged;
         oldVersion.models = models;
         oldVersion.note = platformReleaseNotes;
         oldVersion.platformReleaseNotes = platformReleaseNotes;
@@ -4080,21 +5930,38 @@
         oldVersion.featureConfigs = featureConfigs;
         oldVersion.associatedFeatures = clone(state.drawer.associatedFeatures || []);
         oldVersion.features = oldVersion.associatedFeatures.length;
-        oldVersion.updated = now();
+        const revisionTime = now();
+        oldVersion.updated = revisionTime;
         oldVersion.associatedDeviceCount = associatedDeviceCount(identifier, models);
         oldVersion.recordVersion = Number(oldVersion.recordVersion || 1) + 1;
         if (!Array.isArray(oldVersion.editRevisions)) oldVersion.editRevisions = [];
-        oldVersion.editRevisions.unshift({ time: now(), operator: "汤彦珊", recordVersion: oldVersion.recordVersion, before });
+        oldVersion.editRevisions.unshift({ time: revisionTime, operator: "汤彦珊", recordVersion: oldVersion.recordVersion, before });
+        if (appNotesChanged) {
+          appNotesRevisionCreated = true;
+          if (!Array.isArray(oldVersion.noteRevisions)) oldVersion.noteRevisions = [];
+          const changedCopy = changedNoteLocales.map(localeName).join("、");
+          const reason = changedCopy
+            ? `通过固件版本编辑同步更新${changedCopy}文案${enabledLocalesChanged ? "及适配语言范围" : ""}`
+            : "通过固件版本编辑调整文案适配语言范围";
+          oldVersion.noteRevisions.unshift({
+            time: revisionTime,
+            operator: "汤彦珊",
+            reason,
+            before: { appReleaseNotes: clone(before.appReleaseNotes), appNoteMeta: clone(before.appNoteMeta) },
+            after: { appReleaseNotes: clone(appReleaseNotes), appNoteMeta: clone(appNoteMeta) },
+            recordVersion: oldVersion.recordVersion
+          });
+        }
         const featureChange = featureAssociationChangeSummary(before.associatedFeatures, oldVersion.associatedFeatures);
-        addOperation("固件版本", "编辑", versionName, "汤彦珊", "成功", `编辑${versionStatusLabel(oldVersion.status)}元数据，生成修订记录 R${oldVersion.recordVersion}；功能点：${featureChange}`);
+        addOperation("固件版本", "编辑", versionName, "汤彦珊", "成功", `编辑${versionStatusLabel(oldVersion.status)}元数据，生成修订记录 R${oldVersion.recordVersion}；功能项：${featureChange}${appNotesChanged ? "；APP 更新说明已同步生成文案修订记录" : ""}`);
       } else {
         identifier.versions.unshift({ version: versionName, url: `http://doraemon.camera666.com/${state.upload.name}`, size: state.upload.size, md5: state.upload.md5, models, associatedDeviceCount: associatedDeviceCount(identifier, models), features: (state.drawer.associatedFeatures || []).length, featureConfigs, associatedFeatures: clone(state.drawer.associatedFeatures || []), featureConfigOrigin: state.drawer.inheritedFromVersion ? "baseline-inherited" : "product-default", featureConfigSourceVersion: state.drawer.inheritedFromVersion || null, creator: "汤彦珊", note: platformReleaseNotes, platformReleaseNotes, appReleaseNotes: clone(appReleaseNotes), appNoteMeta: clone(appNoteMeta), noteRevisions: [], created: now(), updated: now(), latest: false, status: "unpublished", reminder: "不提醒", recordVersion: 1 });
-        addOperation("固件版本", "新增", versionName, "汤彦珊", "成功", `功能点配置 ${(state.drawer.associatedFeatures || []).length} 项${state.drawer.inheritedFromVersion ? `，继承自 ${state.drawer.inheritedFromVersion}` : "，来源为产品线默认必配功能"}`);
+        addOperation("固件版本", "新增", versionName, "汤彦珊", "成功", `功能项配置 ${(state.drawer.associatedFeatures || []).length} 项${state.drawer.inheritedFromVersion ? `，继承自 ${state.drawer.inheritedFromVersion}` : "，来源为产品线默认必配功能"}`);
       }
       identifier.aiTranslationLocales = enabledAppNoteLocales(appNoteMeta).filter(locale => locale !== "zh");
       persist();
       closeOverlay();
-      toast(editing ? "固件版本已更新" : `固件版本 ${versionName} 已新增`);
+      toast(editing ? `固件版本已更新${appNotesRevisionCreated ? "，文案修订记录已同步生成" : ""}` : `固件版本 ${versionName} 已新增`);
       return;
     }
 
@@ -4103,15 +5970,18 @@
       const draft = state.drawer.userDraft;
       const lines = draft.lines;
       if (!lines.length) { toast("请至少选择一条所属产线", "warning"); return; }
-      const approverLines = draft.approverLines.filter(line => lines.includes(line));
+      const blockedPublishApprovals = db.approvals.filter(approval => approval.type === "publish" && approval.approvalStatus === "审批中" && approval.tasks?.some(task => task.approverUserId === user.userId && ["审批中", "未激活"].includes(task.status)) && (draft.status !== "active" || !draft.lines.includes(approval.productLine)));
+      if (blockedPublishApprovals.length) { toast(`该用户仍承担在途发布审批 ${blockedPublishApprovals[0].version}，发布审批人不可替换，请先完成或结束审批`, "warning"); return; }
+      const affectedPolicies = db.approvalPolicies.filter(policy => policy.nodes.some(node => node.approverUserId === user.userId) && (!draft.lines.includes(policy.productLine) || draft.status !== "active"));
+      if (affectedPolicies.length) { toast(`该用户仍被审批方案“${affectedPolicies[0].name}”使用，请先调整审批方案`, "warning"); return; }
       const note = String(draft.note || "").trim();
       const changes = [];
       if (!sameValues(user.lines, lines)) changes.push(`所属产线：${user.lines.join(" / ") || "无"} → ${lines.join(" / ")}`);
-      if (!sameValues(user.approverLines, approverLines)) changes.push(`审批产线：${user.approverLines.join(" / ") || "无"} → ${approverLines.join(" / ") || "无"}`);
+      if (user.status !== draft.status) changes.push(`账号状态：${user.status === "active" ? "启用" : "停用"} → ${draft.status === "active" ? "启用" : "停用"}`);
       if (user.role !== draft.role) changes.push(`关联角色：${user.role} → ${draft.role}`);
       if ((user.note || "") !== note) changes.push(`备注：${user.note || "无"} → ${note || "无"}`);
       user.lines = [...lines];
-      user.approverLines = approverLines;
+      user.status = draft.status;
       user.note = note;
       user.role = draft.role;
       if (changes.length) {
@@ -4169,14 +6039,38 @@
   });
 
   window.addEventListener("hashchange", () => {
-    state.route = routeFromHash();
+    const nextRoute = routeFromHash();
+    if (state.drawer?.dirty && nextRoute !== state.route) {
+      history.replaceState(null, "", `#/${state.route}`);
+      requestCloseOverlay(nextRoute);
+      return;
+    }
+    state.route = nextRoute;
     state.modal = null;
     state.drawer = null;
     renderShell();
   });
 
+  window.addEventListener("beforeunload", event => {
+    if (!state.drawer?.dirty) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
+
   window.addEventListener("keydown", event => {
     if (event.key !== "Escape") return;
+    if (state.drawer?.type === "approvalPolicy" && Number.isInteger(state.drawer.nodeUserPickerOpen)) {
+      state.drawer.nodeUserPickerOpen = null;
+      renderShell();
+      return;
+    }
+    if (state.drawer?.type === "approvalPolicy" && state.drawer.copyUserPickerOpen) {
+      state.drawer.copyUserPickerOpen = false;
+      state.drawer.copyUserSearch = "";
+      state.drawer.copyUserTab = "all";
+      renderShell();
+      return;
+    }
     if (state.rulePanel) {
       dismissRulePopover();
       return;

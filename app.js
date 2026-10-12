@@ -1448,7 +1448,7 @@
     }
     if (identifier.activeApproval) {
       if (identifier.activeApproval.type === "publish" && identifier.activeApproval.version === version.version) {
-        state.modal = { type: "approvalSimulation", approvalId: identifier.activeApproval.approvalId };
+        openApprovalDetail(identifier.activeApproval.approvalId);
         return true;
       }
       toast("当前固件标识已有发布、回滚或下架审批", "warning");
@@ -1866,6 +1866,33 @@
 
   function approvalById(id) {
     return db.approvals.find(item => item.id === id);
+  }
+
+  function activeApprovalDetail() {
+    if (state.drawer?.type === "approvalSimulation") return state.drawer;
+    if (state.modal?.type === "approvalSimulation") return state.modal;
+    return null;
+  }
+
+  function openApprovalDetail(approvalId, options = {}) {
+    state.modal = null;
+    state.drawer = {
+      type: "approvalSimulation",
+      approvalId,
+      ...(options.viewerId ? { viewerId: options.viewerId } : {}),
+      ...(options.returnDrawer ? { returnDrawer: clone(options.returnDrawer) } : {})
+    };
+  }
+
+  function restoreApprovalDetail(approvalId, viewerId) {
+    if (state.drawer?.type === "approvalSimulation") {
+      state.drawer.approvalId = approvalId;
+      state.drawer.viewerId = viewerId;
+      state.drawer.viewerPickerOpen = false;
+      state.modal = null;
+      return;
+    }
+    openApprovalDetail(approvalId, { viewerId });
   }
 
   const approvalOperationCatalog = [
@@ -2850,8 +2877,10 @@
     return `<section class="modal ${wide ? "wide" : ""} ${approvalDetailModal ? "approval-detail-modal" : ""} ${body.includes('class="app-reminder-layout"') ? "release-modal" : ""} ${featureModal ? "feature-modal" : ""} ${nested ? "nested-modal" : ""} ${animateCurrentModal ? "is-entering" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header class="dialog-header"><div class="frame-title-with-rules"><h2>${esc(title)}</h2>${featureModal ? "" : ruleAnnotations(frameRuleItems(title, "modal"))}</div><button class="close-btn" data-action="${nested ? "close-modal" : "close-overlay"}" aria-label="关闭">×</button></header><div class="dialog-body">${body}</div>${footer ? `<footer class="dialog-footer">${footer}</footer>` : ""}</section>`;
   }
 
-  function drawerFrame(title, body, footer = "", narrow = false) {
-    return `<section class="drawer ${narrow ? "narrow" : ""} ${animateCurrentDrawer ? "is-entering" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header class="drawer-header"><div class="frame-title-with-rules"><h2>${esc(title)}</h2>${ruleAnnotations(frameRuleItems(title, "drawer"))}</div><button class="close-btn" data-action="close-overlay" aria-label="关闭">×</button></header><div class="drawer-body">${body}</div>${footer ? `<footer class="drawer-footer">${footer}</footer>` : ""}</section>`;
+  function drawerFrame(title, body, footer = "", narrow = false, options = {}) {
+    const approvalDetail = /审批详情$/.test(title);
+    const backButton = options.backAction ? `<button type="button" class="drawer-back-button" data-action="${esc(options.backAction)}" aria-label="${esc(options.backLabel || "返回审批日志")}" title="${esc(options.backLabel || "返回审批日志")}">‹</button>` : "";
+    return `<section class="drawer ${narrow ? "narrow" : ""} ${approvalDetail ? "approval-detail-drawer" : ""} ${animateCurrentDrawer ? "is-entering" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header class="drawer-header"><div class="drawer-header-main">${backButton}<div class="frame-title-with-rules"><h2>${esc(title)}</h2>${ruleAnnotations(frameRuleItems(title, "drawer"))}</div></div><button class="close-btn" data-action="close-overlay" aria-label="关闭">×</button></header><div class="drawer-body">${body}</div>${footer ? `<footer class="drawer-footer">${footer}</footer>` : ""}</section>`;
   }
 
   function errorFor(name) {
@@ -2915,7 +2944,8 @@
 
   function renderApprovalSimulation(modal) {
     const approval = approvalById(modal.approvalId);
-    if (!approval) return modalFrame("审批详情", `<div class="empty-state compact-empty"><div>审批记录已不存在</div></div>`, `<button class="btn primary" data-action="close-overlay">关闭</button>`);
+    const drawerOptions = modal.returnDrawer ? { backAction: "back-to-version-approvals", backLabel: "返回审批日志" } : {};
+    if (!approval) return drawerFrame("审批详情", `<div class="empty-state compact-empty"><div>审批记录已不存在</div></div>`, `<button class="btn primary" data-action="close-overlay">关闭</button>`, false, drawerOptions);
     const rollback = approval.type === "rollback";
     const delist = approval.type === "delist";
     const publish = approval.type === "publish";
@@ -2970,7 +3000,7 @@
     const replacementBoundary = approval.type === "publish"
       ? `<div class="approval-replacement-boundary locked"><strong>审批节点快照已锁定</strong><span>发起人不能审批自己的申请；各级审批人不得重复，正式发布节点审批人不可在审批中替换。</span></div>`
       : `<div class="approval-replacement-boundary ${viewerContext.canReplaceTask ? "" : "locked"}"><strong>${viewerContext.canReplaceTask ? "管理员可替换在途节点" : "在途节点受权限保护"}</strong><span>${viewerContext.canReplaceTask ? "仅影响当前审批实例；替换当前节点后，超时时间重新计算。" : "仅系统管理员可替换回滚或下架审批的在途节点。"}</span></div>`;
-    return modalFrame(`${actionLabel}审批详情`, `${ruleContextBar([delist ? "delist" : rollback ? "rollback" : "publish", "concurrency"])}${viewerBar}${focusStrip}${sectionNav}<div class="approval-instance-head"><div><span>${esc(approval.policyNameSnapshot || "历史审批方案")} · ${esc(approval.instanceNo || approval.id)}</span><h3>${esc(headerCopy)}</h3></div><div><span class="tag ${approvalClass}">${esc(approval.approvalStatus)}</span><span class="tag ${executionClass}">${esc(approval.executionStatus)}</span></div></div>${failureNotice}${snapshot}${materials}<section class="approval-task-section" data-approval-section="flow"><div class="policy-section-head"><div><h3>审批流转</h3><span>${esc(approval.policyVersion)} · ${tasks.length} 级串行 · 节点快照已冻结</span></div></div>${replacementBoundary}<div class="approval-task-list">${taskRows}</div></section>${decisionPanel}${notificationSection}<div class="prototype-simulation-note">角色切换仅用于原型权限演示，审批记录与钉钉通知机制保持不变</div>`, footer, true);
+    return drawerFrame(`${actionLabel}审批详情`, `${ruleContextBar([delist ? "delist" : rollback ? "rollback" : "publish", "concurrency"])}${viewerBar}${focusStrip}${sectionNav}<div class="approval-instance-head"><div><span>${esc(approval.policyNameSnapshot || "历史审批方案")} · ${esc(approval.instanceNo || approval.id)}</span><h3>${esc(headerCopy)}</h3></div><div><span class="tag ${approvalClass}">${esc(approval.approvalStatus)}</span><span class="tag ${executionClass}">${esc(approval.executionStatus)}</span></div></div>${failureNotice}${snapshot}${materials}<section class="approval-task-section" data-approval-section="flow"><div class="policy-section-head"><div><h3>审批流转</h3><span>${esc(approval.policyVersion)} · ${tasks.length} 级串行 · 节点快照已冻结</span></div></div>${replacementBoundary}<div class="approval-task-list">${taskRows}</div></section>${decisionPanel}${notificationSection}<div class="prototype-simulation-note">角色切换仅用于原型权限演示，审批记录与钉钉通知机制保持不变</div>`, footer, false, drawerOptions);
   }
 
   function renderModal() {
@@ -3276,6 +3306,7 @@
     const drawer = state.drawer;
     if (drawer.type === "approvalPolicy") return renderApprovalPolicyDrawer(drawer);
     if (drawer.type === "policyVersionHistory") return renderPolicyVersionHistoryDrawer(drawer);
+    if (drawer.type === "approvalSimulation") return renderApprovalSimulation(drawer);
     if (drawer.type === "addVersion") return renderVersionFormDrawer("新增固件版本", null);
     if (drawer.type === "editVersion") return renderVersionFormDrawer("编辑固件版本", findVersion(drawer.version));
     if (drawer.type === "versionDetail") return renderVersionDetail(findVersion(drawer.version));
@@ -3951,8 +3982,9 @@
           return;
         }
       }
-      if (state.modal?.type === "approvalSimulation" && state.modal.viewerPickerOpen && !event.target.closest(".approval-viewer-switch")) {
-        state.modal.viewerPickerOpen = false;
+      const approvalDetail = activeApprovalDetail();
+      if (approvalDetail?.viewerPickerOpen && !event.target.closest(".approval-viewer-switch")) {
+        approvalDetail.viewerPickerOpen = false;
         renderShell();
         return;
       }
@@ -3980,25 +4012,27 @@
     const popoverToggles = ["identifier-actions", "density-menu", "column-settings", "role-more", "user-line-filter", "role-user-line-filter"];
     if (state.popover && !popoverToggles.includes(action) && !event.target.closest(".action-popover")) state.popover = null;
 
-    if (action === "toggle-approval-viewer" && state.modal?.type === "approvalSimulation") {
-      state.modal.viewerPickerOpen = !state.modal.viewerPickerOpen;
+    if (action === "toggle-approval-viewer" && activeApprovalDetail()) {
+      const approvalDetail = activeApprovalDetail();
+      approvalDetail.viewerPickerOpen = !approvalDetail.viewerPickerOpen;
       renderShell();
       return;
     }
-    if (action === "select-approval-viewer" && state.modal?.type === "approvalSimulation") {
-      const approval = approvalById(state.modal.approvalId);
+    if (action === "select-approval-viewer" && activeApprovalDetail()) {
+      const approvalDetail = activeApprovalDetail();
+      const approval = approvalById(approvalDetail.approvalId);
       const option = approvalViewerOptions(approval).find(item => item.viewerId === target.dataset.viewerId);
       if (!option) return;
-      state.modal.viewerId = option.viewerId;
-      state.modal.viewerPickerOpen = false;
-      state.modal.approvalNote = "";
-      state.modal.rejectionReason = "";
+      approvalDetail.viewerId = option.viewerId;
+      approvalDetail.viewerPickerOpen = false;
+      approvalDetail.approvalNote = "";
+      approvalDetail.rejectionReason = "";
       state.errors = {};
       renderShell();
       return;
     }
 
-    if (action === "approval-scroll-section" && state.modal?.type === "approvalSimulation") {
+    if (action === "approval-scroll-section" && activeApprovalDetail()) {
       const section = app.querySelector(`[data-approval-section="${target.dataset.target}"]`);
       if (!section) return;
       section.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -4047,6 +4081,24 @@
       state.modal = null;
       state.errors = {};
       renderShell();
+      return;
+    }
+    if (action === "back-to-version-approvals") {
+      const approvalDetail = activeApprovalDetail();
+      const returnDrawer = approvalDetail?.returnDrawer;
+      if (!returnDrawer) {
+        closeOverlay();
+        return;
+      }
+      const restoreScrollTop = Number(returnDrawer.restoreScrollTop || 0);
+      const nextDrawer = clone(returnDrawer);
+      delete nextDrawer.restoreScrollTop;
+      state.modal = null;
+      state.drawer = nextDrawer;
+      state.errors = {};
+      renderShell();
+      const drawerBody = app.querySelector(".drawer-body");
+      if (drawerBody) drawerBody.scrollTop = restoreScrollTop;
       return;
     }
     if (action === "toggle-feature-version-menu" && state.modal?.type === "featurePicker") {
@@ -4605,7 +4657,7 @@
       if (Object.keys(state.errors).length) { renderShell(); return; }
       const approval = submitReleaseApproval("publish", state.modal);
       if (!approval) return;
-      state.modal = { type: "approvalSimulation", approvalId: approval.id };
+      openApprovalDetail(approval.id);
       renderShell();
       return;
     }
@@ -4630,7 +4682,7 @@
       state.modal.reason = reason;
       const approval = submitReleaseApproval("delist", state.modal);
       if (!approval) return;
-      state.modal = { type: "approvalSimulation", approvalId: approval.id };
+      openApprovalDetail(approval.id);
       renderShell();
       return;
     }
@@ -4654,21 +4706,22 @@
       if (Object.keys(state.errors).length) { renderShell(); return; }
       const approval = submitReleaseApproval("rollback", state.modal);
       if (!approval) return;
-      state.modal = { type: "approvalSimulation", approvalId: approval.id };
+      openApprovalDetail(approval.id);
       renderShell();
       return;
     }
     if (action === "view-active-approval") {
       const approvalId = activeIdentifier().activeApproval?.approvalId;
       if (!approvalId || !approvalById(approvalId)) { toast("当前没有进行中的审批", "warning"); return; }
-      state.modal = { type: "approvalSimulation", approvalId };
+      openApprovalDetail(approvalId);
       renderShell();
       return;
     }
     if (action === "download-approval-material") {
       const index = Number(target.dataset.materialIndex);
       const kind = target.dataset.materialKind;
-      const approval = state.modal?.type === "approvalSimulation" ? approvalById(state.modal.approvalId) : null;
+      const approvalDetail = activeApprovalDetail();
+      const approval = approvalDetail ? approvalById(approvalDetail.approvalId) : null;
       const files = kind === "meetingMinutes" ? approval?.meetingMinutesFiles : approval?.testReportFiles || state.modal?.testReportFiles;
       const file = files?.[index];
       if (!file) { toast("附件记录不存在", "warning"); return; }
@@ -4684,9 +4737,10 @@
         renderShell();
         return;
       }
-      if (kind === "meetingMinutes" && state.modal?.type === "approvalSimulation") {
-        const approval = approvalById(state.modal.approvalId);
-        const viewerContext = approvalViewerContext(approval, state.modal.viewerId);
+      if (kind === "meetingMinutes" && activeApprovalDetail()) {
+        const approvalDetail = activeApprovalDetail();
+        const approval = approvalById(approvalDetail.approvalId);
+        const viewerContext = approvalViewerContext(approval, approvalDetail.viewerId);
         if (!viewerContext.canUploadMinutes) { toast("仅当前第 1 级审批人可修改会议纪要", "warning"); return; }
         approval.meetingMinutesFiles = (approval.meetingMinutesFiles || []).filter((_file, fileIndex) => fileIndex !== index);
         delete state.errors.meetingMinutes;
@@ -4698,8 +4752,9 @@
       return;
     }
     if (action === "request-withdraw-approval") {
-      const approval = approvalById(state.modal?.approvalId);
-      const viewerContext = approvalViewerContext(approval, state.modal?.viewerId);
+      const approvalDetail = activeApprovalDetail();
+      const approval = approvalById(approvalDetail?.approvalId);
+      const viewerContext = approvalViewerContext(approval, approvalDetail?.viewerId);
       if (!viewerContext.canWithdraw) { toast("仅审批发起人可撤回进行中的申请", "warning"); return; }
       state.errors = {};
       state.modal = { type: "withdrawApproval", approvalId: approval.id, viewerId: viewerContext.viewer.viewerId, withdrawalReason: "" };
@@ -4710,7 +4765,7 @@
       const approvalId = state.modal?.approvalId;
       const viewerId = state.modal?.viewerId;
       state.errors = {};
-      state.modal = { type: "approvalSimulation", approvalId, viewerId };
+      restoreApprovalDetail(approvalId, viewerId);
       renderShell();
       return;
     }
@@ -4727,14 +4782,15 @@
       }
       const result = withdrawReleaseApproval(approval, reason);
       if (!result.ok) { toast(result.message, "warning"); return; }
-      state.modal = { type: "approvalSimulation", approvalId: approval.id, viewerId: viewerContext.viewer.viewerId };
+      restoreApprovalDetail(approval.id, viewerContext.viewer.viewerId);
       renderShell();
       toast("审批申请已撤回，本次流程已结束", "warning");
       return;
     }
     if (action === "replace-approval-task") {
-      const approval = approvalById(state.modal?.approvalId);
-      const viewerContext = approvalViewerContext(approval, state.modal?.viewerId);
+      const approvalDetail = activeApprovalDetail();
+      const approval = approvalById(approvalDetail?.approvalId);
+      const viewerContext = approvalViewerContext(approval, approvalDetail?.viewerId);
       const taskSequence = Number(target.dataset.taskSequence);
       const task = approval?.tasks?.find(item => item.sequence === taskSequence);
       if (!viewerContext.canReplaceTask) {
@@ -4758,7 +4814,7 @@
       const approvalId = state.modal.approvalId;
       const viewerId = state.modal.viewerId;
       state.errors = {};
-      state.modal = { type: "approvalSimulation", approvalId, viewerId };
+      restoreApprovalDetail(approvalId, viewerId);
       renderShell();
       return;
     }
@@ -4767,7 +4823,8 @@
       const viewerContext = approvalViewerContext(approval, state.modal?.viewerId);
       if (!viewerContext.canReplaceTask) {
         const approvalId = approval?.id || state.modal?.approvalId;
-        state.modal = approval ? { type: "approvalSimulation", approvalId, viewerId: viewerContext.viewer.viewerId } : null;
+        if (approval) restoreApprovalDetail(approvalId, viewerContext.viewer.viewerId);
+        else state.modal = null;
         state.errors = {};
         renderShell();
         toast("当前模拟账号无权替换审批人", "warning");
@@ -4775,7 +4832,8 @@
       }
       if (!approval || approval.type === "publish") {
         const approvalId = approval?.id || state.modal?.approvalId;
-        state.modal = approval ? { type: "approvalSimulation", approvalId, viewerId: viewerContext.viewer.viewerId } : null;
+        if (approval) restoreApprovalDetail(approvalId, viewerContext.viewer.viewerId);
+        else state.modal = null;
         state.errors = {};
         renderShell();
         toast(approval ? "发布审批不允许替换审批人" : "审批记录已不存在", "warning");
@@ -4803,21 +4861,22 @@
       }
       addOperation("在途审批", "替换审批人", approval.version, viewerContext.viewer.name, "成功", `第 ${task.sequence} 级：${previousName} → ${user.name}；${reason}；节点超时重新计时`);
       persist();
-      state.modal = { type: "approvalSimulation", approvalId: approval.id, viewerId: viewerContext.viewer.viewerId };
+      restoreApprovalDetail(approval.id, viewerContext.viewer.viewerId);
       state.errors = {};
       renderShell();
       toast(`第 ${task.sequence} 级审批人已替换，超时重新计时`);
       return;
     }
     if (action === "simulate-approval-approve") {
-      const approval = approvalById(state.modal.approvalId);
-      const viewerContext = approvalViewerContext(approval, state.modal?.viewerId);
+      const approvalDetail = activeApprovalDetail();
+      const approval = approvalById(approvalDetail?.approvalId);
+      const viewerContext = approvalViewerContext(approval, approvalDetail?.viewerId);
       if (!viewerContext.canDecide) { toast("仅当前节点审批人可执行审批", "warning"); return; }
-      const progress = approveCurrentApprovalTask(approval, { note: state.modal.approvalNote });
+      const progress = approveCurrentApprovalTask(approval, { note: approvalDetail.approvalNote });
       if (!progress.ok) { toast(progress.message, "warning"); return; }
       if (!progress.complete) {
-        state.modal.approvalNote = "";
-        state.modal.rejectionReason = "";
+        approvalDetail.approvalNote = "";
+        approvalDetail.rejectionReason = "";
         state.errors = {};
         renderShell();
         toast(`第 ${progress.task.sequence} 级审批已激活`);
@@ -4853,8 +4912,9 @@
       return;
     }
     if (action === "simulate-approval-timeout") {
-      const approval = approvalById(state.modal.approvalId);
-      const viewerContext = approvalViewerContext(approval, state.modal?.viewerId);
+      const approvalDetail = activeApprovalDetail();
+      const approval = approvalById(approvalDetail?.approvalId);
+      const viewerContext = approvalViewerContext(approval, approvalDetail?.viewerId);
       const task = currentApprovalTask(approval);
       const identifier = db.identifiers.find(item => item.id === approval?.firmwareId);
       if (!viewerContext.canSimulateTimeout || !task) { toast("仅非发起人的系统管理员可模拟节点超时", "warning"); return; }
@@ -4874,8 +4934,9 @@
       return;
     }
     if (action === "retry-approved-execution") {
-      const approval = approvalById(state.modal.approvalId);
-      const viewerContext = approvalViewerContext(approval, state.modal?.viewerId);
+      const approvalDetail = activeApprovalDetail();
+      const approval = approvalById(approvalDetail?.approvalId);
+      const viewerContext = approvalViewerContext(approval, approvalDetail?.viewerId);
       if (!viewerContext.canHandleExecutionFailure) { toast("仅系统管理员可处置执行失败", "warning"); return; }
       const operator = viewerContext.viewer.name;
       if (approval.submitter !== operator) {
@@ -4890,9 +4951,13 @@
         toast(`重试失败：${result.message}`, "error");
         return;
       }
-      if (result.type === "delist") state.modal = { type: "delistResult", version: result.version };
-      else if (result.type === "rollback") state.modal = { type: "rollbackResult", version: result.version };
-      else state.modal = null;
+      if (result.type === "delist") {
+        state.modal = { type: "delistResult", version: result.version };
+        state.drawer = null;
+      } else if (result.type === "rollback") {
+        state.modal = { type: "rollbackResult", version: result.version };
+        state.drawer = null;
+      } else state.modal = null;
       renderShell();
       toast("业务执行重试成功");
       return;
@@ -4901,7 +4966,7 @@
       const approvalId = state.modal?.approvalId;
       const viewerId = state.modal?.viewerId;
       state.errors = {};
-      state.modal = { type: "approvalSimulation", approvalId, viewerId };
+      restoreApprovalDetail(approvalId, viewerId);
       renderShell();
       return;
     }
@@ -4922,17 +4987,22 @@
         toast(`重试失败：${result.message}`, "error");
         return;
       }
-      if (result.type === "delist") state.modal = { type: "delistResult", version: result.version };
-      else if (result.type === "rollback") state.modal = { type: "rollbackResult", version: result.version };
-      else state.modal = null;
+      if (result.type === "delist") {
+        state.modal = { type: "delistResult", version: result.version };
+        state.drawer = null;
+      } else if (result.type === "rollback") {
+        state.modal = { type: "rollbackResult", version: result.version };
+        state.drawer = null;
+      } else state.modal = null;
       state.errors = {};
       renderShell();
       toast("管理员兜底重试成功，原因已记录");
       return;
     }
     if (action === "terminate-approved-execution") {
-      const approval = approvalById(state.modal.approvalId);
-      const viewerContext = approvalViewerContext(approval, state.modal?.viewerId);
+      const approvalDetail = activeApprovalDetail();
+      const approval = approvalById(approvalDetail?.approvalId);
+      const viewerContext = approvalViewerContext(approval, approvalDetail?.viewerId);
       const identifier = db.identifiers.find(item => item.id === approval?.firmwareId);
       if (!viewerContext.canHandleExecutionFailure) { toast("仅系统管理员可终止失败执行", "warning"); return; }
       restorePublishApprovalTarget(approval);
@@ -4950,10 +5020,11 @@
       return;
     }
     if (action === "simulate-approval-reject") {
-      const approval = approvalById(state.modal.approvalId);
-      const viewerContext = approvalViewerContext(approval, state.modal?.viewerId);
+      const approvalDetail = activeApprovalDetail();
+      const approval = approvalById(approvalDetail?.approvalId);
+      const viewerContext = approvalViewerContext(approval, approvalDetail?.viewerId);
       if (!viewerContext.canDecide) { toast("仅当前节点审批人可驳回申请", "warning"); return; }
-      const reason = String(state.modal.rejectionReason || "").trim();
+      const reason = String(approvalDetail.rejectionReason || "").trim();
       if (!reason) {
         state.errors.rejectionReason = "驳回原因必填";
         renderShell();
@@ -5216,7 +5287,10 @@
     if (action === "open-approval-log") {
       const approval = approvalById(target.dataset.approvalId);
       if (!approval) return;
-      state.modal = { type: "approvalSimulation", approvalId: approval.id };
+      const returnDrawer = state.drawer?.type === "versionDetail"
+        ? { ...clone(state.drawer), tab: "approvals", restoreScrollTop: app.querySelector(".drawer-body")?.scrollTop || 0 }
+        : null;
+      openApprovalDetail(approval.id, { returnDrawer });
       renderShell();
       return;
     }
@@ -5388,9 +5462,10 @@
       markVersionDrawerDirty();
     }
     if (modalDraft && state.modal?.draft) state.modal.draft[modalDraft] = event.target.value;
-    if (event.target.dataset.modalField && state.modal) {
+    const modalFieldHost = state.modal || activeApprovalDetail();
+    if (event.target.dataset.modalField && modalFieldHost) {
       const field = event.target.dataset.modalField;
-      state.modal[field] = event.target.value;
+      modalFieldHost[field] = event.target.value;
       if (["rejectionReason", "withdrawalReason", "adminRetryReason"].includes(field)) {
         delete state.errors[field];
         event.target.closest(".form-field")?.querySelector(".error-text")?.remove();
@@ -5598,10 +5673,11 @@
       renderShell();
       return;
     }
-    if (target.dataset.modalField && state.modal) {
-      state.modal[target.dataset.modalField] = target.type === "checkbox" ? target.checked : target.value;
+    const modalFieldHost = state.modal || activeApprovalDetail();
+    if (target.dataset.modalField && modalFieldHost) {
+      modalFieldHost[target.dataset.modalField] = target.type === "checkbox" ? target.checked : target.value;
       if (target.dataset.modalField === "reminderPolicy") delete state.errors.reminderPolicy;
-      if (target.dataset.modalField === "targetVersion" && state.modal.type === "addDifferentialTask") {
+      if (target.dataset.modalField === "targetVersion" && state.modal?.type === "addDifferentialTask") {
         state.modal.sourceVersions = (state.modal.sourceVersions || []).filter(version => version !== target.value);
         state.modal.sourceOpen = false;
         delete state.errors.differentialTargetVersion;
@@ -5695,9 +5771,10 @@
       renderShell();
       return;
     }
-    if (target.id === "meeting-minutes-file" && state.modal?.type === "approvalSimulation") {
-      const approval = approvalById(state.modal.approvalId);
-      const viewerContext = approvalViewerContext(approval, state.modal.viewerId);
+    if (target.id === "meeting-minutes-file" && activeApprovalDetail()) {
+      const approvalDetail = activeApprovalDetail();
+      const approval = approvalById(approvalDetail.approvalId);
+      const viewerContext = approvalViewerContext(approval, approvalDetail.viewerId);
       const task = viewerContext.activeTask;
       if (!viewerContext.canUploadMinutes) {
         toast("仅正式发布的当前第 1 级审批人可上传会议纪要", "warning");
@@ -5710,7 +5787,7 @@
         state.errors.meetingMinutes = error;
       } else {
         approval.meetingMinutesFiles = nextFiles;
-        state.modal.meetingMinutesFiles = nextFiles;
+        approvalDetail.meetingMinutesFiles = nextFiles;
         delete state.errors.meetingMinutes;
         addOperation("固件申请", "上传会议纪要", approval.version, task.approverNameSnapshot || "第 1 级审批人", "成功", `${nextFiles.length} 个附件，审批单 ${approval.instanceNo}`);
         persist();

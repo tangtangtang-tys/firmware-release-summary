@@ -2788,3 +2788,81 @@ button { color: inherit; }
   .policy-history-node { grid-template-columns: 31px minmax(0, 1fr); }
   .policy-history-node-time { grid-column: 2; min-width: 0; text-align: left; }
 }
+
+/* Publish approval details use the same wide side-drawer pattern as version history. */
+.approval-detail-drawer {
+  width: min(1040px, calc(100vw - 22px));
+}
+.approval-detail-drawer .drawer-header {
+  min-height: 56px;
+  padding: 0 22px;
+  background: #fff;
+}
+.approval-detail-drawer .drawer-header-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.approval-detail-drawer .drawer-back-button {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--text-2);
+  background: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.approval-detail-drawer .drawer-back-button:hover {
+  color: var(--brand);
+  border-color: #9bbce8;
+  background: #f5f9ff;
+}
+.approval-detail-drawer .drawer-header h2 { font-size: 17px; }
+.approval-detail-drawer .drawer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  padding: 20px 28px 26px;
+}
+.approval-detail-drawer .drawer-footer {
+  min-height: 68px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 22px;
+  background: #fff;
+  box-shadow: 0 -5px 14px rgba(34, 52, 76, .06);
+}
+.approval-detail-drawer .approval-section-nav {
+  top: -20px;
+  margin-right: -28px;
+  margin-left: -28px;
+  padding-right: 28px;
+  padding-left: 28px;
+}
+.approval-detail-drawer [data-approval-section] { scroll-margin-top: 60px; }
+
+@media (max-width: 720px) {
+  .approval-detail-drawer { width: 100vw; }
+  .approval-detail-drawer .drawer-header { min-height: 52px; padding: 0 16px; }
+  .approval-detail-drawer .drawer-header-main { gap: 8px; }
+  .approval-detail-drawer .drawer-body { padding: 18px 16px 22px; }
+  .approval-detail-drawer .drawer-footer { align-items: stretch; flex-direction: column; padding: 10px 16px 12px; }
+  .approval-detail-drawer .approval-section-nav {
+    top: -18px;
+    margin-right: -16px;
+    margin-left: -16px;
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+}

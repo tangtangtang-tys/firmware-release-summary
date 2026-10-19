@@ -21,7 +21,7 @@
     { menu: "日志管理", page: "审批日志", actions: ["查看审批日志"] },
     { menu: "系统管理", page: "用户列表", actions: ["查看用户列表", "更新用户"] },
     { menu: "系统管理", page: "角色权限", actions: ["查看角色权限", "新增角色", "更新角色", "更新角色权限", "删除角色"] },
-    { menu: "系统管理", page: "审批配置", actions: ["查看审批流程配置", "新建审批方案", "编辑审批方案", "启用/停用审批方案", "查看审批方案版本记录", "替换回滚/下架审批人"] }
+    { menu: "系统管理", page: "审批配置", actions: ["查看审批流程配置", "新建审批方案", "编辑审批方案", "查看审批方案版本记录", "替换回滚/下架审批人"] }
   ];
   const systemAdminOnlyActions = new Set(["替换回滚/下架审批人"]);
 
@@ -633,15 +633,15 @@
         ["POL-R01", "查看审批配置", "范围", "按产品线查看审批方案及发布、回滚、下架三类操作覆盖情况", "当前页面只呈现所选产品线的有效配置口径"],
         ["POL-R02", "新建审批方案", "权限", "仅具备新建审批方案权限的角色可创建方案，所属产品线由当前页面上下文确定", "方案保存后生成唯一方案和 V1 版本"],
         ["POL-R03", "编辑审批方案", "权限", "编辑只修改后续新申请使用的方案，不改变已经提交审批的节点快照", "保存修改后生成新的方案版本并保留历史版本"],
-        ["POL-R04", "配置操作范围", "数据", "发布、回滚和下架可多选；同一产品线的同一操作只能归属一个已启用方案", "方案内操作共用审批节点、时限和终态抄送配置"],
+        ["POL-R04", "绑定审批操作", "数据", "每个产品线的发布、回滚和下架分别对应一个固定审批方案，不支持跨操作复用", "从页面上下文确定操作，避免重复覆盖和误配置"],
         ["POL-R05", "维护审批节点", "交互", "支持 1–5 级单人串行审批，页面顺序即实际流转顺序，可添加或删除节点", "提交审批时按当前方案顺序依次激活节点"],
         ["POL-R06", "选择审批人", "前置", "审批人必须是该产品线下的启用平台用户，同一方案内不可重复配置", "无效用户不能进入新的审批方案"],
         ["POL-R07", "设置审批时限", "前置", "每个节点支持小时或自然日，小时最多 168 小时、自然日最多 30 天", "超时只标记超时，不自动通过、驳回或结束审批"],
         ["POL-R08", "配置终态抄送", "通知", "抄送人只接收审批驳回、正式发布成功或发布失败结果，不参与审批处理", "超时和撤回本期不发送终态抄送"],
-        ["POL-R09", "保存方案版本", "审计", "新建生成 V1，编辑或启停生成递增版本，并保留方案快照和变更人时间", "历史审批继续使用提交时冻结的原方案版本"],
-        ["POL-R10", "启用或停用方案", "状态", "启用前校验同一产品线和操作范围不存在其他启用方案；停用只影响后续新申请", "在途审批不被改写且操作结果写入操作日志"],
+        ["POL-R09", "保存方案版本", "审计", "新建保存生成 V1，编辑保存生成递增版本，并保留完整快照、变更说明和变更人时间", "历史审批继续使用提交时冻结的原方案版本"],
+        ["POL-R10", "保存后立即生效", "状态", "审批方案首次保存成功后默认处于已启用状态，作为对应操作的当前生效版本", "后续新申请读取已启用的最新版本，在途审批不被改写"],
         ["POL-R11", "查看版本记录", "交互", "版本记录以只读抽屉展示版本列表、完整快照、审批节点、抄送人员和版本变化", "历史版本可追溯但不能直接编辑"],
-        ["POL-R12", "预览审批模板", "交互", "根据所选操作切换钉钉审批模板，动态字段由固件申请带入，审批人和时限读取当前方案", "保存前可核对业务字段与审批链路表现"]
+        ["POL-R12", "预览审批模板", "交互", "根据当前固定审批操作展示对应钉钉审批模板，动态字段由固件申请带入", "保存前可核对业务字段与审批链路表现"]
       ]
     }
   };
@@ -945,6 +945,56 @@
     version.noteRevisions.sort((left, right) => Number(right.recordVersion) - Number(left.recordVersion));
   }
 
+  function normalizeApprovalPolicyAssignments(data) {
+    const source = Array.isArray(data.approvalPolicies) ? data.approvalPolicies : [];
+    const operationLabels = { publish: "正常发布", rollback: "版本回滚", delist: "版本下架" };
+    const supportedOperations = new Set(Object.keys(operationLabels));
+    const split = [];
+    source.forEach((policy, policyIndex) => {
+      const operations = [...new Set((policy.operation ? [policy.operation] : policy.operations || []).filter(operation => supportedOperations.has(operation)))];
+      const legacyStatus = policy.status === "disabled" ? "disabled" : "enabled";
+      (operations.length ? operations : ["publish"]).forEach((operation, index) => {
+        const item = index === 0 ? policy : clone(policy);
+        const baseId = policy.id || `POLICY-${String(policyIndex + 1).padStart(4, "0")}`;
+        const id = index === 0 ? baseId : `${baseId}-${operation.toUpperCase()}`;
+        const versionNumber = Number(policy.versionNumber || String(policy.policyVersion || "").match(/V(\d+)$/)?.[1] || 1);
+        item.id = id;
+        item.operation = operation;
+        item.operations = [operation];
+        item.name = index === 0 && operations.length === 1 ? policy.name : `${policy.productLine || productLines[0]} ${operationLabels[operation]}审批`;
+        item.policyVersion = `${id}-V${versionNumber}`;
+        item.status = legacyStatus;
+        item._legacyOperationCount = operations.length;
+        item._legacyStatus = legacyStatus;
+        item.history = (Array.isArray(policy.history) ? policy.history : []).map(version => ({
+          ...version,
+          policyVersion: `${id}-V${Number(version.policyVersion?.match(/V(\d+)$/)?.[1] || versionNumber)}`,
+          name: index === 0 && operations.length === 1 ? (version.name || item.name) : item.name,
+          operations: [operation],
+          status: legacyStatus
+        }));
+        split.push(item);
+      });
+    });
+    const unique = new Map();
+    split.forEach(policy => {
+      const key = `${policy.productLine || productLines[0]}::${policy.operation || policy.operations?.[0] || "publish"}`;
+      const current = unique.get(key);
+      const candidateSpecificity = Number(policy._legacyOperationCount || 1);
+      const currentSpecificity = Number(current?._legacyOperationCount || 1);
+      const candidateWins = !current
+        || candidateSpecificity < currentSpecificity
+        || (candidateSpecificity === currentSpecificity && policy._legacyStatus === "enabled" && current._legacyStatus !== "enabled")
+        || (candidateSpecificity === currentSpecificity && policy._legacyStatus === current._legacyStatus && String(policy.updatedAt || "") > String(current.updatedAt || ""));
+      if (candidateWins) unique.set(key, policy);
+    });
+    data.approvalPolicies = [...unique.values()].map(policy => {
+      delete policy._legacyOperationCount;
+      delete policy._legacyStatus;
+      return policy;
+    });
+  }
+
   function normalizeDatabase(data) {
     if (!Array.isArray(data.approvalPolicies)) data.approvalPolicies = [];
     if (!Array.isArray(data.notifications)) data.notifications = [];
@@ -1079,8 +1129,9 @@
       if (role.permissions["page-审批配置"] === undefined) role.permissions["page-审批配置"] = Boolean(role.permissions["page-审批流程配置"]);
       if (role.permissions["page-审批配置"] && role.permissions["action-查看审批流程配置"] === undefined) role.permissions["action-查看审批流程配置"] = true;
       if (role.permissions["action-维护审批流程配置"]) {
-        ["查看审批流程配置", "新建审批方案", "编辑审批方案", "启用/停用审批方案", "查看审批方案版本记录"].forEach(action => { role.permissions[`action-${action}`] = true; });
+        ["查看审批流程配置", "新建审批方案", "编辑审批方案", "查看审批方案版本记录"].forEach(action => { role.permissions[`action-${action}`] = true; });
       }
+      delete role.permissions["action-启用/停用审批方案"];
       delete role.permissions["action-替换在途审批人"];
       delete role.permissions["action-维护审批流程配置"];
     });
@@ -1142,13 +1193,15 @@
         });
       }
     }
+    normalizeApprovalPolicyAssignments(data);
     data.approvalPolicies.forEach((policy, policyIndex) => {
       if (!policy.id) policy.id = `POLICY-${String(policyIndex + 1).padStart(4, "0")}`;
       if (!policy.productLine) policy.productLine = policy.product || productLines[0];
       if (policy.description == null) policy.description = "";
       if (policy.name === "IPC 正式发布质量审批") policy.name = "IPC 正式发布审批";
       if (policy.description === "正式发布固定由项目经理审核后进入质量代表确认") policy.description = "正式发布采用 1–5 级串行审批，可按需增删审批节点";
-      if (!Array.isArray(policy.operations) || !policy.operations.length) policy.operations = ["publish"];
+      policy.operation = policy.operation || policy.operations?.[0] || "publish";
+      policy.operations = [policy.operation];
       if (!Array.isArray(policy.nodes) || !policy.nodes.length) policy.nodes = [];
       policy.levelCount = Math.min(5, Math.max(1, Number(policy.levelCount || policy.nodes.length || 1)));
       policy.nodes = policy.nodes.slice(0, 5).map((node, index) => {
@@ -1174,8 +1227,8 @@
       if (!policy.createdAt) policy.createdAt = now();
       if (!policy.updatedAt) policy.updatedAt = policy.createdAt;
       if (!Array.isArray(policy.history)) policy.history = [];
-      policy.history = policy.history.map(version => ({ ...version, name: version.name || policy.name, description: version.description ?? policy.description, status: version.status === "disabled" ? "disabled" : "enabled", copyUserIds: Array.isArray(version.copyUserIds) ? [...new Set(version.copyUserIds)] : [...policy.copyUserIds] }));
-      if (!policy.history.length) policy.history.push({ policyVersion: policy.policyVersion, name: policy.name, description: policy.description, status: policy.status, operations: clone(policy.operations), nodes: clone(policy.nodes), copyUserIds: [...policy.copyUserIds], updatedAt: policy.updatedAt, updatedBy: policy.updatedBy || "系统迁移" });
+      policy.history = policy.history.map(version => ({ ...version, policyVersion: version.policyVersion || `${policy.id}-V${policy.versionNumber}`, name: version.name || policy.name, description: version.description ?? policy.description, status: version.status === "disabled" ? "disabled" : "enabled", operation: policy.operation, operations: [policy.operation], changeReason: version.changeReason || "历史版本迁移", copyUserIds: Array.isArray(version.copyUserIds) ? [...new Set(version.copyUserIds)] : [...policy.copyUserIds] }));
+      if (!policy.history.length) policy.history.push({ policyVersion: policy.policyVersion, name: policy.name, description: policy.description, status: "enabled", operation: policy.operation, operations: [policy.operation], changeReason: "历史版本迁移", nodes: clone(policy.nodes), copyUserIds: [...policy.copyUserIds], updatedAt: policy.updatedAt, updatedBy: policy.updatedBy || "系统迁移" });
     });
     data.operations.forEach(item => {
       if (!item.role) item.role = data.users.find(user => user.name === item.user)?.role || "系统管理员";
@@ -1246,6 +1299,7 @@
     route: routeFromHash(),
     groups: { device: true, logs: true, users: true },
     selectedPolicyProductLine: productLines[0],
+    selectedPolicyOperation: "",
     selectedIdentifier: db.identifiers[0]?.id || "",
     selectedRole: db.roles[0]?.name || "",
     roleTab: "permissions",
@@ -1932,20 +1986,23 @@
     return db.approvalPolicies.filter(policy => policy.productLine === productLine);
   }
 
+  function policyOperation(policy) {
+    return policy?.operation || policy?.operations?.[0] || "";
+  }
+
   function activeApprovalPolicy(productLine, operation) {
-    const matches = db.approvalPolicies.filter(policy => policy.status === "enabled" && policy.productLine === productLine && policy.operations.includes(operation));
-    return matches.length === 1 ? matches[0] : null;
+    return db.approvalPolicies.find(policy => policy.productLine === productLine && policyOperation(policy) === operation && policy.status !== "disabled") || null;
+  }
+
+  function anyApprovalPolicy(productLine, operation) {
+    return db.approvalPolicies.find(policy => policy.productLine === productLine && policyOperation(policy) === operation) || null;
   }
 
   function policyCoverage(productLine, operation) {
-    const matches = db.approvalPolicies.filter(policy => policy.status === "enabled" && policy.productLine === productLine && policy.operations.includes(operation));
-    if (!matches.length) return { status: "unconfigured", label: "未配置", policies: [] };
-    if (matches.length > 1) return { status: "conflict", label: "配置冲突", policies: matches };
-    return { status: "configured", label: `${matches[0].levelCount} 级串行`, policies: matches };
-  }
-
-  function conflictingApprovalPolicy(productLine, operations, excludedPolicyId = null, enabledOnly = true) {
-    return db.approvalPolicies.find(policy => policy.id !== excludedPolicyId && (!enabledOnly || policy.status === "enabled") && policy.productLine === productLine && policy.operations.some(operation => operations.includes(operation))) || null;
+    const policy = anyApprovalPolicy(productLine, operation);
+    if (!policy) return { status: "unconfigured", label: "未配置", policies: [] };
+    if (policy.status === "disabled") return { status: "disabled", label: "已停用", policies: [policy] };
+    return { status: "configured", label: `${policy.levelCount} 级串行`, policies: [policy] };
   }
 
   function formatDateTime(date) {
@@ -2203,6 +2260,7 @@
     state.errors = {};
     const nodes = normalizeApprovalPolicyDraftNodes(draft);
     const existing = drawer.policyId ? db.approvalPolicies.find(policy => policy.id === drawer.policyId) : null;
+    let savedPolicy = existing;
     if (existing && !drawer.dirty) {
       toast("未检测到审批方案变更", "warning");
       return false;
@@ -2210,8 +2268,12 @@
     draft.name = String(draft.name || "").trim();
     if (!draft.name) state.errors.policyName = "请输入审批方案名称";
     if (String(draft.description || "").length > 200) state.errors.policyDescription = "方案说明不能超过 200 个字符";
-    if (!draft.operations.length) state.errors.policyOperations = "请至少选择一种审批操作";
+    draft.operation = draft.operation || draft.operations?.[0] || "";
+    draft.operations = draft.operation ? [draft.operation] : [];
+    if (!approvalOperationCatalog.some(item => item.value === draft.operation)) state.errors.policyOperations = "未确定审批操作";
     if (!nodes.length || nodes.length > 5) state.errors.policyNodes = "审批节点数量须为 1–5 级";
+    const changeReason = String(draft.changeReason || "").trim();
+    if (existing && !changeReason) state.errors.policyChangeReason = "请填写本次版本变更说明";
     const configuredApprovers = new Map();
     nodes.forEach((node, index) => {
       const user = db.users.find(item => item.userId === node.approverUserId);
@@ -2225,8 +2287,6 @@
       const max = timeout.unit === "day" ? 30 : 168;
       if (!Number.isFinite(timeout.value) || timeout.value < 1 || timeout.value > max) state.errors[`policyTimeout${index}`] = `请输入 1–${max} ${timeout.unit === "day" ? "自然日" : "小时"}`;
     });
-    const conflict = conflictingApprovalPolicy(draft.productLine, draft.operations, existing?.id || null, draft.status !== "disabled");
-    if (conflict) state.errors.policyOperations = `审批操作与方案“${conflict.name}”重复，请调整操作范围`;
     if (Object.keys(state.errors).length) {
       renderShell();
       return false;
@@ -2242,7 +2302,8 @@
       Object.assign(existing, {
         name: draft.name,
         description: String(draft.description || "").trim(),
-        operations: [...draft.operations],
+        operation: draft.operation,
+        operations: [draft.operation],
         levelCount: draft.levelCount,
         nodes: resolvedNodes,
         copyUserIds: [...new Set(draft.copyUserIds || [])],
@@ -2251,8 +2312,8 @@
         updatedAt: stamp,
         updatedBy: "汤彦珊"
       });
-      existing.history.unshift({ policyVersion: existing.policyVersion, name: existing.name, description: existing.description, status: existing.status, operations: clone(existing.operations), nodes: clone(existing.nodes), copyUserIds: clone(existing.copyUserIds), updatedAt: stamp, updatedBy: "汤彦珊" });
-      addOperation("审批配置", "更新", existing.name, "汤彦珊", "成功", `${existing.policyVersion}；${existing.levelCount} 级串行；${existing.operations.map(approvalOperationLabel).join("、")}`);
+      existing.history.unshift({ policyVersion: existing.policyVersion, name: existing.name, description: existing.description, status: existing.status, operation: existing.operation, operations: [existing.operation], nodes: clone(existing.nodes), copyUserIds: clone(existing.copyUserIds), changeReason, updatedAt: stamp, updatedBy: "汤彦珊" });
+      addOperation("审批配置", "更新", existing.name, "汤彦珊", "成功", `${existing.policyVersion}；${approvalOperationLabel(existing.operation)}；${changeReason}`);
     } else {
       const id = releaseId(`POLICY-${draft.productLine}`);
       const policy = {
@@ -2260,7 +2321,8 @@
         productLine: draft.productLine,
         name: draft.name,
         description: String(draft.description || "").trim(),
-        operations: [...draft.operations],
+        operation: draft.operation,
+        operations: [draft.operation],
         levelCount: draft.levelCount,
         nodes: resolvedNodes,
         copyUserIds: [...new Set(draft.copyUserIds || [])],
@@ -2272,13 +2334,21 @@
         updatedBy: "汤彦珊",
         history: []
       };
-      policy.history.push({ policyVersion: policy.policyVersion, name: policy.name, description: policy.description, status: policy.status, operations: clone(policy.operations), nodes: clone(policy.nodes), copyUserIds: clone(policy.copyUserIds), updatedAt: stamp, updatedBy: "汤彦珊" });
+      policy.history.push({ policyVersion: policy.policyVersion, name: policy.name, description: policy.description, status: policy.status, operation: policy.operation, operations: [policy.operation], nodes: clone(policy.nodes), copyUserIds: clone(policy.copyUserIds), changeReason: changeReason || "首次配置", updatedAt: stamp, updatedBy: "汤彦珊" });
       db.approvalPolicies.unshift(policy);
-      addOperation("审批配置", "新增", policy.name, "汤彦珊", "成功", `${policy.policyVersion}；${policy.levelCount} 级串行；${policy.operations.map(approvalOperationLabel).join("、")}`);
+      savedPolicy = policy;
+      addOperation("审批配置", "新增", policy.name, "汤彦珊", "成功", `${policy.policyVersion}；${approvalOperationLabel(policy.operation)}；首次配置`);
     }
     persist();
-    closeOverlay();
-    toast(existing ? "审批方案修改已保存，并生成新的版本记录" : "审批方案已保存");
+    state.drawer = null;
+    state.modal = {
+      type: "approvalPolicySaved",
+      policyId: savedPolicy?.id || "",
+      policyVersion: savedPolicy?.policyVersion || "",
+      status: savedPolicy?.status === "disabled" ? "disabled" : "enabled",
+      operation: savedPolicy?.operation || draft.operation
+    };
+    renderShell();
     return true;
   }
 
@@ -2391,17 +2461,23 @@
       return;
     }
     const route = routes[state.route];
+    const topbarPolicyLine = state.route === "approvalPolicies"
+      ? `<div class="topbar-policy-line"><span>当前产品线：</span><select class="topbar-policy-select" data-change="approval-top-product-line" aria-label="当前产品线">${productLines.map(line => `<option value="${esc(line)}" ${line === (state.selectedPolicyProductLine || productLines[0]) ? "selected" : ""}>${esc(line)}</option>`).join("")}</select></div>`
+      : "";
     app.innerHTML = `<div class="app-shell">
       <header class="topbar">
         <button class="nav-toggle" data-action="toggle-nav" aria-label="展开菜单">☰</button>
-        <div class="brand"><img src="assets/logo.png" alt="运维系统标志"><span>运维系统</span></div>
+        <div class="brand"><img src="assets/logo.png" alt="固件发布平台标志"><span>固件发布平台</span></div>
         <div class="topbar-spacer"></div>
-        <div class="system-link"><span>▱</span><span>系统管理</span></div>
-        <button class="profile-trigger" data-action="toggle-profile"><img src="assets/avatar.jpg" alt="汤彦珊头像"><span>汤彦珊</span></button>
+        ${topbarPolicyLine}
+        <label class="topbar-search"><span aria-hidden="true">⌕</span><input type="search" placeholder="搜索功能、产品、版本号..." aria-label="搜索功能、产品、版本号"></label>
+        <button class="topbar-icon" type="button" aria-label="通知"><span>♧</span><i>12</i></button>
+        <button class="topbar-icon" type="button" aria-label="帮助">?</button>
+        <span class="topbar-divider" aria-hidden="true"></span>
+        <button class="profile-trigger" data-action="toggle-profile"><img src="assets/avatar.jpg" alt="汤彦珊头像"><span>张三</span><b aria-hidden="true">⌄</b></button>
       </header>
       ${state.profileOpen ? `<div class="profile-menu"><button data-action="profile">个人设置</button><button data-action="logout">退出登录</button></div>` : ""}
       <aside class="sidebar" aria-label="固件发布平台导航">
-        <div class="sidebar-title">固件发布平台</div>
         ${menuGroup("device", "设备固件", "◆", [["firmware", "固件列表"], ["modules", "模组型号"]])}
         ${menuGroup("logs", "日志管理", "▣", [["operations", "操作日志"], ["approvals", "审批日志"]])}
         ${menuGroup("users", "系统管理", "◆", [["users", "用户列表"], ["roles", "角色权限"], ["approvalPolicies", "审批配置"]])}
@@ -2777,50 +2853,79 @@
     return `<section class="page plain-page">${pageHeader("用户列表")}<div class="filter-bar"><input class="field search-field" data-draft="user" value="${esc(state.draftFilters.user ?? state.filters.user)}" placeholder="请输入用户账号名称，按enter搜索" aria-label="用户账号名称"><button class="btn primary" data-action="query-users">查询</button><button class="btn" data-action="reset-users">重置</button></div><div class="user-table-area"><div class="table-wrap"><table class="data-table"><thead><tr><th style="width:190px">账号名称</th><th style="width:150px">用户 ID</th><th style="width:170px">关联角色</th><th>所属产线 <button class="table-filter-btn ${lineFilters.length ? "active" : ""}" data-action="user-line-filter" aria-label="按所属产线过滤">▽</button></th><th style="width:100px">账号状态</th><th style="width:190px">创建时间</th><th style="width:245px">操作</th></tr></thead><tbody>${rows.map(item => `<tr><td>${esc(item.name)}</td><td>${esc(item.userId)}</td><td>${esc(item.role)}</td><td class="cell-truncate" title="${esc(item.lines.join(" / "))}">${esc(item.lines.join(" / "))}</td><td><span class="tag ${item.status === "active" ? "success" : ""}">${item.status === "active" ? "启用" : "停用"}</span></td><td>${esc(item.created)}</td><td><div class="cell-actions"><button class="link-btn" data-action="user-detail" data-user-index="${db.users.indexOf(item)}">详情</button><span class="action-with-rules"><button class="link-btn" data-action="user-permissions" data-user-index="${db.users.indexOf(item)}">权限配置</button>${ruleAnnotation("audit", "AUD-R04")}</span></div></td></tr>`).join("")}</tbody></table></div>${linePopover}</div>${pagination(filtered.length, state.userPage, "user-page", "users")}</section>`;
   }
 
-  function newApprovalPolicyDraft(productLine) {
+  function newApprovalPolicyDraft(productLine, operation = "publish") {
+    const operationLabel = approvalOperationLabel(operation);
     return {
-      name: `${productLine} 固件变更审批`,
+      name: `${productLine} ${operationLabel}审批`,
       productLine,
+      operation,
       description: "",
-      operations: [],
+      operations: [operation],
       levelCount: 1,
       status: "enabled",
       copyUserIds: [],
+      changeReason: "",
       nodes: [{ sequence: 1, type: "generic", approverUserId: "", approverName: "", timeoutUnit: "hour", timeoutValue: 24, timeoutHours: 24 }]
     };
   }
 
+  function approvalPolicyIcon(operation) {
+    const paths = {
+      publish: '<path class="policy-preview-publish-shape" d="M20.8 3.4c-4.2.1-8.3 1.8-11.1 4.7l-3.4 3.4 4.2 1.9 1.9 4.2 3.4-3.4c2.9-2.8 4.6-6.9 4.7-11.1Z"/><path class="policy-preview-publish-shape" d="m8.8 16.7-2.7 2.7-.6-3.3-3.3-.6 2.7-2.7 3.9 1.4z"/><circle class="policy-preview-publish-hole" cx="16.4" cy="7.7" r="1.6"/>',
+      rollback: '<path d="M9 7H4V2"/><path d="M4 7a8 8 0 1 1-1.2 6.8"/>',
+      delist: '<path d="M5 7h14M9 7V4h6v3m-8 0 .8 12h6.4L15 7M10 10v6m4-6v6"/>'
+    };
+    return `<svg class="policy-preview-icon-${esc(operation || "publish")}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${paths[operation] || paths.publish}</svg>`;
+  }
+
+  function approvalEmptyIcon() {
+    return '<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path d="M19 11h23l10 10v29H19z"/><path d="M42 11v11h10M28 31h16M28 39h12"/><circle cx="46" cy="48" r="10"/><path d="M46 43v10M41 48h10"/></svg>';
+  }
+
+  function approvalGuideIcon() {
+    return '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect x="7" y="5" width="18" height="22" rx="2"/><path d="M11 11h10M11 16h8M11 21h5"/><path d="m22 20 2 2 4-5"/></svg>';
+  }
+
+  function policyFlowNodes(policy) {
+    const nodes = Array.isArray(policy?.nodes) ? policy.nodes : [];
+    if (!nodes.length) return '<span class="policy-flow-empty">暂未配置审批人</span>';
+    return nodes.map((node, index) => {
+      const name = node.approverName || `第${index + 1}级`;
+      const initials = name.slice(0, 1);
+      const nodeClass = ["amber", "blue", "purple", "pink", "indigo"][index % 5];
+      return `${index ? '<span class="policy-flow-arrow" aria-hidden="true">→</span>' : ""}<span class="policy-flow-node"><span class="policy-flow-avatar ${nodeClass}">${esc(initials)}</span><span>${esc(name)}</span></span>`;
+    }).join("");
+  }
+
   function renderApprovalPolicies() {
     const productLine = state.selectedPolicyProductLine || productLines[0];
-    const policies = approvalPoliciesForLine(productLine);
-    const pageSize = state.pageSizes.approvalPolicies || 10;
-    const totalPages = Math.max(1, Math.ceil(policies.length / pageSize));
-    state.approvalPolicyPage = Math.min(Math.max(1, state.approvalPolicyPage || 1), totalPages);
-    const visiblePolicies = policies.slice((state.approvalPolicyPage - 1) * pageSize, state.approvalPolicyPage * pageSize);
     const coverages = approvalOperationCatalog.map(operation => ({ operation: operation.value, operationLabel: operation.label, coverage: policyCoverage(productLine, operation.value) }));
-    const lineItems = productLines.map(line => {
-      const lineCoverages = approvalOperationCatalog.map(operation => policyCoverage(line, operation.value));
-      const configuredCount = lineCoverages.filter(coverage => coverage.status === "configured").length;
-      const hasConflict = lineCoverages.some(coverage => coverage.status === "conflict");
-      return `<button class="policy-line-item ${line === productLine ? "active" : ""}" data-action="select-policy-line" data-product-line="${esc(line)}"><span>${esc(line)}</span><small class="${hasConflict ? "conflict" : ""}">${hasConflict ? "配置冲突" : `${configuredCount} / 3`}</small></button>`;
-    }).join("");
-    const policyRows = visiblePolicies.map(policy => {
-      const approvers = policy.nodes.map(node => node.approverName || "未选择").join(" → ");
-      return `<tr><td><div class="policy-name-cell"><strong>${esc(policy.name)}</strong><small>${esc(policy.id)}</small>${policy.description ? `<em>${esc(policy.description)}</em>` : ""}</div></td><td><div class="policy-operation-tags">${policy.operations.map(operation => `<span class="policy-operation-tag ${operation}">${esc(approvalOperationLabel(operation))}</span>`).join("") || "-"}</div></td><td><div class="policy-flow-cell"><strong>${policy.levelCount} 级审批</strong><small title="${esc(approvers)}">${esc(approvers || "未配置审批人")}</small><small>终态抄送 ${(policy.copyUserIds || []).length} 人</small></div></td><td><span class="tag ${policy.status === "enabled" ? "success" : ""}">${policy.status === "enabled" ? "已启用" : "已停用"}</span><strong class="policy-version-code">${esc(policy.policyVersion.replace(`${policy.id}-`, ""))}</strong></td><td>${esc(policy.updatedAt)}</td><td><div class="cell-actions policy-row-actions"><span class="action-with-rules"><button class="link-btn" data-action="edit-approval-policy" data-policy-id="${esc(policy.id)}">编辑</button>${ruleAnnotation("policy", "POL-R03")}</span><span class="action-with-rules"><button class="link-btn" data-action="toggle-approval-policy" data-policy-id="${esc(policy.id)}">${policy.status === "enabled" ? "停用" : "启用"}</button>${ruleAnnotation("policy", "POL-R10")}</span><span class="action-with-rules"><button class="link-btn" data-action="policy-version-history" data-policy-id="${esc(policy.id)}">版本记录</button>${ruleAnnotation("policy", "POL-R11")}</span></div></td></tr>`;
-    }).join("");
+    const lineItems = productLines.map(line => `<button class="policy-line-item ${line === productLine ? "active" : ""}" data-action="select-policy-line" data-product-line="${esc(line)}"><span>${esc(line)}</span></button>`).join("");
     const operationCards = coverages.map(item => {
       const coverage = item.coverage;
-      const icon = item.operation === "publish" ? "↗" : item.operation === "rollback" ? "↻" : "▣";
       const configured = coverage.status === "configured";
-      const conflict = coverage.status === "conflict";
-      const cardStatus = configured ? "已配置" : conflict ? "配置冲突" : "待配置";
-      const cardDetail = configured ? `${coverage.policies[0].levelCount} 级审批` : conflict ? "请调整重复方案的操作范围" : "尚未配置审批方案";
-      return `<article class="policy-operation-card ${item.operation} ${coverage.status}"><span class="policy-operation-icon">${icon}</span><div><strong>${esc(item.operationLabel)}</strong><span class="policy-card-status ${configured ? "configured" : conflict ? "conflict" : ""}">${cardStatus}</span><small>${esc(cardDetail)}</small></div></article>`;
+      const disabled = coverage.status === "disabled";
+      const policy = coverage.policies[0];
+      const cardStatus = configured ? "已启用" : disabled ? "已停用" : "未配置";
+      const versionCode = policy ? policy.policyVersion.replace(`${policy.id}-`, "") : "--";
+      const operationDescription = item.operation === "publish" ? "发布固件版本到线上设备" : item.operation === "rollback" ? "将设备版本回退到历史版本" : "下架已发布的固件版本";
+      const actions = configured || disabled
+        ? `<div class="policy-card-actions"><span class="action-with-rules"><button type="button" class="btn small" data-action="policy-version-history" data-policy-id="${esc(policy.id)}">版本记录</button>${ruleAnnotation("policy", "POL-R11")}</span><span class="action-with-rules"><button type="button" class="btn small ${disabled ? "primary" : ""}" data-action="toggle-approval-policy" data-policy-id="${esc(policy.id)}">${disabled ? "启用" : "停用"}</button>${ruleAnnotation("policy", "POL-R10")}</span><span class="action-with-rules"><button type="button" class="btn small primary" data-action="edit-approval-policy" data-policy-id="${esc(policy.id)}">编辑配置</button>${ruleAnnotation("policy", "POL-R03")}</span></div>`
+        : "";
+      const statusClass = configured ? "configured" : disabled ? "disabled" : "unconfigured";
+      const operationColumn = `<div class="policy-row-operation"><span class="policy-operation-icon" aria-hidden="true">${approvalPolicyIcon(item.operation)}</span><div class="policy-row-operation-copy"><h3>${annotatedLabel(item.operationLabel, [["policy", "POL-R04"]])}</h3><p>${operationDescription}</p></div></div><span class="policy-card-status ${statusClass}"><i aria-hidden="true"></i>${cardStatus}</span>`;
+      const configuredColumns = configured || disabled
+        ? `<div class="policy-row-scheme"><div class="policy-row-column-head"><strong>${annotatedLabel("当前审批方案", [["policy", "POL-R04"]])}</strong></div><div class="policy-scheme-box"><strong>${esc(policy.name || "未命名方案")}</strong><dl><div><dt>方案说明</dt><dd title="${esc(policy.description || `用于${productLine}${item.operationLabel}的审批流程`)}">${esc(policy.description || `用于${productLine}${item.operationLabel}的审批流程`)}</dd></div></dl></div></div><div class="policy-row-flow"><div class="policy-row-column-head"><strong>${annotatedLabel(`审批流程（${policy.levelCount || policy.nodes?.length || 0}级）`, [["policy", "POL-R05"]])}</strong></div><div class="policy-flow">${policyFlowNodes(policy)}</div></div><div class="policy-row-version"><div class="policy-row-column-head"><strong>${annotatedLabel("版本信息", [["policy", "POL-R09"], ["policy", "POL-R11"]])}</strong></div><div class="policy-version-meta"><div><span>当前版本</span><strong>${esc(versionCode)}</strong></div><div><span>更新时间</span><strong>${esc(policy.updatedAt || "--")}</strong></div><div><span>更新人</span><strong>${esc(policy.updatedBy || "--")}</strong></div></div></div>`
+        : `<div class="policy-row-unconfigured"><div class="policy-empty-icon">${approvalEmptyIcon()}</div><div class="policy-empty-copy"><strong>尚未配置审批方案</strong><p>配置后，${item.operationLabel}需审批通过才能执行</p><p>未配置时，按原有业务流程直接执行。</p></div><span class="action-with-rules"><button type="button" class="btn primary policy-config-btn" data-action="new-approval-policy" data-operation="${esc(item.operation)}">去配置</button>${ruleAnnotation("policy", "POL-R02")}</span></div>`;
+      return `<article class="policy-operation-card policy-operation-row ${item.operation} ${coverage.status}" data-policy-operation-card="${esc(item.operation)}"><div class="policy-card-hero">${operationColumn}</div><div class="policy-card-body">${configuredColumns}</div>${actions}</article>`;
     }).join("");
-    const tableContent = policies.length
-      ? `<div class="table-wrap"><table class="data-table policy-table"><thead><tr><th>方案名称</th><th>操作范围</th><th>审批流程</th><th>当前版本</th><th>更新时间</th><th>操作</th></tr></thead><tbody>${policyRows}</tbody></table></div>${pagination(policies.length, state.approvalPolicyPage, "approval-policy-page", "approvalPolicies")}`
-      : `<div class="policy-empty"><div class="empty-illustration">▤</div><strong>${esc(productLine)} 暂未配置审批方案</strong><p>发布、回滚、下架均不可提交审批。</p></div>`;
-    return `<section class="page policy-page"><div class="policy-breadcrumb"><span class="action-with-rules">${annotatedLabel("审批配置", [["policy", "POL-R01"]])}</span><i>/</i><strong>${esc(productLine)}</strong></div><div class="policy-layout"><aside class="policy-line-panel" aria-label="产品线"><h2>产品线</h2><div class="policy-line-list">${lineItems}</div></aside><main class="policy-main"><header class="policy-overview"><div><span>当前产品线</span><h2>配置 ${esc(productLine)} 产品线的固件发布审批流程</h2><p>发布、回滚与下架均支持配置 1–5 级串行审批，可共用方案或分别配置。</p></div></header><section class="policy-operation-section"><div class="policy-section-title"><h2>${annotatedLabel("审批操作", [["policy", "POL-R04"], ["policy", "POL-R10"]])}</h2><span>每项操作只能由一个已启用审批方案负责</span></div><div class="policy-operation-cards">${operationCards}</div></section><section class="policy-list-section"><div class="policy-section-title"><div><h2>${annotatedLabel("审批方案列表", [["policy", "POL-R03"], ["policy", "POL-R11"]])}</h2><span>按角色权限控制查看、新建、编辑、启停和版本记录；保存后自动生成新版本。</span></div><span class="action-with-rules"><button class="btn primary" data-action="add-approval-policy">＋ 新建审批方案</button>${ruleAnnotation("policy", "POL-R02")}</span></div>${tableContent}</section></main></div></section>`;
+    const guideItems = [
+      "每个操作只能配置一套审批方案，不支持多个操作共用方案。",
+      "首次保存方案后默认处于已启用状态，后续新申请将按当前方案进入审批。",
+      "修改方案配置会生成新的版本，历史版本可在版本记录中查看。",
+      "停用方案后，符合原有权限和业务条件的用户可以直接执行对应操作，历史审批记录将保留。"
+    ];
+    return `<section class="page policy-page"><div class="policy-layout"><aside class="policy-line-panel" aria-label="产品线"><h2>${annotatedLabel("产品线", [["policy", "POL-R01"]])}</h2><div class="policy-line-list">${lineItems}</div></aside><main class="policy-main"><header class="policy-overview"><div class="policy-overview-copy"><div class="policy-title-row"><h1>${annotatedLabel("审批配置", [["policy", "POL-R01"]])}</h1><span class="policy-product-line-tag" aria-label="当前产品线：${esc(productLine)}">${esc(productLine)}</span></div><p>配置审批方案后，对应操作需审批通过才能执行；未配置或已停用时，按原有业务流程直接执行。</p></div></header><section class="policy-operation-section policy-operation-only-section"><div class="policy-operation-cards">${operationCards}</div><section class="policy-usage-guide"><div class="policy-guide-mark">${approvalGuideIcon()}</div><div class="policy-guide-copy"><h2>${annotatedLabel("使用说明", [["policy", "POL-R01"]])}</h2><ol>${guideItems.map(item => `<li>${esc(item)}</li>`).join("")}</ol></div><div class="policy-guide-illustration" aria-hidden="true"><span class="guide-document">▤</span><span class="guide-shield">✓</span><span class="guide-hill hill-a"></span><span class="guide-hill hill-b"></span></div></section></section></main></div></section>`;
   }
 
   function renderRoles() {
@@ -2902,7 +3007,8 @@
   function drawerFrame(title, body, footer = "", narrow = false, options = {}) {
     const approvalDetail = /审批详情$/.test(title);
     const backButton = options.backAction ? `<button type="button" class="drawer-back-button" data-action="${esc(options.backAction)}" aria-label="${esc(options.backLabel || "返回审批日志")}" title="${esc(options.backLabel || "返回审批日志")}">‹</button>` : "";
-    return `<section class="drawer ${narrow ? "narrow" : ""} ${approvalDetail ? "approval-detail-drawer" : ""} ${animateCurrentDrawer ? "is-entering" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header class="drawer-header"><div class="drawer-header-main">${backButton}<div class="frame-title-with-rules"><h2>${esc(title)}</h2>${ruleAnnotations(frameRuleItems(title, "drawer"))}</div></div><button class="close-btn" data-action="close-overlay" aria-label="关闭">×</button></header><div class="drawer-body">${body}</div>${footer ? `<footer class="drawer-footer">${footer}</footer>` : ""}</section>`;
+    const subtitle = options.subtitle ? `<span class="drawer-title-meta">${esc(options.subtitle)}</span>` : "";
+    return `<section class="drawer ${narrow ? "narrow" : ""} ${approvalDetail ? "approval-detail-drawer" : ""} ${animateCurrentDrawer ? "is-entering" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header class="drawer-header"><div class="drawer-header-main">${backButton}<div class="frame-title-with-rules"><h2>${esc(title)}</h2>${subtitle}${ruleAnnotations(frameRuleItems(title, "drawer"))}</div></div><button class="close-btn" data-action="close-overlay" aria-label="关闭">×</button></header><div class="drawer-body">${body}</div>${footer ? `<footer class="drawer-footer">${footer}</footer>` : ""}</section>`;
   }
 
   function errorFor(name) {
@@ -3027,6 +3133,29 @@
 
   function renderModal() {
     const modal = state.modal;
+    if (modal.type === "approvalPolicyToggle") {
+      const policy = db.approvalPolicies.find(item => item.id === modal.policyId);
+      if (!policy) return modalFrame("审批方案状态变更", `<div class="empty-state compact-empty"><div>审批方案已不存在，请刷新后重试。</div></div>`, `<button class="btn primary" data-action="close-overlay">关闭</button>`);
+      const enabling = modal.nextStatus === "enabled";
+      const operationLabel = approvalOperationLabel(policyOperation(policy));
+      const title = enabling ? "启用审批方案" : "停用审批方案";
+      const summary = `<div class="confirm-summary"><span>审批操作<strong>${esc(operationLabel)}</strong></span><span>当前版本<strong>${esc(policy.policyVersion || "-")}</strong></span><span>变更后状态<strong>${enabling ? "已启用" : "已停用"}</strong></span></div>`;
+      const copy = enabling
+        ? "启用后，该产品线的对应操作将进入审批流程；后续新发起的请求会读取当前版本配置，已受理的请求继续按受理时的执行路径处理。"
+        : "停用后，后续新发起的请求将按原有权限和业务校验直接执行；已受理的审批继续使用受理时的版本，历史记录保留。";
+      return modalFrame(title, `<div class="approval-policy-confirm ${enabling ? "warning-state" : "danger-state"}"><div class="confirm-icon">!</div><h3>${enabling ? "确认启用当前审批方案？" : "确认停用当前审批方案？"}</h3><p>${copy}</p>${summary}</div>`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn ${enabling ? "primary" : "danger"}" data-action="confirm-approval-policy-toggle">${enabling ? "确认启用" : "确认停用"}</button>`);
+    }
+    if (modal.type === "approvalPolicySaved") {
+      const policy = db.approvalPolicies.find(item => item.id === modal.policyId);
+      const operationLabel = approvalOperationLabel(modal.operation || policy?.operation);
+      const enabled = modal.status === "enabled";
+      const statusText = enabled ? "已启用" : "已停用";
+      const statusCopy = enabled
+        ? "方案将保持已启用，新发起的审批请求将使用该版本配置。"
+        : "方案当前为已停用，启用后新发起的审批请求将使用该版本配置。";
+      const summary = `<div class="confirm-summary"><span>审批操作<strong>${esc(operationLabel)}</strong></span><span>保存版本<strong>${esc(modal.policyVersion || "-")}</strong></span><span>当前状态<strong>${statusText}</strong></span></div>`;
+      return modalFrame("审批方案保存成功", `<div class="approval-policy-confirm success-state"><div class="confirm-icon">✓</div><h3>配置已保存并生成新版本</h3><p>${statusCopy}</p>${summary}</div>`, `<button class="btn primary" data-action="close-overlay">我知道了</button>`);
+    }
     if (modal.type === "replaceApprovalTask") {
       const approval = approvalById(modal.approvalId);
       const task = approval?.tasks?.find(item => item.sequence === modal.taskSequence);
@@ -3260,6 +3389,10 @@
     return String(policyVersion || "").match(/V\d+$/)?.[0] || "历史版本";
   }
 
+  function policyHistoryDateLabel(value) {
+    return String(value || "-").replace(/:\d{2}$/, "");
+  }
+
   function policyHistoryTimeoutLabel(node) {
     const timeout = normalizeTimeout(node);
     return timeout.unit === "day" ? `${timeout.value} 个自然日` : `${timeout.value} 小时`;
@@ -3275,13 +3408,7 @@
     const changes = [];
     if ((previous.name || "") !== (current.name || "")) changes.push(`方案名称：${previous.name || "未填写"} → ${current.name || "未填写"}`);
     if ((previous.description || "") !== (current.description || "")) changes.push("方案说明已更新");
-    if (previous.status !== current.status) changes.push(`方案状态：${policyHistoryStatusLabel(previous.status)} → ${policyHistoryStatusLabel(current.status)}`);
-    const previousOperations = new Set(previous.operations || []);
-    const currentOperations = new Set(current.operations || []);
-    const addedOperations = [...currentOperations].filter(operation => !previousOperations.has(operation)).map(approvalOperationLabel);
-    const removedOperations = [...previousOperations].filter(operation => !currentOperations.has(operation)).map(approvalOperationLabel);
-    if (addedOperations.length) changes.push(`新增操作范围：${addedOperations.join("、")}`);
-    if (removedOperations.length) changes.push(`移除操作范围：${removedOperations.join("、")}`);
+    if (current.changeReason) changes.push(`变更说明：${current.changeReason}`);
     const previousNodes = previous.nodes || [];
     const currentNodes = current.nodes || [];
     if (previousNodes.length !== currentNodes.length) changes.push(`审批级数：${previousNodes.length} 级 → ${currentNodes.length} 级`);
@@ -3301,6 +3428,21 @@
     return changes.length ? changes : ["审批配置无变化，仅生成新的版本记录"];
   }
 
+  function renderApprovalPolicyDetailDrawer(drawer) {
+    const policy = db.approvalPolicies.find(item => item.id === drawer.policyId);
+    if (!policy) return drawerFrame("审批方案详情", `<div class="empty-state compact-empty"><div>审批方案已不存在</div></div>`, `<button class="btn primary" data-action="close-overlay">关闭</button>`);
+    const operation = policyOperation(policy);
+    const versionCode = policy.policyVersion.replace(`${policy.id}-`, "");
+    const approvers = (policy.nodes || []).map(node => node.approverName || policyHistoryUserName(node.approverUserId));
+    const copyUsers = (policy.copyUserIds || []).map(userId => policyHistoryUserName(userId));
+    const nodes = (policy.nodes || []).map((node, index) => `<article class="policy-detail-node"><span>${index + 1}</span><div><strong>${esc(node.approverName || policyHistoryUserName(node.approverUserId))}</strong><small>${esc(policyHistoryUserName(node.approverUserId))}</small></div><em>${esc(policyHistoryTimeoutLabel(node))}</em></article>`).join("") || `<div class="policy-history-empty">未配置审批节点</div>`;
+    const policyStatusLabel = policy.status === "disabled" ? "已停用" : "已启用";
+    const policyStatusClass = policy.status === "disabled" ? "" : "success";
+    const body = `<div class="policy-detail-shell"><div class="policy-detail-summary"><div class="policy-detail-summary-icon ${esc(operation)}" aria-hidden="true">${operation === "publish" ? "↗" : operation === "rollback" ? "↻" : "▣"}</div><div><span>当前方案</span><h3>${esc(policy.name)}</h3><p>${esc(policy.description || "未填写方案说明")}</p></div><span class="tag ${policyStatusClass}">${esc(versionCode)} · ${policyStatusLabel}</span></div><section class="policy-detail-section"><div class="policy-detail-section-head"><div><h4>方案范围</h4><span>该方案仅用于当前产品线的这一项审批操作</span></div></div><div class="policy-detail-info-grid"><div><span>所属产品线</span><strong>${esc(policy.productLine)}</strong></div><div><span>审批操作</span><strong>${esc(approvalOperationLabel(operation))}</strong></div><div><span>审批级数</span><strong>${(policy.nodes || []).length} 级串行</strong></div><div><span>最近更新</span><strong>${esc(policy.updatedAt || "-")}</strong></div></div></section><section class="policy-detail-section"><div class="policy-detail-section-head"><div><h4>审批节点</h4><span>按实际流转顺序展示审批人和节点时限</span></div><strong>${approvers.length} 级</strong></div><div class="policy-detail-node-list">${nodes}</div></section><section class="policy-detail-section"><div class="policy-detail-section-head"><div><h4>终态结果抄送</h4><span>审批结束后通知，不参与审批处理</span></div><strong>${copyUsers.length} 人</strong></div>${copyUsers.length ? `<div class="policy-detail-copy-list">${copyUsers.map(name => `<span>${esc(name)}</span>`).join("")}</div>` : `<div class="policy-history-empty">未配置终态抄送人员</div>`}</section><div class="policy-detail-note"><strong>版本规则</strong><span>编辑保存会生成新的版本；已提交审批的请求继续使用受理时的版本快照。</span></div></div>`;
+    const footer = `<button class="btn" data-action="policy-version-history" data-policy-id="${esc(policy.id)}">版本记录</button><button class="btn primary" data-action="edit-approval-policy" data-policy-id="${esc(policy.id)}">编辑方案</button>`;
+    return drawerFrame("审批方案详情", body, footer);
+  }
+
   function renderPolicyVersionHistoryDrawer(drawer) {
     const policy = db.approvalPolicies.find(item => item.id === drawer.policyId);
     if (!policy) return drawerFrame("方案版本记录", `<div class="empty-state compact-empty"><div>审批方案已不存在</div></div>`, `<button class="btn primary" data-action="close-overlay">关闭</button>`);
@@ -3311,22 +3453,31 @@
     if (!version) return drawerFrame("方案版本记录", `<div class="empty-state compact-empty"><div>暂无版本记录</div></div>`, `<button class="btn primary" data-action="close-overlay">关闭</button>`);
     const previous = versions[selectedIndex + 1] || null;
     const currentVersion = policy.policyVersion === version.policyVersion;
-    const copyUsers = (version.copyUserIds || []).map(userId => policyHistoryUserName(userId));
-    const operations = (version.operations || []).map(operation => `<span class="policy-history-operation-tag ${esc(operation)}">${esc(approvalOperationLabel(operation))}</span>`).join("") || `<span class="muted">未配置</span>`;
-    const nodes = (version.nodes || []).map((node, index) => `<article class="policy-history-node"><span class="policy-history-node-index">${index + 1}</span><div class="policy-history-node-copy"><strong>${esc(node.approverName || policyHistoryUserName(node.approverUserId))}</strong><span>${esc(policyHistoryUserName(node.approverUserId))}</span></div><div class="policy-history-node-time"><span>审批时限</span><strong>${esc(policyHistoryTimeoutLabel(node))}</strong></div></article>`).join("") || `<div class="policy-history-empty">未配置审批节点</div>`;
+    const copyUsers = (version.copyUserIds || []).map(userId => {
+      const user = db.users.find(item => item.userId === userId);
+      return { name: user?.name || userId || "未选择", role: user?.role || "" };
+    });
+    const operation = policyOperation(version) || policyOperation(policy);
+    const nodes = (version.nodes || []).map((node, index) => {
+      const user = db.users.find(item => item.userId === node.approverUserId);
+      const approverName = node.approverName || user?.name || node.approverUserId || "未选择";
+      const approverRole = user?.role || "";
+      return `<article class="policy-history-node"><span class="policy-history-node-index">${index + 1}</span><div class="policy-history-node-copy"><strong>${esc(approverName)}</strong>${approverRole ? `<span>${esc(approverRole)}</span>` : ""}</div><div class="policy-history-node-time"><span>审批时限</span><strong>${esc(policyHistoryTimeoutLabel(node))}</strong></div></article>`;
+    }).join("") || `<div class="policy-history-empty">未配置审批节点</div>`;
     const list = versions.map(item => {
       const selected = item.policyVersion === version.policyVersion;
       const itemCurrent = policy.policyVersion === item.policyVersion;
-      return `<button type="button" class="policy-history-version-item ${selected ? "active" : ""}" data-action="select-policy-history-version" data-policy-version="${esc(item.policyVersion)}" aria-pressed="${selected}"><span class="policy-history-version-badge">${esc(policyHistoryVersionCode(item.policyVersion))}</span><span class="policy-history-version-copy"><strong>${esc(item.policyVersion)}</strong><small>${esc(item.updatedAt || "-")} · ${esc(item.updatedBy || "-")}</small></span><span class="policy-history-version-state"><span class="tag ${policyHistoryStatusClass(item.status)}">${esc(policyHistoryStatusLabel(item.status))}</span>${itemCurrent ? `<em>当前</em>` : ""}</span></button>`;
+      return `<button type="button" class="policy-history-version-item ${selected ? "active" : ""}" data-action="select-policy-history-version" data-policy-version="${esc(item.policyVersion)}" aria-pressed="${selected}"><span class="policy-history-version-dot ${itemCurrent ? "current" : ""}" aria-hidden="true"></span><span class="policy-history-version-copy"><span class="policy-history-version-head"><strong>${esc(policyHistoryVersionCode(item.policyVersion))}</strong>${itemCurrent ? `<em>生效版本</em>` : ""}</span></span></button>`;
     }).join("");
-    const detail = `<div class="policy-history-detail-head"><div><span>版本快照</span><h3>${esc(version.policyVersion)}</h3><p>${esc(version.updatedAt || "-")} · ${esc(version.updatedBy || "-")}</p></div><div class="policy-history-detail-status"><span class="tag ${policyHistoryStatusClass(version.status)}">${esc(policyHistoryStatusLabel(version.status))}</span>${currentVersion ? `<span class="tag blue">当前版本</span>` : ""}</div></div><section class="policy-history-section policy-history-basic"><div class="policy-history-section-head"><div><h4>基本信息</h4><span>该版本保存时的完整方案快照</span></div></div><div class="policy-history-info-grid"><div><span>方案名称</span><strong>${esc(version.name || policy.name)}</strong></div><div><span>所属产品线</span><strong>${esc(policy.productLine)}</strong></div><div class="full"><span>方案说明</span><p>${esc(version.description || "未填写方案说明")}</p></div></div></section><section class="policy-history-section"><div class="policy-history-section-head"><div><h4>操作范围</h4><span>同一版本内共用下方审批节点</span></div><strong>${(version.operations || []).length} 项操作</strong></div><div class="policy-history-operation-tags">${operations}</div></section><section class="policy-history-section"><div class="policy-history-section-head"><div><h4>审批节点</h4><span>按实际流转顺序展示审批人和时限</span></div><strong>${(version.nodes || []).length} 级串行</strong></div><div class="policy-history-node-list">${nodes}</div></section><section class="policy-history-section"><div class="policy-history-section-head"><div><h4>终态结果抄送</h4><span>审批结束后通知，不参与审批处理</span></div><strong>${copyUsers.length} 人</strong></div>${copyUsers.length ? `<div class="policy-history-copy-list">${copyUsers.map(name => `<span>${esc(name)}</span>`).join("")}</div>` : `<div class="policy-history-empty">未配置终态抄送人员</div>`}</section><section class="policy-history-section policy-history-change-section"><div class="policy-history-section-head"><div><h4>版本变化</h4><span>${previous ? `相比 ${esc(previous.policyVersion)} 的变更` : "当前版本没有更早的版本"}</span></div></div><ul class="policy-history-change-list">${policyHistoryChanges(previous, version).map(change => `<li>${esc(change)}</li>`).join("")}</ul></section>`;
-    const body = `<div class="policy-history-shell"><aside class="policy-history-list"><div class="policy-history-list-head"><div><strong>${esc(policy.name)}</strong><span>${esc(policy.productLine)} · 共 ${versions.length} 个版本</span></div></div><div class="policy-history-version-list">${list}</div></aside><main class="policy-history-detail">${detail}</main></div>`;
+    const detail = `<div class="policy-history-detail-head"><div><span>版本详情</span><h3>${esc(policyHistoryVersionCode(version.policyVersion))}</h3><p>${esc(version.updatedAt || "-")} · ${esc(version.updatedBy || "-")}</p></div><div class="policy-history-detail-status"><span class="tag ${currentVersion ? "success" : ""}">${currentVersion ? "当前生效版本" : "历史版本"}</span></div></div><section class="policy-history-section policy-history-basic"><div class="policy-history-section-head"><div><h4>基本信息</h4></div></div><div class="policy-history-info-grid"><div><span>方案名称</span><strong>${esc(version.name || policy.name)}</strong></div><div><span>所属产品线</span><strong>${esc(policy.productLine)}</strong></div><div><span>审批操作</span><strong>${esc(approvalOperationLabel(operation))}</strong></div><div class="full"><span>方案说明</span><p>${esc(version.description || "未填写方案说明")}</p></div></div></section><section class="policy-history-section"><div class="policy-history-section-head"><div><h4>审批流程（${(version.nodes || []).length}级）</h4></div></div><div class="policy-history-node-list">${nodes}</div></section><section class="policy-history-section"><div class="policy-history-section-head"><div><h4>终态结果抄送（${copyUsers.length}人）</h4></div></div>${copyUsers.length ? `<div class="policy-history-copy-list">${copyUsers.map(user => `<span class="policy-history-copy-chip"><i aria-hidden="true">${esc(user.name.slice(0, 1))}</i><strong>${esc(user.name)}</strong>${user.role ? `<em> · ${esc(user.role)}</em>` : ""}</span>`).join("")}</div>` : `<div class="policy-history-empty">未配置终态抄送人员</div>`}</section><section class="policy-history-section policy-history-change-section"><div class="policy-history-section-head"><div><h4>版本变化</h4></div></div><ul class="policy-history-change-list">${policyHistoryChanges(previous, version).map(change => `<li>${esc(change)}</li>`).join("")}</ul></section>`;
+    const body = `<div class="policy-history-shell"><aside class="policy-history-list"><div class="policy-history-list-head"><div><strong>版本列表</strong><span>共 ${versions.length} 个版本</span></div></div><div class="policy-history-version-list">${list}</div></aside><main class="policy-history-detail">${detail}</main></div>`;
     return drawerFrame("方案版本记录", body, `<button class="btn" data-action="close-overlay">关闭</button>`);
   }
 
   function renderDrawer() {
     const drawer = state.drawer;
     if (drawer.type === "approvalPolicy") return renderApprovalPolicyDrawer(drawer);
+    if (drawer.type === "policyDetail") return renderApprovalPolicyDetailDrawer(drawer);
     if (drawer.type === "policyVersionHistory") return renderPolicyVersionHistoryDrawer(drawer);
     if (drawer.type === "approvalSimulation") return renderApprovalSimulation(drawer);
     if (drawer.type === "addVersion") return renderVersionFormDrawer("新增固件版本", null);
@@ -3364,10 +3515,8 @@
 
   function renderApprovalPolicyPreview(drawer, nodes) {
     const draft = drawer.policyDraft;
-    const selectedOperations = approvalOperationCatalog.filter(operation => draft.operations.includes(operation.value));
-    const previewOperation = selectedOperations.some(operation => operation.value === drawer.previewOperation) ? drawer.previewOperation : selectedOperations[0]?.value || "";
+    const previewOperation = draft.operation || draft.operations?.[0] || "";
     drawer.previewOperation = previewOperation;
-    const tabs = selectedOperations.map(operation => `<button type="button" class="dingtalk-preview-tab ${operation.value === previewOperation ? "active" : ""}" data-action="select-policy-preview-operation" data-operation="${operation.value}" role="tab" aria-selected="${operation.value === previewOperation}">${esc(operation.label)}</button>`).join("");
     const definition = approvalPolicyPreviewDefinition(previewOperation, draft.productLine);
     const previewNodes = nodes.map((node, index) => {
       const user = db.users.find(item => item.userId === node.approverUserId);
@@ -3375,7 +3524,7 @@
     }).join("");
     const firstApprover = db.users.find(user => user.userId === nodes[0]?.approverUserId)?.name || "待选择第 1 级审批人";
     const card = definition ? `<article class="dingtalk-card"><header class="dingtalk-card-brand"><span class="dingtalk-approval-icon">审</span><strong>审批</strong><em>模板预览</em></header><h3><span>申请人</span>提交的${esc(definition.title)}</h3><div class="dingtalk-form-fields">${definition.fields.map(([label, value, dynamic]) => `<div><span>${esc(label)}</span><strong class="${dynamic ? "dynamic-value" : ""}">${esc(value)}</strong></div>`).join("")}</div><div class="dingtalk-request-meta"><div><span>当前审批人</span><strong class="${nodes[0]?.approverUserId ? "" : "dynamic-value"}">${esc(firstApprover)}</strong></div><div><span>${esc(definition.reasonLabel)}</span><strong class="dynamic-value">提交时带入</strong></div><div><span>申请时间</span><strong class="dynamic-value">提交时生成</strong></div></div><section class="dingtalk-flow"><div class="dingtalk-flow-head"><h4>审批流程</h4><span>${nodes.length} 级串行</span></div>${previewNodes}</section><div class="dingtalk-runtime-rule">${esc(definition.boundary)}；终态结果抄送 <strong data-policy-preview-copy-count>${(draft.copyUserIds || []).length}</strong> 人。</div></article>` : `<div class="dingtalk-preview-empty"><span class="dingtalk-approval-icon">审</span><strong>选择审批操作后显示模板</strong><p>发布、回滚和下架将使用不同的业务字段。</p></div>`;
-    return `<aside class="dingtalk-preview" aria-label="钉钉审批模板预览"><div class="dingtalk-preview-head"><div><strong>${annotatedLabel("钉钉审批模板预览", [["policy", "POL-R12"]])}</strong><span data-policy-preview-name>${esc(draft.name || "未命名审批方案")}</span></div>${tabs ? `<div class="dingtalk-preview-tabs" role="tablist" aria-label="审批操作预览">${tabs}</div>` : ""}</div><div class="dingtalk-preview-canvas">${card}</div><p class="dingtalk-note">灰色字段由固件申请动态带入；审批顺序、审批人和超时时间来自当前方案。</p></aside>`;
+    return `<aside class="dingtalk-preview" aria-label="钉钉审批模板预览"><div class="dingtalk-preview-head"><div class="dingtalk-preview-heading"><span class="dingtalk-preview-heading-icon" aria-hidden="true">${approvalPolicyIcon(previewOperation)}</span><div><strong>${annotatedLabel("钉钉审批模板预览", [["policy", "POL-R12"]])}</strong><span data-policy-preview-name>${esc(draft.name || "未命名审批方案")}</span></div></div><em class="policy-preview-operation">${esc(approvalOperationLabel(previewOperation))}</em></div><div class="dingtalk-preview-canvas">${card}</div></aside>`;
   }
 
   function renderApprovalPolicyDrawer(drawer) {
@@ -3395,15 +3544,14 @@
         return `<button type="button" class="policy-user-option ${selected ? "selected" : ""}" data-action="select-policy-node-user" data-node-index="${index}" data-user-id="${esc(user.userId)}" data-policy-user-search-value="${esc(searchValue)}" role="option" aria-selected="${selected}" ${usedByAnotherNode ? "disabled" : ""}><span class="policy-user-avatar">${esc(String(user.name || "用").slice(0, 1))}</span><span><strong>${esc(user.name)}</strong><small>${esc(user.role)} · ${esc(user.userId)}</small></span><em>${selected ? "已选择" : usedByAnotherNode ? "已配置" : ""}</em></button>`;
       }).join("");
       const picker = `<div class="policy-user-picker ${pickerOpen ? "open" : ""}"><button type="button" class="policy-user-picker-trigger ${selectedUser ? "has-value" : ""}" data-action="toggle-policy-node-user-picker" data-node-index="${index}" aria-haspopup="listbox" aria-expanded="${pickerOpen}" ${candidates.length ? "" : "disabled"}><span><strong class="${selectedUser ? "" : "placeholder"}">${esc(selectedUser?.name || "请选择平台用户")}</strong><small>${selectedUser ? `${esc(selectedUser.role)} · ${esc(selectedUser.userId)}` : "支持按姓名、角色或用户 ID 搜索"}</small></span><i aria-hidden="true">⌄</i></button>${pickerOpen ? `<div class="policy-user-picker-popover"><label class="policy-user-search"><span aria-hidden="true">⌕</span><input type="search" data-policy-node-user-search="${index}" placeholder="搜索姓名、角色或用户 ID" aria-label="搜索${esc(approvalNodeTypeLabel(node.type, index + 1))}" autocomplete="off"></label><div class="policy-user-options" role="listbox">${options}<div class="policy-user-empty hidden" data-policy-user-empty>未找到匹配用户</div></div></div>` : ""}</div>`;
-      return `<div class="policy-node-row"><span class="policy-node-sequence">${index + 1}</span><div class="form-field required policy-node-approver"><label>${index === 0 ? annotatedLabel(approvalNodeTypeLabel(node.type, index + 1), [["policy", "POL-R06"]]) : esc(approvalNodeTypeLabel(node.type, index + 1))}</label>${picker}${state.errors[`policyNode${index}`] ? `<div class="error-text">${esc(state.errors[`policyNode${index}`])}</div>` : ""}</div><div class="form-field required policy-node-timeout"><label>${index === 0 ? annotatedLabel("审批时限", [["policy", "POL-R07"]]) : "审批时限"}</label><div class="policy-timeout-control"><input class="field" type="number" min="1" max="${max}" data-policy-node-timeout="${index}" value="${timeout.value}"><select class="select" data-policy-node-timeout-unit="${index}" aria-label="审批时限单位"><option value="hour" ${timeout.unit === "hour" ? "selected" : ""}>小时</option><option value="day" ${timeout.unit === "day" ? "selected" : ""}>自然日</option></select></div><div class="helper policy-timeout-helper">${timeout.unit === "day" ? "目标日 23:59:59 到期" : "节点激活后滚动计时"}</div>${state.errors[`policyTimeout${index}`] ? `<div class="error-text">${esc(state.errors[`policyTimeout${index}`])}</div>` : ""}</div><button type="button" class="btn icon-btn policy-node-remove" data-action="remove-policy-node" data-node-index="${index}" aria-label="删除第 ${index + 1} 级审批节点" title="删除此审批节点" ${nodes.length === 1 ? "disabled" : ""}>×</button></div>`;
+      const stageLabel = index === 0 ? annotatedLabel(`第 ${index + 1} 级审批人`, [["policy", "POL-R06"]]) : `第 ${index + 1} 级审批人`;
+      return `<div class="policy-node-row"><span class="policy-node-sequence">${index + 1}</span><div class="policy-node-approver"><span class="policy-node-stage-label">${stageLabel}</span>${picker}${state.errors[`policyNode${index}`] ? `<div class="error-text">${esc(state.errors[`policyNode${index}`])}</div>` : ""}</div><div class="form-field required policy-node-timeout"><label>${index === 0 ? annotatedLabel("审批时限", [["policy", "POL-R07"]]) : "审批时限"}</label><div class="policy-timeout-control"><input class="field" type="number" min="1" max="${max}" data-policy-node-timeout="${index}" value="${timeout.value}"><select class="select" data-policy-node-timeout-unit="${index}" aria-label="审批时限单位"><option value="hour" ${timeout.unit === "hour" ? "selected" : ""}>小时</option><option value="day" ${timeout.unit === "day" ? "selected" : ""}>自然日</option></select></div><div class="helper policy-timeout-helper">${timeout.unit === "day" ? "目标日 23:59:59 到期" : "节点激活后滚动计时"}</div>${state.errors[`policyTimeout${index}`] ? `<div class="error-text">${esc(state.errors[`policyTimeout${index}`])}</div>` : ""}</div><button type="button" class="btn icon-btn policy-node-remove" data-action="remove-policy-node" data-node-index="${index}" aria-label="删除第 ${index + 1} 级审批节点" title="删除此审批节点" ${nodes.length === 1 ? "disabled" : ""}>×</button></div>`;
     }).join("");
     const candidateNotice = candidates.length ? "" : `<div class="policy-node-notice">该产品线暂无可选的启用平台用户，请先在用户列表维护所属产线和账号状态。</div>`;
-    const operationDescriptions = { publish: "发布新版本固件", rollback: "回滚到历史版本", delist: "下架线上版本" };
-    const operationOptions = approvalOperationCatalog.map(operation => `<label class="policy-operation-option ${draft.operations.includes(operation.value) ? "selected" : ""}"><input type="checkbox" data-policy-operation="${operation.value}" ${draft.operations.includes(operation.value) ? "checked" : ""}><span><strong>${esc(operation.label)}</strong><small>${esc(operationDescriptions[operation.value])}</small></span></label>`).join("");
     const versionText = editingPolicy ? `${editingPolicy.policyVersion}${drawer.dirty ? " · 有未保存修改" : ""}` : "保存后生成 V1";
-    const basicSection = `<section class="policy-editor-section"><div class="policy-section-head"><div><h3>${annotatedLabel("基本信息", [["policy", "POL-R01"]])}</h3><span>方案名称、所属产品线与说明</span></div><em class="policy-editor-version" data-policy-version>${esc(versionText)}</em></div><div class="form-grid policy-basic-grid"><div class="form-field required"><label>方案名称</label><input class="field" maxlength="40" data-policy-name value="${esc(draft.name)}" placeholder="请输入审批方案名称">${state.errors.policyName ? `<div class="error-text">${esc(state.errors.policyName)}</div>` : ""}</div><div class="form-field required"><label>所属产品线</label><select class="select policy-readonly-select" disabled aria-label="所属产品线">${productLines.map(line => `<option value="${esc(line)}" ${line === draft.productLine ? "selected" : ""}>${esc(line)}</option>`).join("")}</select><div class="helper">当前为 ${esc(draft.productLine)} 产品线，不支持修改。</div></div><div class="form-field full"><label>方案说明 <span class="optional-label">（选填）</span></label><textarea class="textarea policy-description" maxlength="200" data-policy-description placeholder="说明该方案的适用场景">${esc(draft.description || "")}</textarea><div class="helper align-right">${String(draft.description || "").length} / 200</div>${state.errors.policyDescription ? `<div class="error-text">${esc(state.errors.policyDescription)}</div>` : ""}</div></div></section>`;
-    const operationSection = `<section class="policy-editor-section"><div class="policy-section-head"><div><h3>${annotatedLabel("操作范围", [["policy", "POL-R04"]])}</h3><span>支持多选，同一方案可覆盖发布、回滚和下架</span></div><em class="policy-editor-version">已选择 ${draft.operations.length} / ${approvalOperationCatalog.length} 项</em></div><div class="policy-operation-options">${operationOptions}</div>${state.errors.policyOperations ? `<div class="error-text policy-section-error">${esc(state.errors.policyOperations)}</div>` : ""}<p class="policy-editor-rule">同一产品线的同一操作只能配置在一个已启用方案中；同一方案内所选操作共用当前审批节点与终态抄送配置。</p></section>`;
-    const nodeSection = `<section class="policy-editor-section policy-editor-node-section"><div class="policy-section-head policy-node-head"><div><h3>${annotatedLabel("审批节点", [["policy", "POL-R05"], ["policy", "POL-R07"]])}</h3><span>1–5 级单人串行审批，可自由添加或删除；页面顺序即实际流转顺序</span></div><span class="action-with-rules"><button type="button" class="btn small" data-action="add-policy-node" ${nodes.length >= 5 ? "disabled" : ""}>＋ 添加审批节点</button>${ruleAnnotation("policy", "POL-R05")}</span></div>${candidateNotice}${state.errors.policyNodes ? `<div class="error-text policy-section-error">${esc(state.errors.policyNodes)}</div>` : ""}<div class="policy-node-list">${nodeRows}</div><div class="policy-node-limit">当前 ${nodes.length} / 5 级${nodes.length >= 5 ? "，已达到上限" : ""}</div><p class="policy-editor-rule">节点超时只标记“已超时”，不会自动通过、驳回或结束；原审批人仍可继续处理。</p></section>`;
+    const operationLabel = approvalOperationLabel(draft.operation || draft.operations?.[0]);
+    const basicSection = `<section class="policy-editor-section"><div class="policy-section-head"><div class="policy-section-heading"><span class="policy-editor-section-index">01</span><div><h3>${annotatedLabel("基本信息", [["policy", "POL-R01"], ["policy", "POL-R02"]])}</h3></div></div><em class="policy-editor-version" data-policy-version>${esc(versionText)}</em></div><div class="form-grid policy-basic-grid"><div class="form-field required"><label>方案名称</label><input class="field" maxlength="40" data-policy-name value="${esc(draft.name)}" placeholder="请输入审批方案名称">${state.errors.policyName ? `<div class="error-text">${esc(state.errors.policyName)}</div>` : ""}</div><div class="form-field required"><label>所属产品线</label><select class="select policy-readonly-select" disabled aria-label="所属产品线">${productLines.map(line => `<option value="${esc(line)}" ${line === draft.productLine ? "selected" : ""}>${esc(line)}</option>`).join("")}</select><div class="helper">当前为 ${esc(draft.productLine)} 产品线，不支持修改。</div></div><div class="form-field full"><div class="field-rule-row"><label>审批操作</label>${ruleAnnotation("policy", "POL-R04")}</div><div class="policy-fixed-operation"><strong>${esc(operationLabel)}</strong></div>${state.errors.policyOperations ? `<div class="error-text">${esc(state.errors.policyOperations)}</div>` : ""}</div><div class="form-field full"><label>方案说明 <span class="optional-label">（选填）</span></label><textarea class="textarea policy-description" maxlength="200" data-policy-description placeholder="说明该方案的适用场景">${esc(draft.description || "")}</textarea><div class="helper align-right">${String(draft.description || "").length} / 200</div>${state.errors.policyDescription ? `<div class="error-text">${esc(state.errors.policyDescription)}</div>` : ""}</div></div></section>`;
+    const nodeSection = `<section class="policy-editor-section policy-editor-node-section"><div class="policy-section-head policy-node-head"><div class="policy-section-heading"><span class="policy-editor-section-index">02</span><div><h3>${annotatedLabel("审批节点", [["policy", "POL-R05"], ["policy", "POL-R07"]])}</h3></div></div></div>${candidateNotice}${state.errors.policyNodes ? `<div class="error-text policy-section-error">${esc(state.errors.policyNodes)}</div>` : ""}<div class="policy-node-list">${nodeRows}</div><div class="policy-node-footer"><span class="action-with-rules"><button type="button" class="btn small" data-action="add-policy-node" ${nodes.length >= 5 ? "disabled" : ""}>＋ 添加审批节点</button>${ruleAnnotation("policy", "POL-R05")}</span><span class="policy-node-limit">当前 ${nodes.length} / 5 级${nodes.length >= 5 ? "，已达到上限" : ""}</span></div><p class="policy-editor-rule">节点超时只标记“已超时”，不会自动通过、驳回或结束；原审批人仍可继续处理。</p></section>`;
     const selectedCopyIds = draft.copyUserIds || [];
     const selectedCopyUsers = selectedCopyIds.map(userId => db.users.find(user => user.userId === userId) || { userId, name: userId, role: "历史用户" });
     const copyPickerOpen = Boolean(drawer.copyUserPickerOpen);
@@ -3422,9 +3570,9 @@
     }).join("");
     const copySummary = selectedCopyUsers.length ? `<div class="policy-copy-summary-list">${selectedCopyUsers.slice(0, 4).map(user => `<span class="policy-copy-chip"><span>${esc(user.name)}</span><button type="button" data-action="remove-policy-copy-user" data-user-id="${esc(user.userId)}" aria-label="移除抄送人 ${esc(user.name)}" title="移除">×</button></span>`).join("")}${selectedCopyUsers.length > 4 ? `<span class="policy-copy-more">+${selectedCopyUsers.length - 4} 人</span>` : ""}</div>` : `<span class="policy-copy-summary-empty">暂未选择抄送人</span>`;
     const copyEmptyText = !candidates.length ? "当前产品线暂无可选用户" : copyUserTab === "selected" && !selectedCopyIds.length ? "暂未选择抄送人" : "未找到匹配用户";
-    const copySection = `<section class="policy-editor-section policy-copy-section"><div class="policy-section-head"><div><h3>${annotatedLabel("终态结果抄送", [["policy", "POL-R08"]])}</h3><span>审批结束后通知所选人员，不参与审批处理</span></div><em class="policy-editor-version" data-policy-copy-count>已选择 ${selectedCopyIds.length} 人</em></div><div class="policy-copy-picker ${copyPickerOpen ? "open" : ""}"><button type="button" class="policy-copy-picker-trigger" data-action="toggle-policy-copy-picker" aria-haspopup="dialog" aria-expanded="${copyPickerOpen}" ${candidates.length ? "" : "disabled"}><span class="policy-copy-trigger-icon" aria-hidden="true">⌕</span><span><strong>${selectedCopyIds.length ? `已选择 ${selectedCopyIds.length} 名抄送人` : "选择抄送人员"}</strong><small>${selectedCopyIds.length ? "可继续搜索添加或取消选择" : "支持按姓名、角色或用户 ID 搜索"}</small></span><i aria-hidden="true">⌄</i></button>${copyPickerOpen ? `<div class="policy-copy-popover" role="dialog" aria-label="选择终态结果抄送人员"><label class="policy-copy-search"><span aria-hidden="true">⌕</span><input type="search" data-policy-copy-search value="${esc(copyUserSearch)}" placeholder="搜索姓名、角色或用户 ID" aria-label="搜索终态结果抄送用户" autocomplete="off"></label><div class="policy-copy-popover-toolbar"><div class="policy-copy-tabs" role="tablist" aria-label="抄送人筛选"><button type="button" class="${copyUserTab === "all" ? "active" : ""}" data-action="select-policy-copy-tab" data-tab="all" role="tab" aria-selected="${copyUserTab === "all"}">全部用户</button><button type="button" class="${copyUserTab === "selected" ? "active" : ""}" data-action="select-policy-copy-tab" data-tab="selected" role="tab" aria-selected="${copyUserTab === "selected"}">已选用户（${selectedCopyIds.length}）</button></div><button type="button" class="link-btn" data-action="clear-policy-copy-users" ${selectedCopyIds.length ? "" : "disabled"}>清空已选</button></div><div class="policy-copy-list">${copyOptions || `<div class="policy-copy-empty">${esc(copyEmptyText)}</div>`}</div><div class="policy-copy-popover-footer"><span>已选择 <strong>${selectedCopyIds.length}</strong> 人</span><button type="button" class="btn small primary" data-action="close-policy-copy-picker">完成</button></div></div>` : ""}</div><div class="policy-copy-summary">${copySummary}</div><p class="policy-editor-rule">仅在审批驳回、正式发布成功或发布失败时按原审批通知机制同步钉钉；超时和撤回本期不抄送。</p></section>`;
-    const versionNote = `<div class="policy-editor-save-note"><strong>${annotatedLabel("版本记录", [["policy", "POL-R09"]])}</strong><span>${editingPolicy ? "保存修改后生成新的方案版本，已提交审批继续使用原版本快照。" : "保存后立即作为当前审批方案，并生成 V1 版本记录。"}</span></div>`;
-    const body = `<form id="approval-policy-form"><div class="policy-editor-layout"><main class="policy-editor-form">${basicSection}${operationSection}${nodeSection}${copySection}${versionNote}</main>${renderApprovalPolicyPreview(drawer, nodes)}</div></form>`;
+    const copySection = `<section class="policy-editor-section policy-copy-section"><div class="policy-section-head"><div class="policy-section-heading"><span class="policy-editor-section-index">03</span><div><h3>${annotatedLabel("终态结果抄送", [["policy", "POL-R08"]])}</h3></div></div><em class="policy-editor-version" data-policy-copy-count>已选择 ${selectedCopyIds.length} 人</em></div><div class="policy-copy-picker ${copyPickerOpen ? "open" : ""}"><button type="button" class="policy-copy-picker-trigger" data-action="toggle-policy-copy-picker" aria-haspopup="dialog" aria-expanded="${copyPickerOpen}" ${candidates.length ? "" : "disabled"}><span class="policy-copy-trigger-icon" aria-hidden="true">⌕</span><span><strong>${selectedCopyIds.length ? `已选择 ${selectedCopyIds.length} 名抄送人` : "选择抄送人员"}</strong><small>${selectedCopyIds.length ? "可继续搜索添加或取消选择" : "支持按姓名、角色或用户 ID 搜索"}</small></span><i aria-hidden="true">⌄</i></button>${copyPickerOpen ? `<div class="policy-copy-popover" role="dialog" aria-label="选择终态结果抄送人员"><label class="policy-copy-search"><span aria-hidden="true">⌕</span><input type="search" data-policy-copy-search value="${esc(copyUserSearch)}" placeholder="搜索姓名、角色或用户 ID" aria-label="搜索终态结果抄送用户" autocomplete="off"></label><div class="policy-copy-popover-toolbar"><div class="policy-copy-tabs" role="tablist" aria-label="抄送人筛选"><button type="button" class="${copyUserTab === "all" ? "active" : ""}" data-action="select-policy-copy-tab" data-tab="all" role="tab" aria-selected="${copyUserTab === "all"}">全部用户</button><button type="button" class="${copyUserTab === "selected" ? "active" : ""}" data-action="select-policy-copy-tab" data-tab="selected" role="tab" aria-selected="${copyUserTab === "selected"}">已选用户（${selectedCopyIds.length}）</button></div><button type="button" class="link-btn" data-action="clear-policy-copy-users" ${selectedCopyIds.length ? "" : "disabled"}>清空已选</button></div><div class="policy-copy-list">${copyOptions || `<div class="policy-copy-empty">${esc(copyEmptyText)}</div>`}</div><div class="policy-copy-popover-footer"><span>已选择 <strong>${selectedCopyIds.length}</strong> 人</span><button type="button" class="btn small primary" data-action="close-policy-copy-picker">完成</button></div></div>` : ""}</div><div class="policy-copy-summary">${copySummary}</div></section>`;
+    const versionNote = `<section class="policy-editor-section policy-change-section"><div class="policy-section-head"><div class="policy-section-heading"><span class="policy-editor-section-index">04</span><div><h3>${annotatedLabel("版本记录", [["policy", "POL-R09"]])}</h3></div></div></div><div class="form-field ${editingPolicy ? "required" : ""}"><label>变更说明 ${editingPolicy ? "" : "<span class=\"optional-label\">（选填）</span>"}</label><textarea class="textarea policy-change-reason" maxlength="120" data-policy-change-reason placeholder="例如：调整第 2 级审批人">${esc(draft.changeReason || "")}</textarea><div class="helper align-right">${String(draft.changeReason || "").length} / 120</div>${state.errors.policyChangeReason ? `<div class="error-text">${esc(state.errors.policyChangeReason)}</div>` : ""}</div></section>`;
+    const body = `<form id="approval-policy-form"><div class="policy-editor-layout"><main class="policy-editor-form">${basicSection}${nodeSection}${copySection}${versionNote}</main>${renderApprovalPolicyPreview(drawer, nodes)}</div></form>`;
     const saveButton = `<span class="action-with-rules"><button class="btn primary" type="button" data-action="save-approval-policy" ${editingPolicy && !drawer.dirty ? "disabled" : ""}>${editingPolicy ? "保存修改" : "保存方案"}</button>${ruleAnnotation("policy", "POL-R09")}</span>`;
     const footer = `<button class="btn" type="button" data-action="close-overlay">取消</button>${saveButton}`;
     return drawerFrame(editingPolicy ? "编辑审批方案" : "新建审批方案", body, footer);
@@ -3650,10 +3798,9 @@
       toast("当前固件标识已有生效审批，请先处理现有审批", "warning");
       return null;
     }
-    const coverage = policyCoverage(identifier.product, type);
     const policy = activeApprovalPolicy(identifier.product, type);
     if (!policy) {
-      toast(coverage.status === "conflict" ? `当前产品线的${approvalOperationLabel(type)}审批方案存在冲突，请联系系统管理员` : `当前产品线未配置${approvalOperationLabel(type)}审批方案，请联系系统管理员`, "warning");
+      toast(`当前产品线未配置${approvalOperationLabel(type)}审批方案，请联系系统管理员`, "warning");
       return null;
     }
     const policyNodeIssue = approvalPolicyNodeIssue(policy);
@@ -4191,7 +4338,49 @@
     }
     if (action === "select-policy-line") {
       state.selectedPolicyProductLine = target.dataset.productLine;
+      state.selectedPolicyOperation = "";
       state.approvalPolicyPage = 1;
+      renderShell();
+      return;
+    }
+    if (action === "new-approval-policy") {
+      state.errors = {};
+      const productLine = state.selectedPolicyProductLine || productLines[0];
+      const operation = approvalOperationCatalog.some(item => item.value === target.dataset.operation) ? target.dataset.operation : "publish";
+      if (anyApprovalPolicy(productLine, operation)) {
+        toast("该审批操作已有方案，请从卡片中编辑或查看版本记录", "warning");
+        return;
+      }
+      state.selectedPolicyOperation = operation;
+      state.drawer = { type: "approvalPolicy", policyId: null, policyDraft: newApprovalPolicyDraft(productLine, operation), previewOperation: operation, nodeUserPickerOpen: null, copyUserPickerOpen: false, copyUserTab: "all", copyUserSearch: "", dirty: false };
+      renderShell();
+      return;
+    }
+    if (action === "view-approval-policy") {
+      const policy = db.approvalPolicies.find(item => item.id === target.dataset.policyId);
+      if (!policy) return;
+      state.modal = null;
+      state.selectedPolicyOperation = policyOperation(policy);
+      state.drawer = { type: "policyDetail", policyId: policy.id };
+      renderShell();
+      return;
+    }
+    if (action === "select-policy-operation") {
+      const operation = target.dataset.operation;
+      const productLine = state.selectedPolicyProductLine || productLines[0];
+      const coverage = approvalOperationCatalog.some(item => item.value === operation) ? policyCoverage(productLine, operation) : null;
+      if (!coverage) return;
+      state.selectedPolicyOperation = operation;
+      if (coverage.status === "unconfigured") {
+        state.errors = {};
+        const draft = newApprovalPolicyDraft(productLine, operation);
+        state.drawer = { type: "approvalPolicy", policyId: null, policyDraft: draft, previewOperation: operation, nodeUserPickerOpen: null, copyUserPickerOpen: false, copyUserTab: "all", copyUserSearch: "", dirty: false };
+        renderShell();
+        return;
+      }
+      const policy = coverage.policies[0];
+      state.modal = null;
+      state.drawer = { type: "policyDetail", policyId: policy.id };
       renderShell();
       return;
     }
@@ -4209,7 +4398,8 @@
     if (action === "add-approval-policy") {
       state.errors = {};
       const productLine = state.selectedPolicyProductLine || productLines[0];
-      state.drawer = { type: "approvalPolicy", policyId: null, policyDraft: newApprovalPolicyDraft(productLine), previewOperation: "", nodeUserPickerOpen: null, copyUserPickerOpen: false, copyUserTab: "all", copyUserSearch: "", dirty: false };
+      const operation = approvalOperationCatalog.find(item => !anyApprovalPolicy(productLine, item.value))?.value || "publish";
+      state.drawer = { type: "approvalPolicy", policyId: null, policyDraft: newApprovalPolicyDraft(productLine, operation), previewOperation: operation, nodeUserPickerOpen: null, copyUserPickerOpen: false, copyUserTab: "all", copyUserSearch: "", dirty: false };
       renderShell();
       return;
     }
@@ -4217,8 +4407,33 @@
       const policy = db.approvalPolicies.find(item => item.id === target.dataset.policyId);
       if (!policy) return;
       state.errors = {};
-      state.drawer = { type: "approvalPolicy", policyId: policy.id, policyDraft: { name: policy.name, productLine: policy.productLine, description: policy.description || "", operations: [...policy.operations], levelCount: policy.levelCount, status: policy.status, copyUserIds: clone(policy.copyUserIds || []), nodes: clone(policy.nodes) }, previewOperation: policy.operations[0] || "", nodeUserPickerOpen: null, copyUserPickerOpen: false, copyUserTab: "all", copyUserSearch: "", dirty: false };
+      state.drawer = { type: "approvalPolicy", policyId: policy.id, policyDraft: { name: policy.name, productLine: policy.productLine, operation: policyOperation(policy), description: policy.description || "", operations: [policyOperation(policy)], levelCount: policy.levelCount, status: policy.status === "disabled" ? "disabled" : "enabled", copyUserIds: clone(policy.copyUserIds || []), changeReason: "", nodes: clone(policy.nodes) }, previewOperation: policyOperation(policy), nodeUserPickerOpen: null, copyUserPickerOpen: false, copyUserTab: "all", copyUserSearch: "", dirty: false };
       renderShell();
+      return;
+    }
+    if (action === "toggle-approval-policy") {
+      const policy = db.approvalPolicies.find(item => item.id === target.dataset.policyId);
+      if (!policy) return;
+      state.modal = { type: "approvalPolicyToggle", policyId: policy.id, nextStatus: policy.status === "disabled" ? "enabled" : "disabled" };
+      renderShell();
+      return;
+    }
+    if (action === "confirm-approval-policy-toggle") {
+      const modal = state.modal;
+      if (modal?.type !== "approvalPolicyToggle") return;
+      const policy = db.approvalPolicies.find(item => item.id === modal.policyId);
+      if (!policy) {
+        closeOverlay();
+        return;
+      }
+      policy.status = modal.nextStatus === "enabled" ? "enabled" : "disabled";
+      policy.updatedAt = now();
+      policy.updatedBy = "汤彦珊";
+      addOperation("审批配置", policy.status === "enabled" ? "启用" : "停用", policy.name, "汤彦珊", "成功", `${policy.policyVersion}；${approvalOperationLabel(policyOperation(policy))}`);
+      persist();
+      state.modal = null;
+      renderShell();
+      toast(policy.status === "enabled" ? "审批方案已启用，后续新请求将进入审批" : "审批方案已停用，后续新请求按原有业务流程执行");
       return;
     }
     if (action === "select-policy-preview-operation") {
@@ -4344,25 +4559,6 @@
       state.modal = null;
       state.drawer = { type: "policyVersionHistory", policyId: policy.id, selectedVersion: policy.history?.[0]?.policyVersion || policy.policyVersion };
       renderShell();
-      return;
-    }
-    if (action === "toggle-approval-policy") {
-      const policy = db.approvalPolicies.find(item => item.id === target.dataset.policyId);
-      if (!policy) return;
-      if (policy.status !== "enabled") {
-        const conflict = conflictingApprovalPolicy(policy.productLine, policy.operations, policy.id, true);
-        if (conflict) { toast(`方案“${conflict.name}”已覆盖相同操作，请先停用该方案`, "warning"); return; }
-      }
-      policy.status = policy.status === "enabled" ? "disabled" : "enabled";
-      policy.versionNumber = Number(policy.versionNumber || 1) + 1;
-      policy.policyVersion = `${policy.id}-V${policy.versionNumber}`;
-      policy.updatedAt = now();
-      policy.updatedBy = "汤彦珊";
-      policy.history.unshift({ policyVersion: policy.policyVersion, name: policy.name, description: policy.description, status: policy.status, operations: clone(policy.operations), nodes: clone(policy.nodes), copyUserIds: clone(policy.copyUserIds || []), updatedAt: policy.updatedAt, updatedBy: policy.updatedBy });
-      addOperation("审批配置", policy.status === "enabled" ? "启用" : "停用", policy.name, "汤彦珊", "成功", `${policy.policyVersion}；仅影响后续新申请`);
-      persist();
-      renderShell();
-      toast(`审批方案已${policy.status === "enabled" ? "启用" : "停用"}`);
       return;
     }
     if (action === "select-identifier") {
@@ -5538,6 +5734,14 @@
       const counter = event.target.closest(".form-field")?.querySelector(".helper.align-right");
       if (counter) counter.textContent = `${event.target.value.length} / 200`;
     }
+    if (event.target.matches("[data-policy-change-reason]") && state.drawer?.type === "approvalPolicy") {
+      state.drawer.policyDraft.changeReason = event.target.value;
+      markApprovalPolicyDirty();
+      delete state.errors.policyChangeReason;
+      event.target.closest(".form-field")?.querySelector(".error-text")?.remove();
+      const counter = event.target.closest(".form-field")?.querySelector(".helper.align-right");
+      if (counter) counter.textContent = `${event.target.value.length} / 120`;
+    }
     if (event.target.dataset.policyNodeTimeout !== undefined && state.drawer?.type === "approvalPolicy") {
       const index = Number(event.target.dataset.policyNodeTimeout);
       const node = state.drawer.policyDraft.nodes[index];
@@ -5589,6 +5793,13 @@
 
   app.addEventListener("change", event => {
     const target = event.target;
+    if (target.dataset.change === "approval-top-product-line") {
+      state.selectedPolicyProductLine = target.value;
+      state.selectedPolicyOperation = "";
+      state.approvalPolicyPage = 1;
+      renderShell();
+      return;
+    }
     if (target.matches("[data-feature-category]") && state.modal?.type === "featurePicker") {
       state.modal.featureCategory = target.value;
       state.modal.versionOpen = null;

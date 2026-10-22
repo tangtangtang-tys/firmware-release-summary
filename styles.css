@@ -515,7 +515,7 @@ button { color: inherit; }
 .overlay-secondary { z-index: 120; background: rgba(31, 39, 51, .32); }
 .modal {
   position: fixed;
-  z-index: 110;
+  z-index: 140;
   left: 50%;
   top: calc(var(--topbar-h) + 14vh);
   width: min(520px, calc(100vw - 32px));
@@ -528,7 +528,7 @@ button { color: inherit; }
   box-shadow: var(--shadow);
 }
 .modal.is-entering { animation: modal-in 150ms ease-out; }
-.modal.nested-modal { z-index: 130; }
+.modal.nested-modal { z-index: 150; }
 
 .modal.wide { top: calc(var(--topbar-h) + 24px); width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - var(--topbar-h) - 48px); }
 .modal.release-modal { width: min(1080px, calc(100vw - 32px)); }

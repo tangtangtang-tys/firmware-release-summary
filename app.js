@@ -2594,7 +2594,7 @@
   }
 
   function lifecycleResultLabel(result) {
-    return ({ success: "成功", active: "当前生效", partial: "部分失败", failed: "失败", rejected: "已驳回", skipped: "不发送" })[result] || result;
+    return ({ success: "成功", active: "当前生效", partial: "部分失败", failed: "失败", rejected: "已驳回", withdrawn: "已撤回", skipped: "不发送" })[result] || result;
   }
 
   function lifecycleResultClass(result) {
@@ -2728,7 +2728,7 @@
 
   function renderLifecycleEntry(flow, flowIndex, flowCount, identifier) {
       const approvalEvents = flow.events.filter(event => event.stage === "approval");
-      const approvalLabel = approvalEvents.some(event => event.result === "rejected") ? "已驳回" : approvalEvents.some(event => event.title.includes("通过")) ? "已通过" : approvalEvents.length ? "审批中" : "无记录";
+      const approvalLabel = approvalEvents.some(event => event.result === "withdrawn") ? "已撤回" : approvalEvents.some(event => event.result === "rejected") ? "已驳回" : approvalEvents.some(event => event.title.includes("通过")) ? "已通过" : approvalEvents.length ? "审批中" : "无记录";
       const approvalClass = approvalLabel === "已驳回" ? "danger-text" : approvalLabel === "已通过" ? "success-text" : "";
       const releaseEvent = identifier.releaseEvents.find(event => event.flowId === flow.flowId);
       const displayFlowStatus = lifecycleDisplayStatus(identifier, flow);
@@ -3001,7 +3001,9 @@
   function modalFrame(title, body, footer = "", wide = false, nested = false) {
     const featureModal = body.includes("feature-picker-modal");
     const approvalDetailModal = /审批详情$/.test(title);
-    return `<section class="modal ${wide ? "wide" : ""} ${approvalDetailModal ? "approval-detail-modal" : ""} ${body.includes('class="app-reminder-layout"') ? "release-modal" : ""} ${featureModal ? "feature-modal" : ""} ${nested ? "nested-modal" : ""} ${animateCurrentModal ? "is-entering" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header class="dialog-header"><div class="frame-title-with-rules"><h2>${esc(title)}</h2>${featureModal ? "" : ruleAnnotations(frameRuleItems(title, "modal"))}</div><button class="close-btn" data-action="${nested ? "close-modal" : "close-overlay"}" aria-label="关闭">×</button></header><div class="dialog-body">${body}</div>${footer ? `<footer class="dialog-footer">${footer}</footer>` : ""}</section>`;
+    // Any modal opened above a drawer must sit above the drawer's secondary mask.
+    const nestedModal = nested || Boolean(state.drawer);
+    return `<section class="modal ${wide ? "wide" : ""} ${approvalDetailModal ? "approval-detail-modal" : ""} ${body.includes('class="app-reminder-layout"') ? "release-modal" : ""} ${featureModal ? "feature-modal" : ""} ${nestedModal ? "nested-modal" : ""} ${animateCurrentModal ? "is-entering" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header class="dialog-header"><div class="frame-title-with-rules"><h2>${esc(title)}</h2>${featureModal ? "" : ruleAnnotations(frameRuleItems(title, "modal"))}</div><button class="close-btn" data-action="${nestedModal ? "close-modal" : "close-overlay"}" aria-label="关闭">×</button></header><div class="dialog-body">${body}</div>${footer ? `<footer class="dialog-footer">${footer}</footer>` : ""}</section>`;
   }
 
   function drawerFrame(title, body, footer = "", narrow = false, options = {}) {

@@ -4047,10 +4047,14 @@ button { color: inherit; }
 .ac-remind-action { border: 0; cursor: pointer; }
 .ac-remind-action.row { display: block; margin: 10px 0 0 auto; padding: 4px 9px; border: 1px solid #b8d2f0; border-radius: 3px; background: #f5f9ff; color: #2b73c5; font-size: 10px; }
 .ac-row-meta-mine { min-height: 29px; margin-top: 9px; gap: 8px; }
+.ac-mine-row { min-height: 99px; padding: 11px 22px 10px; }
+.ac-row-meta-mine { justify-content: flex-end; padding-right: 30px; }
 .ac-row-meta-mine .ac-row-status { display: inline-flex; align-items: center; }
-.ac-row-meta-mine .ac-status { padding: 4px 10px; font-size: 12px; font-weight: 500; }
-.ac-row-meta-mine .ac-remind-action.row { display: inline-flex; align-items: center; gap: 4px; margin: 0 30px 0 auto; min-height: 28px; padding: 3px 12px; border-radius: 4px; font-size: 12px; }
-.ac-row-meta-mine .ac-remind-action.row::before { content: "◷"; font-size: 13px; line-height: 1; }
+.ac-row-meta-mine .ac-status { position: relative; gap: 7px; padding: 5px 12px 5px 10px; border: 0; border-radius: 16px; font-size: 13px; font-weight: 600; }
+.ac-row-meta-mine .ac-status::before { content: ""; width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: currentColor; }
+.ac-row-meta-mine .ac-status.pending { border: 0; background: #fff0ed; color: #f04b23; }
+.ac-row-meta-mine .ac-status.success { border: 0; background: #e9f9f1; color: #0ca875; }
+.ac-row-meta-mine .ac-status.closed { border: 0; background: #fff0ed; color: #ed4b3d; }
 .ac-remind-action.row:hover:not(:disabled), .ac-remind-action.node:hover:not(:disabled) { border-color: #7eaddf; background: #eaf3ff; }
 .ac-remind-action:disabled { cursor: default; opacity: .65; }
 .ac-queue-foot { padding: 11px 12px; border-top: 1px solid #e5ebf3; color: #9aa5b3; text-align: center; font-size: 10px; }

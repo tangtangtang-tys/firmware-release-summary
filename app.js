@@ -2480,8 +2480,8 @@
   function menuGroup(group, label, symbol, items) {
     const open = state.groups[group];
     const itemMarkup = items.map(([route, text]) => {
-      const unread = route === "approvalCenter" && centerHasUnreadTodo();
-      return `<button class="menu-item ${state.route === route ? "active" : ""}" data-route="${route}"><span>${text}</span>${unread ? '<i class="menu-item-unread" aria-label="有新的待处理审批"></i>' : ""}</button>`;
+      const hasTodo = route === "approvalCenter" && centerHasTodo();
+      return `<button class="menu-item ${state.route === route ? "active" : ""}" data-route="${route}"><span>${text}</span>${hasTodo ? '<i class="menu-item-unread" aria-label="有待处理审批"></i>' : ""}</button>`;
     }).join("");
     return `<div class="menu-group ${open ? "is-open" : ""}"><button class="menu-group-title" data-action="toggle-group" data-group="${group}" aria-expanded="${open}"><span class="group-icon">${symbol}</span><span>${label}</span><span class="chevron">⌃</span></button><div class="menu-items">${itemMarkup}</div></div>`;
   }
@@ -3169,8 +3169,8 @@
     });
   }
 
-  function centerHasUnreadTodo(user = centerIdentity()) {
-    return centerRows("todo", false).some(approval => !(approval.readBy || []).includes(user.userId));
+  function centerHasTodo() {
+    return centerRows("todo", false).length > 0;
   }
 
   function centerStatusTag(approval, includeExecution = false) {

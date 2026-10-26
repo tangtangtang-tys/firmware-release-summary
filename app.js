@@ -2479,7 +2479,11 @@
 
   function menuGroup(group, label, symbol, items) {
     const open = state.groups[group];
-    return `<div class="menu-group ${open ? "is-open" : ""}"><button class="menu-group-title" data-action="toggle-group" data-group="${group}" aria-expanded="${open}"><span class="group-icon">${symbol}</span><span>${label}</span><span class="chevron">⌃</span></button><div class="menu-items">${items.map(([route, text]) => `<button class="menu-item ${state.route === route ? "active" : ""}" data-route="${route}">${text}</button>`).join("")}</div></div>`;
+    const itemMarkup = items.map(([route, text]) => {
+      const unread = route === "approvalCenter" && centerHasUnreadTodo();
+      return `<button class="menu-item ${state.route === route ? "active" : ""}" data-route="${route}"><span>${text}</span>${unread ? '<i class="menu-item-unread" aria-label="有新的待处理审批"></i>' : ""}</button>`;
+    }).join("");
+    return `<div class="menu-group ${open ? "is-open" : ""}"><button class="menu-group-title" data-action="toggle-group" data-group="${group}" aria-expanded="${open}"><span class="group-icon">${symbol}</span><span>${label}</span><span class="chevron">⌃</span></button><div class="menu-items">${itemMarkup}</div></div>`;
   }
 
   function renderShell() {
@@ -3163,6 +3167,10 @@
       if (state.center.sort === "oldest") return String(a.submitTime).localeCompare(String(b.submitTime));
       return Number(b.approvalStatus === "审批中") - Number(a.approvalStatus === "审批中") || Number(b.associatedDeviceCount || 0) - Number(a.associatedDeviceCount || 0) || String(a.submitTime).localeCompare(String(b.submitTime));
     });
+  }
+
+  function centerHasUnreadTodo(user = centerIdentity()) {
+    return centerRows("todo", false).some(approval => !(approval.readBy || []).includes(user.userId));
   }
 
   function centerStatusTag(approval, includeExecution = false) {

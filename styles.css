@@ -1953,6 +1953,9 @@ button { color: inherit; }
 .menu-item { min-height: 39px; padding-left: 51px; border-radius: 6px; color: #32445f; }
 .menu-item:hover { background: #edf4ff; color: #236dd0; }
 .menu-item.active { background: #dceaff; color: #2371d8; font-weight: 600; }
+.menu-item { display: flex; align-items: center; gap: 8px; }
+.menu-item > span { min-width: 0; }
+.menu-item-unread { width: 7px; height: 7px; margin-left: auto; flex: 0 0 7px; border-radius: 50%; background: #ef4c58; box-shadow: 0 0 0 2px #fff; }
 .content-shell { margin-left: var(--sidebar-w); background: #f1f6fc; }
 
 .policy-page { padding: 20px 26px 44px; background: #f1f6fc; }

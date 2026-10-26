@@ -4048,7 +4048,8 @@ button { color: inherit; }
 .ac-remind-action.row { display: block; margin: 10px 0 0 auto; padding: 4px 9px; border: 1px solid #b8d2f0; border-radius: 3px; background: #f5f9ff; color: #2b73c5; font-size: 10px; }
 .ac-row-meta-mine { min-height: 29px; margin-top: 9px; gap: 8px; }
 .ac-mine-row { min-height: 99px; padding: 11px 22px 10px; }
-.ac-row-meta-mine { justify-content: flex-end; padding-right: 30px; }
+.ac-mine-row .ac-queue-open { padding-right: 150px; }
+.ac-row-meta-mine { position: absolute; top: 50%; right: 48px; z-index: 1; justify-content: flex-end; padding-right: 0; margin-top: 0; transform: translateY(-50%); }
 .ac-row-meta-mine .ac-row-status { display: inline-flex; align-items: center; }
 .ac-row-meta-mine .ac-status { position: relative; gap: 7px; padding: 5px 12px 5px 10px; border: 0; border-radius: 16px; font-size: 13px; font-weight: 600; }
 .ac-row-meta-mine .ac-status::before { content: ""; width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: currentColor; }

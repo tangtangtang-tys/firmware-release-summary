@@ -4321,6 +4321,68 @@ button { color: inherit; }
 .ac-file { padding: 11px 10px; border-color: #dfebf6; border-radius: 4px; }
 .ac-file > span:first-child { color: #3184e6; font-size: 22px; }
 
+/* Final type and field scale pass against the supplied approval-center reference. */
+.approval-center-page { padding: 14px 14px 12px; }
+.ac-page-head { margin: 0 4px 8px; }
+.ac-page-head h1 { margin: 0; color: #102b5c; font-size: 28px; line-height: 1.25; letter-spacing: -.7px; }
+.ac-eyebrow { display: none; }
+.ac-tabs { min-height: 52px; gap: 30px; padding: 0 22px; }
+.ac-tabs > button { font-size: 14px; }
+.ac-tabs > button > span { min-width: 24px; padding: 2px 6px; font-size: 12px; }
+.ac-filters { padding: 13px 18px; }
+.ac-filters .field, .ac-filters .select, .ac-filters .btn { height: 38px; min-height: 38px; font-size: 13px; }
+.ac-filters .field { width: 320px; }
+.ac-queue-toolbar { min-height: 48px; padding: 0 18px; font-size: 13px; }
+.ac-queue-toolbar select { font-size: 13px; }
+.ac-queue-row { padding: 16px 22px 14px; }
+.ac-row-top { gap: 7px 10px; font-size: 13px; }
+.ac-operation { padding: 4px 8px; font-size: 12px; }
+.ac-row-version { margin: 8px 0 7px; font-size: 22px; letter-spacing: 0; }
+.ac-row-node { margin-bottom: 9px; font-size: 13px; }
+.ac-row-node > small { font-size: 13px; }
+.ac-queue-open > p { margin-bottom: 10px; font-size: 13px; }
+.ac-row-meta { gap: 12px; font-size: 12px; }
+.ac-row-bottom { margin-top: 11px; font-size: 11px; }
+.ac-detail-head { padding: 20px 28px 12px; }
+.ac-detail-kicker { font-size: 13px; }
+.ac-detail-operation { display: inline-flex; align-items: center; gap: 10px; }
+.ac-detail-operation .ac-operation { font-size: 13px; }
+.ac-detail-head h2 { margin: 8px 0 5px; font-size: 28px; letter-spacing: -.5px; }
+.ac-detail-head h2 > small { margin-left: 9px; color: #8a9db7; font-size: 16px; font-weight: 400; letter-spacing: 0; }
+.ac-detail-head > p { font-size: 13px; }
+.ac-detail-meta-divider { margin: 0 18px; color: #b7c4d4; }
+.ac-detail-status { display: none; }
+.ac-detail-kicker > .ac-status { padding: 9px 24px; border: 0; border-radius: 6px; background: #e7f2ff; color: #1673ed; font-size: 14px; font-weight: 600; }
+.ac-current-node { margin: 0 28px 14px; min-height: 84px; padding: 15px 18px; border-color: #d6e7f8; border-radius: 5px; background: #f8fbff; }
+.ac-current-node .ac-node-icon { width: 46px; height: 46px; flex-basis: 46px; background: #1778ee; color: #fff; font-size: 20px; box-shadow: 0 0 0 4px #e4f0ff; }
+.ac-current-node > div { gap: 7px; }
+.ac-current-node > div strong { color: #172e5a; font-size: 16px; }
+.ac-current-node > div strong em { color: #1673ed; font-style: normal; }
+.ac-current-node small { color: #7189a9; font-size: 13px; }
+.ac-node-state { margin-left: auto; padding: 7px 14px; border-radius: 6px; background: #e6f2ff; color: #2a78d5; font-size: 13px; white-space: nowrap; }
+.ac-detail-tabs { gap: 32px; padding: 0 28px; }
+.ac-detail-tabs > button { min-height: 46px; font-size: 14px; }
+.ac-detail-scroll { padding: 18px 28px; }
+.ac-section-heading { gap: 10px; padding: 13px 18px 0; }
+.ac-section-heading-icon { width: 6px; height: 22px; border-radius: 3px; font-size: 0; }
+.ac-section-heading h3 { font-size: 17px; }
+.ac-business-card > .ac-impact { margin: 10px 18px 0; }
+.ac-impact { padding: 12px 16px; }
+.ac-impact > span { font-size: 13px; }
+.ac-impact > div strong { padding: 14px 18px; font-size: 17px; }
+.ac-info-grid { column-gap: 38px; row-gap: 18px; padding: 18px 18px 16px; }
+.ac-info-grid span { margin-bottom: 6px; font-size: 13px; }
+.ac-info-grid strong { font-size: 14px; }
+.ac-business-card > .ac-info-grid,
+.ac-business-card > .ac-copy-section,
+.ac-business-card > .ac-boundary,
+.ac-business-card > .ac-snapshot-note { margin-right: 18px; margin-left: 18px; }
+.ac-copy-section { padding: 16px 0; }
+.ac-copy-section h3, .ac-detail-scroll > h3 { font-size: 16px; }
+.ac-copy-section p, .ac-boundary { font-size: 13px; }
+.ac-decision-footer { min-height: 76px; padding: 14px 28px; }
+.ac-decision-actions .btn { min-height: 42px; padding: 0 24px; font-size: 14px; }
+
 @media (max-width: 1023px) {
   .ac-stepper { margin-right: 20px; margin-left: 20px; overflow-x: auto; }
   .ac-step { min-width: 170px; }

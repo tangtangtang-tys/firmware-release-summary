@@ -4335,7 +4335,7 @@ button { color: inherit; }
 .ac-queue-toolbar { min-height: 48px; padding: 0 18px; font-size: 13px; }
 .ac-queue-toolbar select { font-size: 13px; }
 .ac-queue-row { padding: 11px 22px 9px; }
-.ac-queue-row { min-height: 120px; border-left: 3px solid transparent; }
+.ac-queue-row { position: relative; min-height: 120px; border-left: 3px solid transparent; }
 .ac-queue-row.selected { border-left-color: #1478f3; border-radius: 4px; background: linear-gradient(90deg, #e5f1ff 0%, #edf6ff 100%); }
 .ac-row-top { gap: 7px 10px; font-size: 13px; }
 .ac-operation { padding: 5px 10px; border-radius: 4px; font-size: 13px; font-weight: 600; }
@@ -4351,7 +4351,7 @@ button { color: inherit; }
 .ac-row-meta > i { color: #a8b8cb; font-style: normal; }
 .ac-row-arrow { position: absolute; top: 50%; right: 18px; transform: translateY(-50%); color: #3c70b7; font-size: 30px; font-weight: 300; line-height: 1; }
 .ac-queue-row.selected .ac-row-arrow { color: #1478f3; }
-.ac-queue-open { position: relative; padding-right: 28px; }
+.ac-queue-open { padding-right: 28px; }
 .ac-row-bottom { margin-top: 7px; font-size: 11px; }
 .ac-row-bottom { display: none; }
 .ac-row-results { margin: -3px 0 8px; }

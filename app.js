@@ -3328,7 +3328,7 @@
       ["APP 提醒策略", reminderPolicyTag(approval), true]
     ];
     const canUploadCenterMinutes = context.canUploadMinutes && approval.type === "publish" && approval.approvalStatus === "审批中";
-    const materialMarkup = materialFiles.length ? materialFiles.map(({ file, kind, index }) => `<div class="ac-material-row"><div class="ac-material-name"><span class="ac-material-file-icon ${materialIcon(file).toLowerCase()}">${materialIcon(file)}</span><strong>${esc(file.name)}</strong></div><span>${esc(file.sizeMb || "—")} MB</span><span>${esc(file.uploadedAt || "—")}</span><span class="ac-material-actions"><button class="link-btn" data-action="preview-approval-material" data-material-kind="${kind}" data-material-index="${index}">${icon("eye")}预览</button><button class="link-btn" data-action="download-approval-material" data-material-kind="${kind}" data-material-index="${index}">${icon("download")}下载</button>${kind === "meetingMinutes" && canUploadCenterMinutes ? `<button class="link-btn danger-link" data-action="center-remove-material" data-material-index="${index}">移除</button>` : ""}</span></div>`).join("") : '<div class="ac-material-empty">暂无审批材料</div>';
+    const materialMarkup = materialFiles.length ? materialFiles.map(({ file, kind, index }) => `<div class="ac-material-row"><div class="ac-material-name"><span class="ac-material-file-icon ${materialIcon(file).toLowerCase()}">${materialIcon(file)}</span><strong>${esc(file.name)}</strong></div><span>${esc(file.sizeMb || "—")} MB</span><span>${esc(file.uploadedAt || "—")}</span><span class="ac-material-actions"><button class="link-btn" data-action="preview-approval-material" data-material-kind="${kind}" data-material-index="${index}">${icon("eye")}预览</button><button class="link-btn" data-action="download-approval-material" data-material-kind="${kind}" data-material-index="${index}">${icon("download")}下载</button>${kind === "meetingMinutes" && canUploadCenterMinutes ? `<button class="link-btn danger-link" data-action="center-remove-material" data-material-kind="meetingMinutes" data-material-index="${index}">移除</button>` : ""}</span></div>`).join("") : '<div class="ac-material-empty">暂无审批材料</div>';
     const centerMinutesUpload = approval.type === "publish" ? `<div class="ac-center-material-upload"><div><strong>会议纪要 <em>（选填）</em></strong><small>${canUploadCenterMinutes ? "第 1 级审批人可补充上传，未上传不影响审批" : "当前身份仅可查看"}</small></div>${canUploadCenterMinutes ? '<label class="btn small"><input id="center-meeting-minutes-file" class="hidden" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx">上传附件</label>' : ""}</div>` : "";
     const flowMarkup = renderCenterFlow(approval);
     const reason = approval.reason || approval.note || approval.platformReleaseNotes || "—";
@@ -3460,6 +3460,8 @@
       const approval = approvalById(center.selectedId), viewerContext = approval ? centerContext(approval) : null;
       if (target.dataset.materialKind !== "meetingMinutes" || !approval || !viewerContext?.canUploadMinutes) { toast("仅当前第 1 级审批人可移除会议纪要", "warning"); return true; }
       state.modal = { type: "centerRemoveMinutes", approvalId: approval.id, materialIndex: Number(target.dataset.materialIndex) };
+      renderShell();
+      return true;
     }
     if (action === "center-confirm-remove-minutes") {
       const modal = state.modal, approval = modal?.type === "centerRemoveMinutes" ? approvalById(modal.approvalId) : null;

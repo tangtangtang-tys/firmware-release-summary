@@ -3327,8 +3327,8 @@
       ["预计影响设备", `${formatDeviceCount(approval.associatedDeviceCount || 0)} 台`],
       ["APP 提醒策略", reminderPolicyTag(approval), true]
     ];
-    const materialMarkup = materialFiles.length ? materialFiles.map(({ file, kind, index }) => `<div class="ac-material-row"><div class="ac-material-name"><span class="ac-material-file-icon ${materialIcon(file).toLowerCase()}">${materialIcon(file)}</span><strong>${esc(file.name)}</strong></div><span>${esc(file.sizeMb || "—")} MB</span><span>${esc(file.uploadedAt || "—")}</span><span class="ac-material-actions"><button class="link-btn" data-action="preview-approval-material" data-material-kind="${kind}" data-material-index="${index}">${icon("eye")}预览</button><button class="link-btn" data-action="download-approval-material" data-material-kind="${kind}" data-material-index="${index}">${icon("download")}下载</button></span></div>`).join("") : '<div class="ac-material-empty">暂无审批材料</div>';
     const canUploadCenterMinutes = context.canUploadMinutes && approval.type === "publish" && approval.approvalStatus === "审批中";
+    const materialMarkup = materialFiles.length ? materialFiles.map(({ file, kind, index }) => `<div class="ac-material-row"><div class="ac-material-name"><span class="ac-material-file-icon ${materialIcon(file).toLowerCase()}">${materialIcon(file)}</span><strong>${esc(file.name)}</strong></div><span>${esc(file.sizeMb || "—")} MB</span><span>${esc(file.uploadedAt || "—")}</span><span class="ac-material-actions"><button class="link-btn" data-action="preview-approval-material" data-material-kind="${kind}" data-material-index="${index}">${icon("eye")}预览</button><button class="link-btn" data-action="download-approval-material" data-material-kind="${kind}" data-material-index="${index}">${icon("download")}下载</button>${kind === "meetingMinutes" && canUploadCenterMinutes ? `<button class="link-btn danger-link" data-action="center-remove-material" data-material-index="${index}">移除</button>` : ""}</span></div>`).join("") : '<div class="ac-material-empty">暂无审批材料</div>';
     const centerMinutesUpload = approval.type === "publish" ? `<div class="ac-center-material-upload"><div><strong>会议纪要 <em>（选填）</em></strong><small>${canUploadCenterMinutes ? "第 1 级审批人可补充上传，未上传不影响审批" : "当前身份仅可查看"}</small></div>${canUploadCenterMinutes ? '<label class="btn small"><input id="center-meeting-minutes-file" class="hidden" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx">上传附件</label>' : ""}</div>` : "";
     const flowMarkup = renderCenterFlow(approval);
     const reason = approval.reason || approval.note || approval.platformReleaseNotes || "—";
@@ -3340,6 +3340,11 @@
 
   function renderCenterModal(modal) {
     if (modal.type === "centerResetDemo") return modalFrame("重置审批中心示例数据", `<div class="ac-reset-demo-confirm"><div class="confirm-icon">↺</div><h3>确认重新生成审批中心示例？</h3><p>将按当前时间重新生成 24 条系统预置的审批示例，包含待办与历史异常。原预置示例的审批操作和已读状态将被重置。</p><ul><li>审批不设截止时间，仅发起人可在“我发起的”中催办。</li><li>你新建的模拟审批、固件版本、审批配置和其他业务数据会保留。</li></ul></div>`, '<button class="btn" data-action="close-modal">取消</button><button class="btn primary" data-action="center-confirm-reset-demo">确认重置</button>');
+    if (modal.type === "centerRemoveMinutes") {
+      const approval = approvalById(modal.approvalId), file = approval?.meetingMinutesFiles?.[Number(modal.materialIndex)];
+      if (!approval || !file) return modalFrame("移除会议纪要", `<div class="empty-state compact-empty"><div>附件记录不存在，请刷新后重试。</div></div>`, '<button class="btn primary" data-action="close-modal">关闭</button>');
+      return modalFrame("移除会议纪要", `<div class="confirm-icon">!</div><p class="confirm-copy">确认移除已上传的会议纪要“${esc(file.name)}”吗？移除后仍可重新上传。</p>`, '<button class="btn" data-action="close-modal">取消</button><button class="btn danger" data-action="center-confirm-remove-minutes">确认移除</button>');
+    }
     if (modal.type === "centerReapplyDraft") {
       const approval = approvalById(modal.approvalId);
       if (!approval) return modalFrame("重新发起申请", "原审批记录不存在，请刷新后重试。", '<button class="btn" data-action="close-overlay">关闭</button>');
@@ -3449,6 +3454,24 @@
       state.errors = {};
       renderShell();
       toast("审批中心示例已按当前时间重新生成");
+      return true;
+    }
+    if (action === "center-remove-material") {
+      const approval = approvalById(center.selectedId), viewerContext = approval ? centerContext(approval) : null;
+      if (target.dataset.materialKind !== "meetingMinutes" || !approval || !viewerContext?.canUploadMinutes) { toast("仅当前第 1 级审批人可移除会议纪要", "warning"); return true; }
+      state.modal = { type: "centerRemoveMinutes", approvalId: approval.id, materialIndex: Number(target.dataset.materialIndex) };
+    }
+    if (action === "center-confirm-remove-minutes") {
+      const modal = state.modal, approval = modal?.type === "centerRemoveMinutes" ? approvalById(modal.approvalId) : null;
+      const viewerContext = approval ? centerContext(approval) : null;
+      const index = Number(modal?.materialIndex);
+      if (!approval || !viewerContext?.canUploadMinutes || !Number.isInteger(index) || !approval.meetingMinutesFiles?.[index]) { state.modal = null; renderShell(); toast("当前无权移除该会议纪要", "warning"); return true; }
+      const [removed] = approval.meetingMinutesFiles.splice(index, 1);
+      addOperation("固件申请", "移除会议纪要", approval.version, centerIdentity().name, "成功", `${removed.name}，审批单 ${approval.instanceNo}`);
+      persist();
+      state.modal = null;
+      renderShell();
+      toast("会议纪要已移除", "success");
       return true;
     }
     if (action === "center-back") center.selectedId = null;

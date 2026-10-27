@@ -3029,7 +3029,7 @@
       });
       if (approval.prototypeSample && approval.type === "delist") approval.fromVersion = approval.version;
     });
-    const demoVersion = 5;
+    const demoVersion = 6;
     if (data.approvalCenterDemoVersion >= demoVersion) return;
     const lead = data.users.find(user => user.name === "彭冬柏");
     const peer = data.users.find(user => user.name === "刘林胶");
@@ -3064,6 +3064,15 @@
         testReportFiles: [{ name: "4G 回滚验证报告.pdf", sizeMb: "1.80", uploadedAt: formatDateTime(new Date(Date.now() - 30 * 60000)) }], meetingMinutesFiles: [], copyUserIds: [submitter.userId], readBy: [], notificationStatus: [{ event: "审批结果通知", recipients: [submitter.name], result: "sent", time: formatDateTime(new Date(Date.now() - 20 * 60000)) }]
       });
     };
+    const ensureMultiLevelCoverage = () => {
+      const candidate = data.approvals
+        .filter(item => String(item.id || "").startsWith("APR-CENTER-DEMO-") && item.approvalStatus === "审批中")
+        .sort((a, b) => Number(b.associatedDeviceCount || 0) - Number(a.associatedDeviceCount || 0))[0];
+      if (!candidate || (candidate.tasks || []).length > 1) return;
+      const approver = final || peer;
+      if (!approver) return;
+      candidate.tasks.push({ sequence: 2, type: "generic", approverUserId: approver.userId, approverNameSnapshot: approver.name, approvers: [{ userId: approver.userId, name: approver.name }], status: "未激活", startedAt: "-", deadlineAt: "-", completedAt: "-" });
+    };
     const applyDemoOwnership = approval => {
       const match = String(approval.id || "").match(/^APR-CENTER-DEMO-(\d+)$/);
       if (!match) return;
@@ -3078,6 +3087,7 @@
     if (data.approvalCenterDemoVersion >= 1) {
       data.approvals.forEach(applyDemoOwnership);
       ensureTabCoverage();
+      ensureMultiLevelCoverage();
       data.approvalCenterDemoVersion = demoVersion;
       return;
     }
@@ -3110,6 +3120,7 @@
       data.approvals.push(approval);
     }
     ensureTabCoverage();
+    ensureMultiLevelCoverage();
     data.approvalCenterDemoVersion = demoVersion;
   }
 
@@ -3316,21 +3327,24 @@
       const people = taskPeople(task);
       const active = task.status === "审批中";
       const complete = task.status === "已通过";
+      const rejected = ["已驳回", "已失效"].includes(task.status);
       const names = people.map(person => person.name).join("、") || task.approverNameSnapshot || "待配置审批人";
       const role = approvalTaskRoleLabel(approval, task);
       const peopleRows = people.map(person => {
         const handled = task.handledBy && task.handledBy === person.name;
-        const personStatus = task.status === "审批中" ? "待审批" : task.status === "已驳回" ? (handled ? "已驳回" : "已关闭") : task.status === "已通过" ? "已通过" : task.status === "已关闭" ? "已关闭" : "待处理";
-        const statusClass = personStatus === "已通过" ? "success" : personStatus === "已驳回" ? "danger" : personStatus === "待审批" ? "blue" : "muted";
+        const personStatus = task.status === "审批中" ? "待审批" : task.status === "已驳回" ? (handled ? "已驳回" : "已关闭") : task.status === "已失效" ? (handled ? "已失效" : "已关闭") : task.status === "已撤回" ? (handled ? "已撤回" : "已关闭") : task.status === "已通过" ? (handled ? "已通过" : "已关闭") : "已关闭";
+        const statusClass = personStatus === "已通过" ? "success" : ["已驳回", "已失效"].includes(personStatus) ? "danger" : personStatus === "待审批" ? "blue" : "muted";
         const personTime = task.completedAt && task.completedAt !== "-" ? task.completedAt : task.startedAt || "-";
         const personNote = handled ? (task.decisionNote || task.decision || "-") : (task.status === "审批中" ? "-" : "已由其他审批人处理");
         const personUser = db.users.find(user => user.userId === person.userId);
         return `<div class="ac-flow-person-row"><div class="ac-flow-person"><span class="ac-avatar">${esc((person.name || "").slice(0, 1))}</span><span><strong>${esc(person.name || "历史审批人")}</strong><small>${esc(personUser?.role || role)}</small></span></div><div class="ac-flow-person-result"><span class="ac-flow-status-tag ${statusClass}">${esc(personStatus)}</span><time>${esc(personTime)}</time></div><span class="ac-flow-person-note">${esc(personNote)}</span></div>`;
       }).join("");
-      return `<article class="ac-flow-node-card ${active ? "active" : complete ? "complete" : "pending"}"><header><div><strong>第 ${task.sequence} / ${total} 级 · ${people.length} 人或签</strong>${active ? '<span class="ac-flow-current-tag">当前节点</span>' : ""}</div><span class="ac-flow-node-names" title="${esc(names)}">${esc(names)}</span></header><div class="ac-flow-person-head"><span>审批人</span><span>审批结果</span><span>审批意见</span></div>${peopleRows || '<div class="ac-flow-person-empty">待配置审批人</div>'}</article>`;
+      return `<article class="ac-flow-node-card ${active ? "active" : complete ? "complete" : rejected ? "rejected" : "pending"}"><header><div><strong>第 ${task.sequence} / ${total} 级 · ${people.length} 人${people.length > 1 ? "或签" : ""}</strong>${people.length > 1 ? '<span class="ac-flow-rule">任一人通过即可流转</span>' : ""}${active ? '<span class="ac-flow-current-tag">当前节点</span>' : ""}</div><span class="ac-flow-node-names" title="${esc(names)}">${esc(names)}</span></header><div class="ac-flow-person-head"><span>审批人</span><span>审批结果</span><span>审批意见</span></div>${peopleRows || '<div class="ac-flow-person-empty">待配置审批人</div>'}</article>`;
     }).join("");
     const completed = approval.approvalStatus !== "审批中";
-    const completionLabel = approval.executionStatus && approval.executionStatus !== "未执行" && approval.executionStatus !== "不适用" ? `审批完成 · ${approval.executionStatus}` : "审批完成";
+    const approvalResult = approval.approvalStatus === "已通过" ? "审批已通过" : approval.approvalStatus === "已驳回" ? "审批已驳回" : approval.approvalStatus === "已撤回" ? "审批已撤回" : approval.approvalStatus === "已失效" ? "审批已失效" : "审批完成";
+    const executionResult = approval.executionStatus && !["未执行", "不适用"].includes(approval.executionStatus) ? ` · ${approval.executionStatus}` : "";
+    const completionLabel = `${approvalResult}${executionResult}`;
     const completionTime = approval.approveTime && approval.approveTime !== "-" ? approval.approveTime : "-";
     return `<div class="ac-flow-timeline">${taskCards || '<div class="ac-flow-person-empty">暂无审批节点</div>'}<div class="ac-flow-completion ${completed ? "complete" : "pending"}"><span class="ac-flow-completion-dot">${completed ? "✓" : ""}</span><strong>${esc(completionLabel)}</strong><time>${esc(completionTime)}</time></div></div>`;
   }
@@ -3364,7 +3378,7 @@
     const reminder = approvalReminderState(approval);
     const relatedIds = [...new Set([approval.relatedApprovalId, ...(approval.relatedApprovalIds || [])].filter(Boolean))];
     const relatedLinks = relatedIds.map(id => approvalById(id)).filter(item => item && centerReadable(item)).map(item => `<button class="link-btn" data-action="center-open" data-approval-id="${esc(item.id)}">${item.id === approval.relatedApprovalId ? "原审批" : "重新发起的审批"}：${esc(item.instanceNo || item.id)} →</button>`).join("");
-    return `<div class="ac-reference-detail"><header class="ac-detail-head"><button class="link-btn ac-mobile-back" data-action="center-back">← 返回队列</button><div class="ac-detail-kicker"><span class="ac-detail-operation"><b class="ac-operation ${approval.type}">${esc(approvalOperationLabel(approval.type))}</b><span class="ac-product-line">${esc(approval.productLine)}</span></span>${centerStatusTag(approval)}</div><h2>${esc(approval.version)}</h2><div class="ac-detail-meta"><span>审批编号：${esc(approval.instanceNo || approval.id)}</span><i>｜</i><span>发起人：${esc(approval.submitter)}</span><i>｜</i><span>提交时间：${esc(approval.submitTime)}</span></div></header>${!task && approval.terminalReason ? `<div class="ac-terminal-message"><strong>${esc(approval.terminalReason)}</strong></div>` : ""}<div class="ac-detail-scroll ac-reference-scroll"><section class="ac-reference-section ac-business-section"><h3>${icon("business")}业务信息</h3><div class="ac-reference-fields">${businessFields.map(([label, value, raw]) => `<div><span>${esc(label)}</span><strong>${raw ? value : esc(value)}</strong></div>`).join("")}</div><div class="ac-reference-reason"><h4>发布说明</h4><p>${esc(reason)}</p></div></section><section class="ac-reference-section ac-materials-section"><h3>${icon("materials")}审批材料</h3><div class="ac-material-head"><span>文件名称</span><span>文件大小</span><span>上传时间</span><span>操作</span></div>${materialMarkup}${centerMinutesUpload}</section><section class="ac-reference-section ac-flow-section"><h3>${icon("flow")}审批流转<button class="ac-flow-collapse" type="button" aria-label="收起审批流转">⌃</button></h3>${flowMarkup}</section>${relatedLinks ? `<section class="ac-related"><h3>关联审批记录</h3>${relatedLinks}</section>` : ""}</div><footer class="ac-decision-footer"><div><strong>${context.canDecide ? "请核对影响范围后提交" : context.canWithdraw ? "当前申请尚未完成，可主动撤回" : "当前记录只读"}</strong><small>${context.canDecide ? "一条审批对应一次独立业务操作" : "审批和执行状态独立记录"}</small></div><div class="ac-decision-actions">${context.canDecide ? `<button class="btn danger" data-action="center-decision" data-decision="reject">驳回</button><button class="btn primary" data-action="center-decision" data-decision="approve">通过</button>` : ""}${context.canWithdraw ? '<button class="btn danger" data-action="center-decision" data-decision="withdraw">撤回申请</button>' : ""}${centerCanShowReminder(approval) ? `<button class="btn" data-action="center-remind" ${!reminder.allowed ? "disabled" : ""}>${reminder.allowed ? "催办审批人" : `已催办 · ${reminder.remainingMinutes} 分钟后可再次催办`}</button>` : ""}${centerCanReapply(approval) ? '<button class="btn primary" data-action="center-reapply">核对并重新发起</button>' : ""}${centerCanResend(approval) ? '<button class="btn" data-action="center-resend">补发当前通知</button>' : ""}<button class="btn" data-action="center-next">下一条 →</button></div></footer></div>`;
+    return `<div class="ac-reference-detail"><header class="ac-detail-head"><button class="link-btn ac-mobile-back" data-action="center-back">← 返回队列</button><div class="ac-detail-kicker"><span class="ac-detail-operation"><b class="ac-operation ${approval.type}">${esc(approvalOperationLabel(approval.type))}</b><span class="ac-product-line">${esc(approval.productLine)}</span></span>${centerStatusTag(approval)}</div><h2>${esc(approval.version)}</h2><div class="ac-detail-meta"><span>审批编号：${esc(approval.instanceNo || approval.id)}</span><i>｜</i><span>发起人：${esc(approval.submitter)}</span><i>｜</i><span>提交时间：${esc(approval.submitTime)}</span></div></header>${!task && approval.terminalReason ? `<div class="ac-terminal-message"><strong>${esc(approval.terminalReason)}</strong></div>` : ""}<div class="ac-detail-scroll ac-reference-scroll"><section class="ac-reference-section ac-business-section"><h3>${icon("business")}业务信息</h3><div class="ac-reference-fields">${businessFields.map(([label, value, raw]) => `<div><span>${esc(label)}</span><strong>${raw ? value : esc(value)}</strong></div>`).join("")}</div><div class="ac-reference-reason"><h4>发布说明</h4><p>${esc(reason)}</p></div></section><section class="ac-reference-section ac-materials-section"><h3>${icon("materials")}审批材料</h3><div class="ac-material-head"><span>文件名称</span><span>文件大小</span><span>上传时间</span><span>操作</span></div>${materialMarkup}${centerMinutesUpload}</section><section class="ac-reference-section ac-flow-section"><h3>${icon("flow")}审批流转 <small class="ac-flow-section-note">完整流程快照</small></h3>${flowMarkup}</section>${relatedLinks ? `<section class="ac-related"><h3>关联审批记录</h3>${relatedLinks}</section>` : ""}</div><footer class="ac-decision-footer"><div><strong>${context.canDecide ? "请核对影响范围后提交" : context.canWithdraw ? "当前申请尚未完成，可主动撤回" : "当前记录只读"}</strong><small>${context.canDecide ? "一条审批对应一次独立业务操作" : "审批和执行状态独立记录"}</small></div><div class="ac-decision-actions">${context.canDecide ? `<button class="btn danger" data-action="center-decision" data-decision="reject">驳回</button><button class="btn primary" data-action="center-decision" data-decision="approve">通过</button>` : ""}${context.canWithdraw ? '<button class="btn danger" data-action="center-decision" data-decision="withdraw">撤回申请</button>' : ""}${centerCanShowReminder(approval) ? `<button class="btn" data-action="center-remind" ${!reminder.allowed ? "disabled" : ""}>${reminder.allowed ? "催办审批人" : `已催办 · ${reminder.remainingMinutes} 分钟后可再次催办`}</button>` : ""}${centerCanReapply(approval) ? '<button class="btn primary" data-action="center-reapply">核对并重新发起</button>' : ""}${centerCanResend(approval) ? '<button class="btn" data-action="center-resend">补发当前通知</button>' : ""}<button class="btn" data-action="center-next">下一条 →</button></div></footer></div>`;
   }
 
   function renderCenterModal(modal) {

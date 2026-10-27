@@ -1842,13 +1842,6 @@ button { color: inherit; }
 .approval-instance-head h3 { margin: 5px 0 0; font-size: 17px; }
 .approval-instance-head > div:last-child { display: flex; gap: 6px; }
 .approval-task-section { margin-top: 20px; text-align: left; }
-.approval-task-list { border: 1px solid var(--line); }
-.approval-task-row { min-height: 64px; display: grid; grid-template-columns: 32px minmax(0, 1fr) 180px 42px; align-items: center; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
-.approval-task-row:last-child { border-bottom: 0; }
-.approval-task-row.active { background: #f4f8ff; box-shadow: inset 3px 0 0 var(--brand); }
-.approval-task-index { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; background: #e8edf4; color: #536171; font-size: 12px; }
-.approval-task-row > div strong, .approval-task-row > div small { display: block; }
-.approval-task-row > div small { margin-top: 4px; color: var(--text-3); font-size: 11px; }
 .approval-replacement-boundary { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; padding: 9px 12px; border-left: 3px solid #5a91d8; background: #f4f8ff; color: #345779; }
 .approval-replacement-boundary.locked { border-left-color: #7d8794; background: #f6f7f9; color: #505b67; }
 .approval-replacement-boundary strong { flex: 0 0 auto; font-size: 12px; }
@@ -1904,8 +1897,6 @@ button { color: inherit; }
   .policy-node-head .btn { align-self: flex-start; }
   .policy-node-row { gap: 10px; padding: 12px 10px; }
   .approval-instance-head { align-items: flex-start; flex-direction: column; }
-  .approval-task-row { grid-template-columns: 28px minmax(0, 1fr); }
-  .approval-task-row > div:nth-child(3), .approval-task-row > button, .approval-task-row > span:last-child { grid-column: 2; }
   .approval-replacement-boundary { align-items: stretch; flex-direction: column; gap: 4px; }
   .approval-replacement-boundary span { text-align: left; }
   .modal[aria-label$="审批详情"] .dialog-footer { flex-wrap: wrap; }
@@ -2525,9 +2516,6 @@ button { color: inherit; }
 .approval-decision-panel { margin-top: 20px; text-align: left; }
 .approval-audit-materials > .policy-section-head { margin-bottom: 8px; }
 .approval-audit-materials .approval-material-upload { margin: 8px 0; }
-.approval-task-row.overdue { background: #fff7f7; box-shadow: inset 3px 0 0 var(--danger); }
-.approval-node-role { display: inline-block; margin-bottom: 4px; color: var(--brand); font-size: 10px; font-weight: 600; }
-.approval-task-decision { color: var(--text-2) !important; line-height: 1.45; }
 .approval-decision-panel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px; border: 1px solid #d9e4f3; border-radius: 6px; background: #f8fbff; }
 .approval-decision-heading { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 11px; border-bottom: 1px solid #e4ebf5; }
 .approval-decision-heading span,

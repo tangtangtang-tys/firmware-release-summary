@@ -4457,6 +4457,12 @@ button { color: inherit; }
 .ac-material-actions .link-btn { display: inline-flex; align-items: center; gap: 4px; padding: 0; font-size: 12px; }
 .ac-material-actions svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .ac-material-empty { padding: 22px 12px; color: #8ca0b8; font-size: 13px; text-align: center; }
+.ac-center-material-upload { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 10px 12px 0; padding: 10px 12px; border: 1px dashed #c9dced; border-radius: 5px; background: #f8fbff; }
+.ac-center-material-upload > div { display: grid; gap: 3px; min-width: 0; }
+.ac-center-material-upload strong { color: #294d7f; font-size: 13px; font-weight: 600; }
+.ac-center-material-upload strong em { color: #8aa0b9; font-style: normal; font-size: 11px; font-weight: 400; }
+.ac-center-material-upload small { color: #8aa0b9; font-size: 11px; }
+.ac-center-material-upload .btn { flex: 0 0 auto; }
 .ac-flow-head { display: grid; grid-template-columns: 1fr 130px 120px; margin: 0; padding: 9px 12px; border-radius: 4px; background: #f1f6fc; color: #7188a8; font-size: 12px; text-align: right; }
 .ac-flow-head span:first-child { text-align: left; }
 .ac-flow-row { display: grid; grid-template-columns: 28px minmax(150px,1.3fr) minmax(150px,1.2fr) 75px minmax(100px,1fr) 125px; align-items: center; gap: 10px; min-height: 52px; padding: 6px 12px; border-bottom: 1px solid #e7eef6; color: #6e86a5; font-size: 12px; }

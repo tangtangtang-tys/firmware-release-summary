@@ -4524,6 +4524,18 @@ button { color: inherit; }
 .ac-flow-completion strong { font-size: 13px; font-weight: 600; }
 .ac-flow-completion time { margin-left: 12px; color: #8aa0b9; font-size: 11px; }
 .ac-flow-section-note { margin-left: 8px; color: #94a5b9; font-size: 10px; font-weight: 400; }
+.ac-flow-snapshot { display: flex; justify-content: space-between; gap: 14px; margin: 0 0 13px; padding: 10px 13px; border: 1px solid #e1ebf6; border-radius: 5px; background: #f8fbff; }
+.ac-flow-snapshot > div { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; }
+.ac-flow-snapshot strong { color: #355982; font-size: 12px; }
+.ac-flow-snapshot span, .ac-flow-snapshot small { color: #8aa0b9; font-size: 10px; }
+.ac-flow-snapshot small { align-self: center; text-align: right; }
+.ac-flow-events { margin-top: 14px; padding-top: 12px; border-top: 1px solid #e7eef6; }
+.ac-flow-events > strong { display: block; margin-bottom: 9px; color: #5d7695; font-size: 12px; }
+.ac-flow-event { position: relative; display: flex; gap: 9px; padding: 7px 0 7px 2px; }
+.ac-flow-event-dot { width: 7px; height: 7px; flex: 0 0 7px; margin-top: 5px; border-radius: 50%; background: #9bb8d8; }
+.ac-flow-event > div { display: grid; gap: 3px; min-width: 0; }
+.ac-flow-event b { color: #496887; font-size: 11px; font-weight: 600; }
+.ac-flow-event span, .ac-flow-event small { color: #8aa0b9; font-size: 10px; }
 
 @media (max-width: 1100px) {
   .ac-material-head, .ac-material-row { grid-template-columns: minmax(170px,1.4fr) 80px 135px 135px; }

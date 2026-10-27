@@ -1007,6 +1007,87 @@
     });
   }
 
+  function approvalPolicySnapshotFor(data, approval) {
+    const byId = data.approvalPolicies.find(policy => policy.id === approval?.policyId);
+    const version = byId?.policyVersion === approval?.policyVersion
+      ? byId
+      : byId?.history?.find(item => item.policyVersion === approval?.policyVersion);
+    const fallback = version || byId || data.approvalPolicies.find(policy => policy.productLine === approval?.productLine && policyOperation(policy) === approval?.type && policy.status !== "disabled");
+    const sourceNodes = fallback?.nodes?.length ? fallback.nodes : (approval?.tasks || []);
+    const nodes = sourceNodes.map((node, index) => {
+      const ids = nodeApproverIds(node);
+      const names = ids.map(id => data.users.find(user => user.userId === id)?.name || id);
+      return {
+        sequence: index + 1,
+        type: "generic",
+        approverUserIds: ids,
+        approverNames: names.length ? names : [node.approverNameSnapshot || node.approverName || "历史审批人"]
+      };
+    });
+    return {
+      id: fallback?.id || approval?.policyId || "LEGACY",
+      version: fallback?.policyVersion || approval?.policyVersion || "LEGACY",
+      name: fallback?.name || approval?.policyNameSnapshot || "历史审批方案",
+      productLine: approval?.productLine || fallback?.productLine || "-",
+      operation: approval?.type || policyOperation(fallback),
+      description: fallback?.description || "",
+      nodes,
+      copyUserIds: [...new Set(fallback?.copyUserIds || approval?.copyUserIds || [])]
+    };
+  }
+
+  function addApprovalFlowEvent(approval, event, task, actor, note = "") {
+    if (!approval) return;
+    if (!Array.isArray(approval.flowEvents)) approval.flowEvents = [];
+    approval.flowEvents.push({
+      id: `${approval.id}-FLOW-${approval.flowEvents.length + 1}`,
+      event,
+      sequence: task?.sequence || null,
+      actor: actor || "系统",
+      time: now(),
+      note: note || "-"
+    });
+  }
+
+  function ensureApprovalPolicySnapshots(data) {
+    data.approvals.forEach(approval => {
+      if (!approval.policySnapshot) approval.policySnapshot = approvalPolicySnapshotFor(data, approval);
+      const knownPolicy = data.approvalPolicies.some(policy => policy.id === approval.policyId && (policy.policyVersion === approval.policyVersion || policy.history?.some(version => version.policyVersion === approval.policyVersion)));
+      if (!knownPolicy && approval.policySnapshot.id !== "LEGACY") {
+        approval.policyId = approval.policySnapshot.id;
+        approval.policyVersion = approval.policySnapshot.version;
+        approval.policyNameSnapshot = approval.policySnapshot.name;
+      }
+      if (!Array.isArray(approval.flowEvents)) {
+        approval.flowEvents = [];
+        (approval.tasks || []).forEach(task => {
+          const people = taskPeople(task, data);
+          const actor = task.handledBy || "系统";
+          const event = task.status === "已通过" ? "节点通过" : ["已驳回", "已失效", "已撤回"].includes(task.status) ? `节点${task.status}` : "节点激活";
+          approval.flowEvents.push({ id: `${approval.id}-FLOW-${approval.flowEvents.length + 1}`, event, sequence: task.sequence, actor, time: task.completedAt && task.completedAt !== "-" ? task.completedAt : task.startedAt || approval.submitTime || "-", note: task.decisionNote || task.decision || (people.length > 1 ? "多人或签节点已按规则处理" : "-") });
+        });
+      }
+      const snapshot = approval.policySnapshot;
+      if (snapshot?.nodes?.length) {
+        const bySequence = new Map((approval.tasks || []).map(task => [task.sequence, task]));
+        approval.tasks = snapshot.nodes.map(node => {
+          const previous = bySequence.get(node.sequence) || {};
+          const approvers = node.approverUserIds.map((id, index) => ({ userId: id, name: node.approverNames[index] || id }));
+          const inferredStatus = previous.status || (approval.approvalStatus === "已通过" ? "已通过" : approval.approvalStatus === "审批中" && node.sequence === 1 ? "审批中" : approval.approvalStatus === "审批中" ? "未激活" : "已关闭");
+          const inferredCompletedAt = previous.completedAt || (inferredStatus === "已通过" ? (approval.approveTime || "-") : "-");
+          return { ...previous, sequence: node.sequence, type: node.type, approverUserId: approvers[0]?.userId || "", approverNameSnapshot: approvers.map(person => person.name).join("、") || "历史审批人", approvers, status: inferredStatus, startedAt: previous.startedAt || (inferredStatus === "未激活" ? "-" : approval.submitTime || "-"), deadlineAt: "-", completedAt: inferredCompletedAt, handledBy: previous.handledBy || (inferredStatus === "已通过" ? approvers[0]?.name : undefined), decision: previous.decision || (inferredStatus === "已通过" ? "通过" : undefined), decisionNote: previous.decisionNote || (inferredStatus === "已通过" ? "历史审批记录" : undefined) };
+        });
+        approval.currentTaskIndex = Math.max(0, approval.tasks.findIndex(task => task.status === "审批中"));
+        approval.tasks.forEach(task => {
+          if (task.status === "未激活") return;
+          if (approval.flowEvents.some(item => item.sequence === task.sequence && ["节点通过", "节点驳回", "节点已驳回", "节点已失效", "节点已撤回"].includes(item.event))) return;
+          const terminalEvent = task.status === "已通过" ? "节点通过" : task.status === "已驳回" ? "节点已驳回" : task.status === "已失效" ? "节点已失效" : task.status === "已撤回" ? "节点已撤回" : "节点激活";
+          approval.flowEvents.push({ id: `${approval.id}-FLOW-${approval.flowEvents.length + 1}`, event: terminalEvent, sequence: task.sequence, actor: task.handledBy || "系统", time: task.completedAt && task.completedAt !== "-" ? task.completedAt : task.startedAt || approval.submitTime || "-", note: task.decisionNote || task.decision || "历史审批记录" });
+        });
+      }
+    });
+  }
+
   function normalizeDatabase(data) {
     if (!Array.isArray(data.approvalPolicies)) data.approvalPolicies = [];
     if (!Array.isArray(data.notifications)) data.notifications = [];
@@ -1299,6 +1380,7 @@
       });
     });
     ensureApprovalCenterData(data);
+    ensureApprovalPolicySnapshots(data);
     return data;
   }
 
@@ -3145,6 +3227,7 @@
     approval.terminalReason = reason;
     approval.approveTime = stamp;
     approval.remindersStopped = true;
+    addApprovalFlowEvent(approval, `审批${status}`, task, actor, reason);
     recordApprovalNotification(approval, status, [...terminalApprovalRecipients(approval), ...currentNames], "sent", { reason, reasonCode: approval.withdrawalReasonCode || (status === "已驳回" ? "rejection" : "") });
     addOperation("固件审批", status, approval.version, actor, "成功", reason);
     if (identifier) {
@@ -3286,7 +3369,7 @@
     if (Object.keys(state.errors).length) return { ok: false, message: "请完成新申请的业务信息核对。" };
     const policy = activeApprovalPolicy(approval.productLine, approval.type), stamp = now();
     const tasks = policy.nodes.map((node, index) => ({ sequence: index + 1, type: "generic", approverUserId: nodeApproverIds(node)[0], approverNameSnapshot: node.approverName, approvers: nodeApproverIds(node).map(id => ({ userId: id, name: db.users.find(person => person.userId === id)?.name || id })), status: index ? "未激活" : "审批中", startedAt: index ? "-" : stamp, deadlineAt: "-", completedAt: "-" }));
-    const next = { id: releaseId("APR-DEMO"), prototypeSample: true, firmwareId: approval.firmwareId, type: approval.type, event: approvalOperationLabel(approval.type), productLine: approval.productLine, submitter: user.name, submitterUserId: user.userId, submitTime: stamp, approvalStatus: "审批中", status: "审批中", executionStatus: "未执行", approveTime: "-", version: (approval.type === "delist" ? modal.newCurrentVersion : modal.newTargetVersion).trim(), fromVersion: String(modal.newCurrentVersion || "").trim() || null, toVersion: approval.type === "delist" ? null : modal.newTargetVersion.trim(), associatedDeviceCount: Number(modal.newDeviceCount), models: modal.newModels.trim(), reason: modal.newReason.trim(), platformReleaseNotes: modal.newReason.trim(), reminderPolicy: approval.type === "delist" ? null : modal.reminderPolicy, testReportFiles: clone(modal.testReportFiles || []), meetingMinutesFiles: [], policyId: policy.id, policyVersion: policy.policyVersion, policyNameSnapshot: policy.name, copyUserIds: clone(policy.copyUserIds || []), currentTaskIndex: 0, tasks, notificationStatus: [], readBy: [], relatedApprovalId: approval.id, snapshotRecordVersion: 1 };
+    const next = { id: releaseId("APR-DEMO"), prototypeSample: true, firmwareId: approval.firmwareId, type: approval.type, event: approvalOperationLabel(approval.type), productLine: approval.productLine, submitter: user.name, submitterUserId: user.userId, submitTime: stamp, approvalStatus: "审批中", status: "审批中", executionStatus: "未执行", approveTime: "-", version: (approval.type === "delist" ? modal.newCurrentVersion : modal.newTargetVersion).trim(), fromVersion: String(modal.newCurrentVersion || "").trim() || null, toVersion: approval.type === "delist" ? null : modal.newTargetVersion.trim(), associatedDeviceCount: Number(modal.newDeviceCount), models: modal.newModels.trim(), reason: modal.newReason.trim(), platformReleaseNotes: modal.newReason.trim(), reminderPolicy: approval.type === "delist" ? null : modal.reminderPolicy, testReportFiles: clone(modal.testReportFiles || []), meetingMinutesFiles: [], policyId: policy.id, policyVersion: policy.policyVersion, policyNameSnapshot: policy.name, policySnapshot: { id: policy.id, version: policy.policyVersion, name: policy.name, productLine: policy.productLine, operation: approval.type, description: policy.description || "", nodes: policy.nodes.map(node => ({ sequence: node.sequence, type: "generic", approverUserIds: nodeApproverIds(node), approverNames: nodeApproverIds(node).map(id => db.users.find(person => person.userId === id)?.name || id) })), copyUserIds: clone(policy.copyUserIds || []) }, copyUserIds: clone(policy.copyUserIds || []), currentTaskIndex: 0, tasks, flowEvents: [{ id: `${releaseId("FLOW-EVENT")}`, event: "节点激活", sequence: 1, actor: "系统", time: stamp, note: "第 1 级节点已激活" }], notificationStatus: [], readBy: [], relatedApprovalId: approval.id, snapshotRecordVersion: 1 };
     next.instanceNo = next.id;
     approval.relatedApprovalIds = [...new Set([...(approval.relatedApprovalIds || []), next.id])];
     db.approvals.unshift(next);
@@ -3346,7 +3429,10 @@
     const executionResult = approval.executionStatus && !["未执行", "不适用"].includes(approval.executionStatus) ? ` · ${approval.executionStatus}` : "";
     const completionLabel = `${approvalResult}${executionResult}`;
     const completionTime = approval.approveTime && approval.approveTime !== "-" ? approval.approveTime : "-";
-    return `<div class="ac-flow-timeline">${taskCards || '<div class="ac-flow-person-empty">暂无审批节点</div>'}<div class="ac-flow-completion ${completed ? "complete" : "pending"}"><span class="ac-flow-completion-dot">${completed ? "✓" : ""}</span><strong>${esc(completionLabel)}</strong><time>${esc(completionTime)}</time></div></div>`;
+    const snapshot = approval.policySnapshot || {};
+    const events = (approval.flowEvents || []).slice().sort((a, b) => String(a.time).localeCompare(String(b.time)));
+    const eventMarkup = events.length ? `<div class="ac-flow-events"><strong>流转记录</strong>${events.map(item => `<div class="ac-flow-event"><span class="ac-flow-event-dot"></span><div><b>${esc(item.event)}</b><span>第 ${esc(item.sequence || "-")} 级 · ${esc(item.actor || "系统")} · ${esc(item.time || "-")}</span><small>${esc(item.note || "-")}</small></div></div>`).join("")}</div>` : "";
+    return `<div class="ac-flow-snapshot"><div><strong>${esc(snapshot.name || approval.policyNameSnapshot || "历史审批方案")}</strong><span>${esc(snapshot.version || approval.policyVersion || "LEGACY")} · ${(snapshot.nodes || tasks).length} 级串行</span></div><small>以下审批人和顺序均为发起时冻结的审批配置快照</small></div><div class="ac-flow-timeline">${taskCards || '<div class="ac-flow-person-empty">暂无审批节点</div>'}<div class="ac-flow-completion ${completed ? "complete" : "pending"}"><span class="ac-flow-completion-dot">${completed ? "✓" : ""}</span><strong>${esc(completionLabel)}</strong><time>${esc(completionTime)}</time></div></div>${eventMarkup}`;
   }
 
   function renderCenterDetail(approval) {
@@ -3624,6 +3710,7 @@
     const result = approval.prototypeSample ? { ok: true, version: approval.version, type: approval.type } : executeApprovedRelease(approval);
     if (result.ok && approval.prototypeSample) {
       approval.executionStatus = "执行成功";
+      addApprovalFlowEvent(approval, "执行成功", null, "发布服务", "示例业务执行成功");
       recordApprovalNotification(approval, "审批通过，示例执行成功", terminalApprovalRecipients(approval));
     } else if (!result.ok) {
       const reason = result.message || "业务执行未完成";
@@ -3646,6 +3733,7 @@
         approval.terminalReason = "审批已通过，但业务执行失败；须重新核对后发起新的审批。";
         approval.approveTime ||= now();
         approval.remindersStopped = true;
+        addApprovalFlowEvent(approval, "执行失败", task, actor, reason);
         recordApprovalNotification(approval, "审批通过但执行失败", terminalApprovalRecipients(approval), "sent", { reason });
         addOperation("固件审批", "执行失败", approval.version, actor, "失败", reason);
         if (identifier) {
@@ -3654,6 +3742,7 @@
         }
       }
     }
+    if (result.ok && !approval.prototypeSample) addApprovalFlowEvent(approval, "执行成功", null, "发布服务", "业务执行成功");
     persist();
     return { ...result, ok: true, executionOk: result.ok, outcome: result.ok ? "success" : result.kind === "stale" ? "stale" : "execution-failed" };
   }
@@ -3947,6 +4036,7 @@
       : `<div class="approval-snapshot"><span>审批事件<strong>${esc(approval.event)}</strong></span><span>目标版本<strong>${esc(approval.version)}</strong></span><span>APP 提醒<strong>${esc(reminderLabel(approval.reminderPolicy))}</strong></span><span>APP 说明<strong>${Object.keys(approval.appReleaseNotes || {}).length} 种语言</strong></span><span>功能项<strong>${(approval.associatedFeatures || []).length} 项配置</strong></span><span>提交人<strong>${esc(approval.submitter)}</strong></span><span>提交时间<strong>${esc(approval.submitTime)}</strong></span></div>`;
     const tasks = approval.tasks || [];
     const activeTask = currentApprovalTask(approval);
+    const policySnapshot = approval.policySnapshot || {};
     const taskRows = tasks.map(task => {
       const statusClass = task.status === "已通过" ? "success" : task.status === "已驳回" ? "danger" : task.status === "审批中" ? "blue" : "";
       const active = task.status === "审批中";
@@ -3957,6 +4047,8 @@
       const ids = people.map(person => person.userId).filter(Boolean).join("、") || "历史用户";
       return `<div class="approval-task-row ${active ? "active" : ""}"><span class="approval-task-index">${task.sequence}</span><div><span class="approval-node-role">${esc(approvalTaskRoleLabel(approval, task))}</span><strong>${esc(names)}</strong><small>${esc(ids)} · ${people.length} 人或签</small>${decision}</div><div><span class="tag ${statusClass}">${esc(task.status)}</span><small>${timing}</small></div><span></span></div>`;
     }).join("");
+    const flowEvents = (approval.flowEvents || []).slice().sort((a, b) => String(a.time).localeCompare(String(b.time)));
+    const flowEventsMarkup = flowEvents.length ? `<div class="ac-flow-events approval-flow-events"><strong>流转记录</strong>${flowEvents.map(item => `<div class="ac-flow-event"><span class="ac-flow-event-dot"></span><div><b>${esc(item.event)}</b><span>第 ${esc(item.sequence || "-")} 级 · ${esc(item.actor || "系统")} · ${esc(item.time || "-")}</span><small>${esc(item.note || "-")}</small></div></div>`).join("")}</div>` : "";
     const executionClass = approval.executionStatus === "执行成功" ? "success" : approval.executionStatus === "执行失败" || approval.executionStatus === "已终止" ? "danger" : "warning";
     const headerCopy = approval.executionStatus === "执行失败" ? "业务执行失败，须重新发起审批" : approval.approvalStatus === "审批中" ? `等待${approvalTaskRoleLabel(approval, activeTask)}处理` : `${approval.approvalStatus} · ${approval.executionStatus}`;
     const failureNotice = approval.executionStatus === "执行失败" ? `<div class="execution-failure-notice"><strong>审批已通过，业务执行未完成</strong><span>${esc(approval.executionMessage || "版本状态复检或发布事务执行失败")}。旧审批记录只读保留，须重新发起审批。</span></div>` : "";
@@ -3981,7 +4073,7 @@
       : `<strong>${esc(approval.instanceNo || approval.id)}</strong><span>${viewerContext.canWithdraw && canRemind ? "可催办或撤回本次申请" : viewerContext.canWithdraw ? "可撤回本次申请" : canRemind ? "可催办当前节点" : "当前为只读查看"}</span>`;
     const footer = `<div class="approval-footer-context">${footerHint}</div><div class="approval-footer-actions">${footerActions.join("")}</div>`;
     const replacementBoundary = `<div class="approval-replacement-boundary locked"><strong>审批节点快照已锁定</strong><span>节点内任一人通过即可流转；发起人不可自审；本期不支持重新分派、审批人替换或临时代理。</span></div>`;
-    return drawerFrame(`${actionLabel}审批详情`, `${ruleContextBar([delist ? "delist" : rollback ? "rollback" : "publish", "concurrency"])}${viewerBar}${focusStrip}${sectionNav}<div class="approval-instance-head"><div><span>${esc(approval.policyNameSnapshot || "历史审批方案")} · ${esc(approval.instanceNo || approval.id)}</span><h3>${esc(headerCopy)}</h3></div><div><span class="tag ${approvalClass}">${esc(approval.approvalStatus)}</span><span class="tag ${executionClass}">${esc(approval.executionStatus)}</span></div></div>${failureNotice}${snapshot}${materials}<section class="approval-task-section" data-approval-section="flow"><div class="policy-section-head"><div><h3>审批流转</h3><span>${esc(approval.policyVersion)} · ${tasks.length} 级串行 · 节点快照已冻结</span></div></div>${replacementBoundary}<div class="approval-task-list">${taskRows}</div></section>${decisionPanel}<div class="prototype-simulation-note">角色切换仅用于原型权限演示；钉钉通知仅作为外部提醒，不在审批详情中展示通知记录。</div>`, footer, false, drawerOptions);
+    return drawerFrame(`${actionLabel}审批详情`, `${ruleContextBar([delist ? "delist" : rollback ? "rollback" : "publish", "concurrency"])}${viewerBar}${focusStrip}${sectionNav}<div class="approval-instance-head"><div><span>${esc(approval.policyNameSnapshot || "历史审批方案")} · ${esc(approval.instanceNo || approval.id)}</span><h3>${esc(headerCopy)}</h3></div><div><span class="tag ${approvalClass}">${esc(approval.approvalStatus)}</span><span class="tag ${executionClass}">${esc(approval.executionStatus)}</span></div></div>${failureNotice}${snapshot}${materials}<section class="approval-task-section" data-approval-section="flow"><div class="policy-section-head"><div><h3>审批流转</h3><span>${esc(policySnapshot.version || approval.policyVersion)} · ${(policySnapshot.nodes || tasks).length} 级串行 · 节点快照已冻结</span></div></div><div class="ac-flow-snapshot"><div><strong>${esc(policySnapshot.name || approval.policyNameSnapshot || "历史审批方案")}</strong><span>${esc(policySnapshot.version || approval.policyVersion || "LEGACY")}</span></div><small>审批人和顺序均按发起时生效的审批配置冻结</small></div>${replacementBoundary}<div class="approval-task-list">${taskRows}</div>${flowEventsMarkup}</section>${decisionPanel}<div class="prototype-simulation-note">角色切换仅用于原型权限演示；钉钉通知仅作为外部提醒，不在审批详情中展示通知记录。</div>`, footer, false, drawerOptions);
   }
 
   function renderModal() {
@@ -4750,11 +4842,23 @@
       policyId: policy.id,
       policyVersion: policy.policyVersion,
       policyNameSnapshot: policy.name,
+      policySnapshot: {
+        id: policy.id,
+        version: policy.policyVersion,
+        name: policy.name,
+        productLine: policy.productLine,
+        operation: type,
+        description: policy.description || "",
+        nodes: policy.nodes.map(node => ({ sequence: node.sequence, type: "generic", approverUserIds: nodeApproverIds(node), approverNames: nodeApproverIds(node).map(id => db.users.find(user => user.userId === id)?.name || id) })),
+        copyUserIds: clone(policy.copyUserIds || [])
+      },
       currentTaskIndex: 0,
-      tasks
+      tasks,
+      flowEvents: []
     };
     approval.instanceNo = approval.id;
     approval.readBy = [];
+    addApprovalFlowEvent(approval, "节点激活", tasks[0], "系统", "第 1 级节点已激活");
     if (prior && prior.firmwareId === identifier.id && prior.type === type) {
       approval.relatedApprovalId = prior.id;
       prior.relatedApprovalIds = [...(prior.relatedApprovalIds || []), approval.id];
@@ -4785,6 +4889,7 @@
     task.completedAt = stamp;
     task.decision = "通过";
     task.decisionNote = String(context.note || "").trim();
+    addApprovalFlowEvent(approval, "节点通过", task, actor.name, task.decisionNote || "审批通过");
     approval.approver = task.handledBy;
     addOperation(approval.type === "delist" ? "固件下架" : approval.type === "rollback" ? "固件回滚" : "固件申请", `第 ${task.sequence} 级审批通过`, approval.version, actor.name, "成功", `${approval.policyVersion}；平台节点处理成功`);
     if (identifier) addLifecycleEvent(identifier, { flowId: approval.flowId, flowType: approval.type, flowStatus: "pending", fromVersion: approval.fromVersion, toVersion: approval.toVersion, stage: "approval", sequence: 10 + task.sequence, title: `第 ${task.sequence} 级审批通过`, operator: actor.name, operatorType: "平台审批", result: "success", summary: `${approval.policyVersion} 的第 ${task.sequence}/${approval.tasks.length} 级节点已通过` });
@@ -4796,6 +4901,7 @@
       approval.currentTaskIndex = nextTask.sequence - 1;
       approval.approver = nextTask.approverNameSnapshot;
       recordApprovalNotification(approval, `第 ${nextTask.sequence} 级节点已激活`, taskNames(nextTask));
+      addApprovalFlowEvent(approval, "节点激活", nextTask, "系统", `第 ${nextTask.sequence} 级节点已激活`);
       persist();
       return { ok: true, complete: false, task: nextTask };
     }
@@ -4804,6 +4910,7 @@
     approval.approvalStatus = "已通过";
     approval.approveTime = stamp;
     approval.executionStatus = "执行中";
+    addApprovalFlowEvent(approval, "审批完成", task, actor.name, "全部审批节点已通过，等待执行");
     persist();
     return { ok: true, complete: true };
   }

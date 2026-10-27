@@ -3029,13 +3029,41 @@
       });
       if (approval.prototypeSample && approval.type === "delist") approval.fromVersion = approval.version;
     });
-    const demoVersion = 4;
+    const demoVersion = 5;
     if (data.approvalCenterDemoVersion >= demoVersion) return;
     const lead = data.users.find(user => user.name === "彭冬柏");
     const peer = data.users.find(user => user.name === "刘林胶");
     const final = data.users.find(user => user.name === "严国潮");
     if (!lead || !peer || !final) return;
     const demoSubmitter = index => [10, 11, 20, 22].includes(index) ? final : index >= 14 && index <= 17 ? lead : data.users.find(user => user.name === ["汤彦珊", "凌紫妍", "刘春美"][index % 3]);
+    const ensureTabCoverage = () => {
+      const coverageId = "APR-CENTER-DEMO-25";
+      if (data.approvals.some(item => item.id === coverageId)) return;
+      const approver = data.users.find(user => user.name === "刘亮") || data.users.find(user => user.name === "严彬铭");
+      const submitter = lead;
+      if (!approver || !submitter) return;
+      let policy = data.approvalPolicies.find(item => item.productLine === "4G模组" && policyOperation(item) === "rollback" && item.status !== "disabled");
+      if (!policy) {
+        policy = {
+          id: "POLICY-4G-DEMO-ROLLBACK", productLine: "4G模组", name: "4G 回滚审批示例方案", description: "用于审批中心示例数据的 4G 回滚审批方案",
+          operation: "rollback", operations: ["rollback"], nodes: [{ sequence: 1, type: "generic", approverUserId: approver.userId, approverName: approver.name }],
+          copyUserIds: [submitter.userId], status: "enabled", versionNumber: 1, policyVersion: "POLICY-4G-DEMO-ROLLBACK-V1", createdAt: now(), updatedAt: now(), updatedBy: "系统预置", history: []
+        };
+        setNodeApprovers(policy.nodes[0], [approver.userId], data);
+        data.approvalPolicies.push(policy);
+      }
+      const stamp = formatDateTime(new Date(Date.now() - 35 * 60000));
+      data.approvals.push({
+        id: coverageId, instanceNo: `APR-${new Date().getFullYear()}-1048`, prototypeSample: true, version: "23.410.025.7", firmwareId: "23.410.025",
+        type: "rollback", event: "版本回滚", productLine: "4G模组", submitter: submitter.name, submitterUserId: submitter.userId, submitTime: stamp,
+        status: "已失效", approvalStatus: "已失效", executionStatus: "未执行", approveTime: formatDateTime(new Date(Date.now() - 20 * 60000)),
+        terminalReason: "执行前复检发现当前发布指针已变化，需要重新核对回滚目标。", fromVersion: "23.410.025.8", toVersion: "23.410.025.7",
+        reason: "线上连接成功率异常，申请恢复上一稳定版本。", platformReleaseNotes: "优化 4G 网络重连稳定性。", models: "EC200U / EC800M", associatedDeviceCount: 1264,
+        reminderPolicy: "weak", snapshotRecordVersion: 1, policyId: policy.id, policyVersion: policy.policyVersion, policyNameSnapshot: policy.name, currentTaskIndex: 0,
+        tasks: [{ sequence: 1, type: "generic", approverUserId: approver.userId, approverNameSnapshot: approver.name, approvers: [{ userId: approver.userId, name: approver.name }], status: "已失效", startedAt: stamp, deadlineAt: "-", completedAt: formatDateTime(new Date(Date.now() - 20 * 60000)), handledBy: approver.name, decision: "通过", decisionNote: "已完成审批，执行前复检未通过" }],
+        testReportFiles: [{ name: "4G 回滚验证报告.pdf", sizeMb: "1.80", uploadedAt: formatDateTime(new Date(Date.now() - 30 * 60000)) }], meetingMinutesFiles: [], copyUserIds: [submitter.userId], readBy: [], notificationStatus: [{ event: "审批结果通知", recipients: [submitter.name], result: "sent", time: formatDateTime(new Date(Date.now() - 20 * 60000)) }]
+      });
+    };
     const applyDemoOwnership = approval => {
       const match = String(approval.id || "").match(/^APR-CENTER-DEMO-(\d+)$/);
       if (!match) return;
@@ -3049,6 +3077,7 @@
     // Existing previews receive the same ownership coverage without resetting decisions or deadlines.
     if (data.approvalCenterDemoVersion >= 1) {
       data.approvals.forEach(applyDemoOwnership);
+      ensureTabCoverage();
       data.approvalCenterDemoVersion = demoVersion;
       return;
     }
@@ -3080,6 +3109,7 @@
       };
       data.approvals.push(approval);
     }
+    ensureTabCoverage();
     data.approvalCenterDemoVersion = demoVersion;
   }
 

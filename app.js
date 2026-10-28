@@ -1402,7 +1402,7 @@
   let state = {
     route: routeFromHash(),
     groups: { device: true, approval: true, logs: true, users: true },
-    center: { view: "todo", viewerId: db.users.find(user => user.name === "彭冬柏")?.userId || db.users.find(user => user.name === "严国潮")?.userId || "", selectedId: null, detailTab: "business", sort: "priority", autoNext: true, moreFilters: false, filters: centerDefaultFilters() },
+    center: { view: "todo", viewerId: db.users.find(user => user.name === "彭冬柏")?.userId || db.users.find(user => user.name === "严国潮")?.userId || "", selectedId: null, detailTab: "business", sort: "priority", autoNext: true, moreFilters: false, flowExpanded: {}, filters: centerDefaultFilters() },
     selectedPolicyProductLine: productLines[0],
     selectedPolicyOperation: "",
     selectedIdentifier: db.identifiers[0]?.id || "",
@@ -2082,6 +2082,7 @@
       approvalId,
       ...(options.viewerId ? { viewerId: options.viewerId } : {}),
       ...(options.reminderScope ? { reminderScope: options.reminderScope } : {}),
+      flowExpanded: {},
       ...(options.returnDrawer ? { returnDrawer: clone(options.returnDrawer) } : {})
     };
   }
@@ -3397,28 +3398,38 @@
     return `<section class="page approval-center-page"><header class="ac-page-head"><div><span class="ac-eyebrow">固件操作审批</span><h1>审批中心</h1></div><div class="ac-head-actions"><label>预览身份<select class="select" aria-label="审批中心预览身份" data-center-control="viewerId">${db.users.filter(item => item.status === "active").map(item => `<option value="${esc(item.userId)}" ${item.userId === user.userId ? "selected" : ""}>${esc(item.name)} · ${esc(item.role)}</option>`).join("")}<option value="submitter:汤彦珊" ${user.name === "汤彦珊" ? "selected" : ""}>汤彦珊 · 发起人</option></select></label><button class="btn" data-action="center-refresh">↻ 刷新</button>${centerIsAdmin(user) ? '<button class="btn" data-action="center-reset-demo">↺ 重置示例数据</button>' : ""}</div></header><div class="ac-workspace"><div class="ac-tabs" role="tablist">${[["todo", "待我处理"], ["mine", "我发起的"], ["copy", "抄送我的"], ["exceptions", "异常中心"], ["done", "已处理"]].map(([view, label]) => `<button role="tab" aria-selected="${center.view === view}" class="${center.view === view ? "active" : ""}" data-action="center-view" data-view="${view}">${label}<span>${view === "done" ? processed : counts[view]}</span></button>`).join("")}</div>${renderCenterFilters()}<div class="ac-workbench ${selected ? "has-selection" : ""}"><aside class="ac-queue"><div class="ac-queue-toolbar"><span>共 <b>${rows.length}</b> 条</span><select aria-label="审批排序" data-center-control="sort"><option value="priority" ${center.sort === "priority" ? "selected" : ""}>优先处理</option><option value="oldest" ${center.sort === "oldest" ? "selected" : ""}>最早提交</option></select></div><div class="ac-queue-scroll">${list || `<div class="ac-empty"><span>✓</span><strong>${center.view === "exceptions" ? "当前没有匹配的异常记录" : "当前没有匹配的审批"}</strong><p>${center.view === "exceptions" ? "调整筛选条件，或查看其他视图。" : "调整筛选条件，或切换其他视图。"}</p></div>`}</div><div class="ac-queue-foot">${center.view === "exceptions" ? "异常跟进与审批结果独立记录 · 已读不会清除异常" : center.view === "mine" ? "节点内任一人通过即可流转 · 发起人可按需催办" : center.view === "done" ? "展示本人已通过/驳回且无业务异常的审批；历史记录持续保留" : "节点内任一人通过即可流转 · 当前视图仅展示处理任务"}</div></aside><main class="ac-detail" aria-label="审批详情">${selected ? renderCenterDetail(selected) : `<div class="ac-empty ac-detail-empty"><span>▤</span><strong>${center.view === "exceptions" ? "选择一条异常查看原因与下一步" : "选择一条审批开始处理"}</strong><p>${center.view === "exceptions" ? "按处理责任跟进，审批与执行状态分别保留。" : "先核对业务影响，再提交审批结果。<br>已读状态不会改变审批进度。"}</p>${rows.length ? `<button class="btn primary" data-action="center-open" data-approval-id="${esc(rows[0].id)}">${center.view === "exceptions" ? "查看第一条异常" : "开始处理第一条"} →</button>` : ""}</div>`}</main></div></div><p class="ac-prototype-note">当前为本地交互演示；审批状态保存在本浏览器，不会向钉钉发送消息或执行线上固件操作。</p></section>`;
   }
 
-  function renderCenterFlow(approval, includeSnapshot = true) {
+  function renderCenterFlow(approval, includeSnapshot = true, flowOptions = {}) {
     const tasks = Array.isArray(approval?.tasks) ? approval.tasks : [];
     const total = tasks.length || 1;
+    const expanded = flowOptions.expanded || {};
+    const actionPrefix = flowOptions.actionPrefix || "center-flow";
+    const flowKey = task => `${approval.id}:${task.sequence}`;
+    const isExpanded = task => Object.prototype.hasOwnProperty.call(expanded, flowKey(task)) ? expanded[flowKey(task)] : task.status !== "未激活";
+    const activeTask = tasks.find(task => task.status === "审批中");
+    const currentPeople = taskPeople(activeTask);
+    const completedPeople = task => taskPeople(task).filter(person => task.handledBy && task.handledBy === person.name).length;
     const taskCards = tasks.map(task => {
       const people = taskPeople(task);
       const active = task.status === "审批中";
       const complete = task.status === "已通过";
       const rejected = ["已驳回", "已失效"].includes(task.status);
-      const nodeStatus = task.status === "未激活" ? "待审批" : task.status || "待审批";
-      const nodeStatusClass = nodeStatus === "已通过" ? "success" : nodeStatus === "审批中" ? "active" : ["已驳回", "已失效"].includes(nodeStatus) ? "danger" : "muted";
+      const open = isExpanded(task);
+      const nodeStatus = task.status === "未激活" ? "待审批" : task.status === "已通过" ? "已完成" : task.status || "待审批";
+      const nodeStatusClass = ["已通过", "已完成"].includes(nodeStatus) ? "success" : nodeStatus === "审批中" ? "active" : ["已驳回", "已失效"].includes(nodeStatus) ? "danger" : "muted";
       const names = people.map(person => person.name).join("、") || task.approverNameSnapshot || "待配置审批人";
       const role = approvalTaskRoleLabel(approval, task);
       const peopleRows = people.map(person => {
         const handled = task.handledBy && task.handledBy === person.name;
-        const personStatus = task.status === "审批中" ? "待审批" : task.status === "已驳回" ? (handled ? "已驳回" : "已关闭") : task.status === "已失效" ? (handled ? "已失效" : "已关闭") : task.status === "已撤回" ? (handled ? "已撤回" : "已关闭") : task.status === "已通过" ? (handled ? "已通过" : "已关闭") : "已关闭";
-        const statusClass = personStatus === "已通过" ? "success" : ["已驳回", "已失效"].includes(personStatus) ? "danger" : personStatus === "待审批" ? "blue" : "muted";
+        const personStatus = task.status === "审批中" ? (handled ? "已同意" : "待审批") : task.status === "已驳回" ? (handled ? "已驳回" : "已关闭") : task.status === "已失效" ? (handled ? "已失效" : "已关闭") : task.status === "已撤回" ? (handled ? "已撤回" : "已关闭") : task.status === "已通过" ? (handled ? "已同意" : "已跳过") : task.status === "已关闭" ? "已跳过" : "已关闭";
+        const statusClass = ["已通过", "已同意"].includes(personStatus) ? "success" : ["已驳回", "已失效"].includes(personStatus) ? "danger" : personStatus === "待审批" ? "blue" : "muted";
         const personTime = handled && task.completedAt && task.completedAt !== "-" ? task.completedAt : "-";
         const personNote = handled ? (task.decisionNote || task.decision || "-") : "-";
         const personUser = db.users.find(user => user.userId === person.userId);
         return `<div class="ac-flow-person-row"><div class="ac-flow-person"><span class="ac-avatar">${esc((person.name || "").slice(0, 1))}</span><span><strong>${esc(person.name || "历史审批人")}</strong><small>${esc(personUser?.role || role)}</small></span></div><div class="ac-flow-person-result"><span class="ac-flow-status-tag ${statusClass}">${esc(personStatus)}</span><time>${esc(personTime)}</time></div><span class="ac-flow-person-note">${esc(personNote)}</span></div>`;
       }).join("");
-      return `<article class="ac-flow-node-card ${active ? "active" : complete ? "complete" : rejected ? "rejected" : "pending"}"><header><div><strong>第 ${task.sequence} / ${total} 级</strong><span class="ac-flow-node-status ${nodeStatusClass}">${esc(nodeStatus)}</span>${people.length > 1 ? '<span class="ac-flow-rule">任一人通过即可流转</span>' : ""}</div><span class="ac-flow-node-names" title="${esc(names)}">${esc(names)}</span></header><div class="ac-flow-person-head"><span>审批人</span><span>审批结果</span><span>审批意见</span></div>${peopleRows || '<div class="ac-flow-person-empty">待配置审批人</div>'}</article>`;
+      const result = people.length > 1 && ["审批中", "已通过"].includes(task.status) && completedPeople(task) ? `已通过（${completedPeople(task)}/${people.length}）` : "";
+      const body = open ? `<div class="ac-flow-node-body"><div class="ac-flow-person-head"><span>审批人</span><span>审批结果</span><span>审批意见</span></div>${peopleRows || '<div class="ac-flow-person-empty">待配置审批人</div>'}${result ? `<div class="ac-flow-node-result">▣ ${esc(result)}</div>` : ""}</div>` : "";
+      return `<article class="ac-flow-node-card ${active ? "active" : complete ? "complete" : rejected ? "rejected" : "pending"} ${open ? "is-expanded" : "is-collapsed"}"><header><div><strong>第 ${task.sequence} 级 · ${esc(role)}</strong><span class="ac-flow-node-status ${nodeStatusClass}">${esc(nodeStatus)}</span>${people.length > 1 ? '<span class="ac-flow-rule">或签</span>' : ""}</div><span class="ac-flow-node-names" title="${esc(names)}">${esc(names)}</span><button class="ac-flow-collapse" type="button" data-action="${actionPrefix}-toggle" data-approval-id="${esc(approval.id)}" data-sequence="${task.sequence}" aria-expanded="${open}" aria-label="${open ? "收起" : "展开"}第 ${task.sequence} 级">${open ? "⌃" : "⌄"}</button></header>${body}</article>`;
     }).join("");
     const completed = approval.approvalStatus !== "审批中";
     const approvalResult = approval.approvalStatus === "已通过" ? "审批已通过" : approval.approvalStatus === "已驳回" ? "审批已驳回" : approval.approvalStatus === "已撤回" ? "审批已撤回" : approval.approvalStatus === "已失效" ? "审批已失效" : "审批完成";
@@ -3426,8 +3437,15 @@
     const completionLabel = `${approvalResult}${executionResult}`;
     const completionTime = approval.approveTime && approval.approveTime !== "-" ? approval.approveTime : "-";
     const snapshot = approval.policySnapshot || {};
-    const snapshotMarkup = includeSnapshot ? `<div class="ac-flow-snapshot"><div><strong>${esc(snapshot.name || approval.policyNameSnapshot || "历史审批方案")}</strong><span>${esc(snapshot.version || approval.policyVersion || "LEGACY")} · ${(snapshot.nodes || tasks).length} 级串行</span></div><small>以下审批人和顺序均为发起时冻结的审批配置快照</small></div>` : "";
-    return `${snapshotMarkup}<div class="ac-flow-timeline">${taskCards || '<div class="ac-flow-person-empty">暂无审批节点</div>'}<div class="ac-flow-completion ${completed ? "complete" : "pending"}"><span class="ac-flow-completion-dot">${completed ? "✓" : ""}</span><strong>${esc(completionLabel)}</strong><time>${esc(completionTime)}</time></div></div>`;
+    const currentNode = activeTask ? `第 ${activeTask.sequence} 级 · ${approvalTaskRoleLabel(approval, activeTask)}` : approval.approvalStatus || "-";
+    const currentPeopleMarkup = currentPeople.length ? currentPeople.map(person => `<span class="ac-flow-overview-person"><span class="ac-avatar">${esc((person.name || "").slice(0, 1))}</span><b>${esc(person.name)}</b></span>`).join("") : '<span class="ac-flow-overview-empty">-</span>';
+    const modeLabel = currentPeople.length > 1 ? "或签" : "串行";
+    const modeHint = currentPeople.length > 1 ? "任意 1 人处理后节点结束" : "按节点顺序处理";
+    const statusLabel = approval.approvalStatus === "审批中" ? "待审批" : approval.approvalStatus || "-";
+    const overview = `<div class="ac-flow-overview"><div><span>当前节点</span><strong>${esc(currentNode)}</strong></div><div><span>当前待处理人</span><div class="ac-flow-overview-people">${currentPeopleMarkup}</div></div><div><span>审批节点总数</span><strong>${tasks.length} 个</strong></div><div><span>审批方式</span><strong class="ac-flow-overview-pill">${modeLabel}</strong><small>${modeHint}</small></div><div><span>流程状态</span><strong class="ac-flow-overview-status">◷ ${esc(statusLabel)}</strong></div></div>`;
+    const snapshotMarkup = includeSnapshot ? `${overview}<div class="ac-flow-snapshot"><div><strong>${esc(snapshot.name || approval.policyNameSnapshot || "历史审批方案")}</strong><span>${esc(snapshot.version || approval.policyVersion || "LEGACY")} · ${(snapshot.nodes || tasks).length} 级串行</span></div><small>以下审批人和顺序均为发起时冻结的审批配置快照</small></div>` : overview;
+    const controls = `<div class="ac-flow-controls"><strong>审批记录</strong><span><button type="button" data-action="${actionPrefix}-expand-all" data-approval-id="${esc(approval.id)}">展开全部</button><i>|</i><button type="button" data-action="${actionPrefix}-collapse-all" data-approval-id="${esc(approval.id)}">收起全部</button></span></div>`;
+    return `${snapshotMarkup}${controls}<div class="ac-flow-timeline">${taskCards || '<div class="ac-flow-person-empty">暂无审批节点</div>'}<div class="ac-flow-completion ${completed ? "complete" : "pending"}"><span class="ac-flow-completion-dot">${completed ? "✓" : ""}</span><strong>${esc(completionLabel)}</strong><time>${esc(completionTime)}</time></div></div>`;
   }
 
   function renderCenterDetail(approval) {
@@ -3454,7 +3472,7 @@
     const canUploadCenterMinutes = context.canUploadMinutes && approval.type === "publish" && approval.approvalStatus === "审批中";
     const materialMarkup = materialFiles.length ? materialFiles.map(({ file, kind, index }) => `<div class="ac-material-row"><div class="ac-material-name"><span class="ac-material-file-icon ${materialIcon(file).toLowerCase()}">${materialIcon(file)}</span><strong>${esc(file.name)}</strong></div><span>${esc(file.sizeMb || "—")} MB</span><span>${esc(file.uploadedAt || "—")}</span><span class="ac-material-actions"><button class="link-btn" data-action="preview-approval-material" data-material-kind="${kind}" data-material-index="${index}">${icon("eye")}预览</button><button class="link-btn" data-action="download-approval-material" data-material-kind="${kind}" data-material-index="${index}">${icon("download")}下载</button>${kind === "meetingMinutes" && canUploadCenterMinutes ? `<button class="link-btn danger-link" data-action="center-remove-material" data-material-kind="meetingMinutes" data-material-index="${index}">移除</button>` : ""}</span></div>`).join("") : '<div class="ac-material-empty">暂无审批材料</div>';
     const centerMinutesUpload = approval.type === "publish" ? `<div class="ac-center-material-upload"><div><strong>会议纪要 <em>（选填）</em></strong><small>${canUploadCenterMinutes ? "第 1 级审批人可补充上传，未上传不影响审批" : "当前身份仅可查看"}</small></div>${canUploadCenterMinutes ? '<label class="btn small"><input id="center-meeting-minutes-file" class="hidden" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx">上传附件</label>' : ""}</div>` : "";
-    const flowMarkup = renderCenterFlow(approval);
+    const flowMarkup = renderCenterFlow(approval, true, { expanded: state.center.flowExpanded, actionPrefix: "center-flow" });
     const reason = approval.reason || approval.note || approval.platformReleaseNotes || "—";
     const reminder = approvalReminderState(approval);
     const relatedIds = [...new Set([approval.relatedApprovalId, ...(approval.relatedApprovalIds || [])].filter(Boolean))];
@@ -3531,9 +3549,31 @@
     return nextId;
   }
 
+  function applyFlowExpansionAction(action, target, approval, expanded) {
+    if (!approval || !expanded) return false;
+    const tasks = Array.isArray(approval.tasks) ? approval.tasks : [];
+    if (action.endsWith("-toggle")) {
+      const key = `${approval.id}:${Number(target.dataset.sequence)}`;
+      const task = tasks.find(item => String(item.sequence) === String(target.dataset.sequence));
+      if (!task) return false;
+      expanded[key] = Object.prototype.hasOwnProperty.call(expanded, key) ? !expanded[key] : task.status === "未激活";
+    } else if (action.endsWith("-expand-all")) {
+      tasks.forEach(task => { expanded[`${approval.id}:${task.sequence}`] = true; });
+    } else if (action.endsWith("-collapse-all")) {
+      tasks.forEach(task => { expanded[`${approval.id}:${task.sequence}`] = false; });
+    } else return false;
+    return true;
+  }
+
   function handleApprovalCenterAction(action, target) {
     if (!action.startsWith("center-")) return false;
     const center = state.center;
+    if (["center-flow-toggle", "center-flow-expand-all", "center-flow-collapse-all"].includes(action)) {
+      const approval = approvalById(target.dataset.approvalId);
+      applyFlowExpansionAction(action, target, approval, center.flowExpanded ||= {});
+      renderShell();
+      return true;
+    }
     if (action === "center-open") { state.modal = null; centerSelect(target.dataset.approvalId); }
     if (action === "center-view") { center.view = target.dataset.view; center.selectedId = null; }
     if (action === "center-view" && center.view === "exceptions") center.filters.urgent = false;
@@ -4053,7 +4093,7 @@
       : `<strong>${esc(approval.instanceNo || approval.id)}</strong><span>${viewerContext.canWithdraw && canRemind ? "可催办或撤回本次申请" : viewerContext.canWithdraw ? "可撤回本次申请" : canRemind ? "可催办当前节点" : "当前为只读查看"}</span>`;
     const footer = `<div class="approval-footer-context">${footerHint}</div><div class="approval-footer-actions">${footerActions.join("")}</div>`;
     const replacementBoundary = `<div class="approval-replacement-boundary locked"><strong>审批节点快照已锁定</strong><span>节点内任一人通过即可流转；发起人不可自审；本期不支持重新分派、审批人替换或临时代理。</span></div>`;
-    return drawerFrame(`${actionLabel}审批详情`, `${ruleContextBar([delist ? "delist" : rollback ? "rollback" : "publish", "concurrency"])}${viewerBar}${focusStrip}${sectionNav}<div class="approval-instance-head"><div><span>${esc(approval.policyNameSnapshot || "历史审批方案")} · ${esc(approval.instanceNo || approval.id)}</span><h3>${esc(headerCopy)}</h3></div><div><span class="tag ${approvalClass}">${esc(approval.approvalStatus)}</span><span class="tag ${executionClass}">${esc(approval.executionStatus)}</span></div></div>${failureNotice}${snapshot}${materials}<section class="approval-task-section" data-approval-section="flow"><div class="policy-section-head"><div><h3>审批流转</h3><span>${esc(policySnapshot.version || approval.policyVersion)} · ${(policySnapshot.nodes || tasks).length} 级串行 · 节点快照已冻结</span></div></div>${replacementBoundary}${renderCenterFlow(approval, false)}</section>${decisionPanel}<div class="prototype-simulation-note">角色切换仅用于原型权限演示；钉钉通知仅作为外部提醒，不在审批详情中展示通知记录。</div>`, footer, false, drawerOptions);
+    return drawerFrame(`${actionLabel}审批详情`, `${ruleContextBar([delist ? "delist" : rollback ? "rollback" : "publish", "concurrency"])}${viewerBar}${focusStrip}${sectionNav}<div class="approval-instance-head"><div><span>${esc(approval.policyNameSnapshot || "历史审批方案")} · ${esc(approval.instanceNo || approval.id)}</span><h3>${esc(headerCopy)}</h3></div><div><span class="tag ${approvalClass}">${esc(approval.approvalStatus)}</span><span class="tag ${executionClass}">${esc(approval.executionStatus)}</span></div></div>${failureNotice}${snapshot}${materials}<section class="approval-task-section" data-approval-section="flow"><div class="policy-section-head"><div><h3>审批流转</h3><span>${esc(policySnapshot.version || approval.policyVersion)} · ${(policySnapshot.nodes || tasks).length} 级串行 · 节点快照已冻结</span></div></div>${replacementBoundary}${renderCenterFlow(approval, false, { expanded: modal.flowExpanded ||= {}, actionPrefix: "approval-flow" })}</section>${decisionPanel}<div class="prototype-simulation-note">角色切换仅用于原型权限演示；钉钉通知仅作为外部提醒，不在审批详情中展示通知记录。</div>`, footer, false, drawerOptions);
   }
 
   function renderModal() {
@@ -5083,6 +5123,15 @@
     }
     const action = target.dataset.action;
     if (handleApprovalCenterAction(action, target)) return;
+    if (["approval-flow-toggle", "approval-flow-expand-all", "approval-flow-collapse-all"].includes(action)) {
+      const detail = activeApprovalDetail();
+      const approval = detail ? approvalById(detail.approvalId) : null;
+      if (detail && approval) {
+        applyFlowExpansionAction(action, target, approval, detail.flowExpanded ||= {});
+        renderShell();
+      }
+      return;
+    }
     if (state.rulePanel && action !== "open-rule-panel" && action !== "close-rule-panel") dismissRulePopover();
     const popoverToggles = ["identifier-actions", "density-menu", "column-settings", "role-more", "user-line-filter", "role-user-line-filter"];
     if (state.popover && !popoverToggles.includes(action) && !event.target.closest(".action-popover")) state.popover = null;

@@ -1402,7 +1402,7 @@
   let state = {
     route: routeFromHash(),
     groups: { device: true, approval: true, logs: true, users: true },
-    center: { view: "todo", exceptionScope: "todo", viewerId: db.users.find(user => user.name === "彭冬柏")?.userId || db.users.find(user => user.name === "严国潮")?.userId || "", selectedId: null, detailTab: "business", sort: "priority", autoNext: true, moreFilters: false, filters: centerDefaultFilters() },
+    center: { view: "todo", viewerId: db.users.find(user => user.name === "彭冬柏")?.userId || db.users.find(user => user.name === "严国潮")?.userId || "", selectedId: null, detailTab: "business", sort: "priority", autoNext: true, moreFilters: false, filters: centerDefaultFilters() },
     selectedPolicyProductLine: productLines[0],
     selectedPolicyOperation: "",
     selectedIdentifier: db.identifiers[0]?.id || "",
@@ -3080,11 +3080,10 @@
     return result;
   }
   function centerHasException(approval) { return Boolean(centerBusinessException(approval)) || centerFailedNotifications(approval).length > 0; }
-  function centerHasActionableException(approval) { return centerExceptions(approval).some(item => item.pending && item.canHandle); }
   function renderCenterExceptionSummary(approval, compact = false) {
     const exceptions = centerExceptions(approval);
     if (!exceptions.length) return "";
-    if (compact) return `<div class="ac-row-exception">${exceptions.map(item => `<span class="ac-exception-label ${item.pending ? "" : "handled"}">${esc(item.label)}</span>`).join("")}<small>${esc(exceptions.filter(item => item.pending).map(item => `待${item.owner}跟进`).join("；") || "已跟进 · 历史异常保留")}</small></div>`;
+    if (compact) return `<div class="ac-row-exception">${exceptions.map(item => `<span class="ac-exception-label ${item.pending ? "" : "handled"}">${esc(item.label)}</span>`).join("")}</div>`;
     return `<section class="ac-exception-summary" aria-label="异常原因与处理责任">${exceptions.map(item => `<article class="${item.pending ? "" : "handled"}"><div><strong>${esc(item.label)}</strong><span>${item.pending ? (item.canHandle ? "待你处理" : "待责任人跟进") : "已跟进"}</span></div><p>${esc(item.reason)}</p><dl><dt>处理责任</dt><dd>${esc(item.owner)}</dd><dt>下一步</dt><dd>${esc(item.next)}</dd></dl></article>`).join("")}</section>`;
   }
 
@@ -3269,7 +3268,7 @@
     return { query: "", line: "", operation: "", targetVersion: "", submitter: "", policy: "" };
   }
 
-  function centerRows(view = state.center.view, filtered = true, exceptionScope = state.center.exceptionScope) {
+  function centerRows(view = state.center.view, filtered = true) {
     const user = centerIdentity();
     const filters = state.center.filters;
     return db.approvals.filter(approval => {
@@ -3278,7 +3277,7 @@
       if (view === "mine" && approval.submitter !== user.name) return false;
       if (view === "done" && !centerHandled(approval)) return false;
       if (view === "copy" && (!(approval.copyUserIds || []).includes(user.userId) || approval.approvalStatus === "审批中")) return false;
-      if (view === "exceptions" && !(exceptionScope === "all" && centerIsAdmin(user) ? centerHasException(approval) : centerHasActionableException(approval))) return false;
+      if (view === "exceptions" && !centerHasException(approval)) return false;
       if (!filtered) return true;
       const query = filters.query.toLowerCase().trim();
       const target = String(filters.targetVersion || "").trim().toLowerCase();
@@ -3315,12 +3314,6 @@
     const policy = reminderPolicies.find(item => item.value === approval?.reminderPolicy) || reminderPolicies[0];
     const hint = approval?.type === "delist" ? "下架操作不触发 APP 升级提醒" : policy.hint;
     return `<span class="ac-reminder-tag ${esc(policy.value)}" title="${esc(hint)}">${esc(policy.label)}</span>`;
-  }
-
-  function renderCenterExceptionScopes() {
-    if (state.center.view !== "exceptions") return "";
-    const pending = centerRows("exceptions", false, "todo").length;
-    return `<div class="ac-exception-scopes"><div role="tablist" aria-label="异常处理范围"><button role="tab" aria-selected="${state.center.exceptionScope !== "all"}" data-action="center-exception-scope" data-scope="todo">待我处理 <span>${pending}</span></button>${centerIsAdmin() ? `<button role="tab" aria-selected="${state.center.exceptionScope === "all"}" data-action="center-exception-scope" data-scope="all">全部异常 <span>${centerRows("exceptions", false, "all").length}</span></button>` : ""}</div><p>${state.center.exceptionScope === "all" && centerIsAdmin() ? "展示权限范围内的异常及跟进结果，历史业务状态保留。" : "仅展示当前身份可跟进的异常；按审批单去重，已读不影响数量。"}</p></div>`;
   }
 
   function renderCenterFilters() {
@@ -3384,7 +3377,7 @@
     const user = centerIdentity();
     const rows = centerRows();
     const selected = db.approvals.find(item => item.id === center.selectedId && centerReadable(item));
-    const todo = centerRows("todo", false), exceptions = centerRows("exceptions", false, "todo");
+    const todo = centerRows("todo", false), exceptions = centerRows("exceptions", false);
     const processed = centerRows("done", false).length;
     const processedToday = db.approvals.filter(approval => centerReadable(approval) && centerHandledToday(approval)).length;
     const counts = { todo: todo.length, mine: centerRows("mine", false).length, copy: centerRows("copy", false).length, exceptions: exceptions.length };
@@ -3392,15 +3385,16 @@
       const read = (approval.readBy || []).includes(user.userId);
       const task = currentApprovalTask(approval);
       const taskMeta = task ? `第 ${task.sequence}/${(approval.tasks || []).length} 级 · ${taskPeople(task).length} 人或签` : "审批已结束";
-      const reason = center.view === "exceptions" ? centerExceptions(approval).map(item => item.reason).join(" ") : (approval.reason || approval.note || approval.platformReleaseNotes || "查看业务信息");
       const isMine = center.view === "mine";
       const unreadMark = !isMine && !read ? '<i class="ac-unread" aria-label="未读"></i>' : "";
-      const rowMeta = isMine
-        ? `<div class="ac-row-meta ac-row-meta-mine"><span class="ac-row-status">${centerMineStatusTag(approval)}</span></div>`
-        : `<div class="ac-row-meta"><span>${esc(taskMeta)}</span><i aria-hidden="true">|</i><span>影响 ${formatDeviceCount(approval.associatedDeviceCount || 0)} 台</span><i aria-hidden="true">|</i><span>${esc(approval.submitter)}</span></div>`;
-      return `<article class="ac-queue-row ${isMine ? "ac-mine-row" : ""} ${selected?.id === approval.id ? "selected" : ""}"><div class="ac-queue-main"><button class="ac-queue-open" data-action="center-open" data-approval-id="${esc(approval.id)}" aria-pressed="${selected?.id === approval.id}"><div class="ac-row-top"><span class="ac-operation ${approval.type}">${esc(approvalOperationLabel(approval.type))}</span><span class="ac-product-line">${esc(approval.productLine)}</span>${unreadMark}<time>${esc(approval.submitTime.slice(5, 16))}</time></div><strong class="ac-row-version">${esc(approval.version)}</strong>${center.view === "exceptions" ? renderCenterExceptionSummary(approval, true) : ""}${center.view === "exceptions" ? `<p>${esc(reason)}</p><div class="ac-row-results">审批：${esc(approval.approvalStatus)} · 执行：${esc(approval.executionStatus)}</div>` : ""}<span class="ac-row-arrow" aria-hidden="true">›</span></button>${rowMeta}</div></article>`;
+      const rowMeta = center.view === "exceptions"
+        ? ""
+        : isMine
+          ? `<div class="ac-row-meta ac-row-meta-mine"><span class="ac-row-status">${centerMineStatusTag(approval)}</span></div>`
+          : `<div class="ac-row-meta"><span>${esc(taskMeta)}</span><i aria-hidden="true">|</i><span>影响 ${formatDeviceCount(approval.associatedDeviceCount || 0)} 台</span><i aria-hidden="true">|</i><span>${esc(approval.submitter)}</span></div>`;
+      return `<article class="ac-queue-row ${isMine ? "ac-mine-row" : ""} ${center.view === "exceptions" ? "ac-exception-row" : ""} ${selected?.id === approval.id ? "selected" : ""}"><div class="ac-queue-main"><button class="ac-queue-open" data-action="center-open" data-approval-id="${esc(approval.id)}" aria-pressed="${selected?.id === approval.id}"><div class="ac-row-top"><span class="ac-operation ${approval.type}">${esc(approvalOperationLabel(approval.type))}</span><span class="ac-product-line">${esc(approval.productLine)}</span>${unreadMark}<time>${esc(approval.submitTime.slice(5, 16))}</time></div><strong class="ac-row-version">${esc(approval.version)}</strong>${center.view === "exceptions" ? renderCenterExceptionSummary(approval, true) : ""}<span class="ac-row-arrow" aria-hidden="true">›</span></button>${rowMeta}</div></article>`;
     }).join("");
-    return `<section class="page approval-center-page"><header class="ac-page-head"><div><span class="ac-eyebrow">固件操作审批</span><h1>审批中心</h1></div><div class="ac-head-actions"><label>预览身份<select class="select" aria-label="审批中心预览身份" data-center-control="viewerId">${db.users.filter(item => item.status === "active").map(item => `<option value="${esc(item.userId)}" ${item.userId === user.userId ? "selected" : ""}>${esc(item.name)} · ${esc(item.role)}</option>`).join("")}<option value="submitter:汤彦珊" ${user.name === "汤彦珊" ? "selected" : ""}>汤彦珊 · 发起人</option></select></label><button class="btn" data-action="center-refresh">↻ 刷新</button>${centerIsAdmin(user) ? '<button class="btn" data-action="center-reset-demo">↺ 重置示例数据</button>' : ""}</div></header><div class="ac-workspace"><div class="ac-tabs" role="tablist">${[["todo", "待我处理"], ["mine", "我发起的"], ["copy", "抄送我的"], ["exceptions", "异常中心"], ["done", "已处理"]].map(([view, label]) => `<button role="tab" aria-selected="${center.view === view}" class="${center.view === view ? "active" : ""}" data-action="center-view" data-view="${view}">${label}<span>${view === "done" ? processed : counts[view]}</span></button>`).join("")}</div>${renderCenterExceptionScopes()}${renderCenterFilters()}<div class="ac-workbench ${selected ? "has-selection" : ""}"><aside class="ac-queue"><div class="ac-queue-toolbar"><span>共 <b>${rows.length}</b> 条</span><select aria-label="审批排序" data-center-control="sort"><option value="priority" ${center.sort === "priority" ? "selected" : ""}>优先处理</option><option value="oldest" ${center.sort === "oldest" ? "selected" : ""}>最早提交</option></select></div><div class="ac-queue-scroll">${list || `<div class="ac-empty"><span>✓</span><strong>${center.view === "exceptions" ? (center.exceptionScope === "all" ? "当前没有匹配的异常记录" : "当前没有匹配的待处理异常") : "当前没有匹配的审批"}</strong><p>${center.view === "exceptions" ? "调整筛选条件，或查看其他视图。" : "调整筛选条件，或切换其他视图。"}</p></div>`}</div><div class="ac-queue-foot">${center.view === "exceptions" ? "异常跟进与审批结果独立记录 · 已读不会清除异常" : center.view === "mine" ? "节点内任一人通过即可流转 · 发起人可按需催办" : center.view === "done" ? "展示本人已通过/驳回且无业务异常的审批；历史记录持续保留" : "节点内任一人通过即可流转 · 当前视图仅展示处理任务"}</div></aside><main class="ac-detail" aria-label="审批详情">${selected ? renderCenterDetail(selected) : `<div class="ac-empty ac-detail-empty"><span>▤</span><strong>${center.view === "exceptions" ? "选择一条异常查看原因与下一步" : "选择一条审批开始处理"}</strong><p>${center.view === "exceptions" ? "按处理责任跟进，审批与执行状态分别保留。" : "先核对业务影响，再提交审批结果。<br>已读状态不会改变审批进度。"}</p>${rows.length ? `<button class="btn primary" data-action="center-open" data-approval-id="${esc(rows[0].id)}">${center.view === "exceptions" ? "查看第一条异常" : "开始处理第一条"} →</button>` : ""}</div>`}</main></div></div><p class="ac-prototype-note">当前为本地交互演示；审批状态保存在本浏览器，不会向钉钉发送消息或执行线上固件操作。</p></section>`;
+    return `<section class="page approval-center-page"><header class="ac-page-head"><div><span class="ac-eyebrow">固件操作审批</span><h1>审批中心</h1></div><div class="ac-head-actions"><label>预览身份<select class="select" aria-label="审批中心预览身份" data-center-control="viewerId">${db.users.filter(item => item.status === "active").map(item => `<option value="${esc(item.userId)}" ${item.userId === user.userId ? "selected" : ""}>${esc(item.name)} · ${esc(item.role)}</option>`).join("")}<option value="submitter:汤彦珊" ${user.name === "汤彦珊" ? "selected" : ""}>汤彦珊 · 发起人</option></select></label><button class="btn" data-action="center-refresh">↻ 刷新</button>${centerIsAdmin(user) ? '<button class="btn" data-action="center-reset-demo">↺ 重置示例数据</button>' : ""}</div></header><div class="ac-workspace"><div class="ac-tabs" role="tablist">${[["todo", "待我处理"], ["mine", "我发起的"], ["copy", "抄送我的"], ["exceptions", "异常中心"], ["done", "已处理"]].map(([view, label]) => `<button role="tab" aria-selected="${center.view === view}" class="${center.view === view ? "active" : ""}" data-action="center-view" data-view="${view}">${label}<span>${view === "done" ? processed : counts[view]}</span></button>`).join("")}</div>${renderCenterFilters()}<div class="ac-workbench ${selected ? "has-selection" : ""}"><aside class="ac-queue"><div class="ac-queue-toolbar"><span>共 <b>${rows.length}</b> 条</span><select aria-label="审批排序" data-center-control="sort"><option value="priority" ${center.sort === "priority" ? "selected" : ""}>优先处理</option><option value="oldest" ${center.sort === "oldest" ? "selected" : ""}>最早提交</option></select></div><div class="ac-queue-scroll">${list || `<div class="ac-empty"><span>✓</span><strong>${center.view === "exceptions" ? "当前没有匹配的异常记录" : "当前没有匹配的审批"}</strong><p>${center.view === "exceptions" ? "调整筛选条件，或查看其他视图。" : "调整筛选条件，或切换其他视图。"}</p></div>`}</div><div class="ac-queue-foot">${center.view === "exceptions" ? "异常跟进与审批结果独立记录 · 已读不会清除异常" : center.view === "mine" ? "节点内任一人通过即可流转 · 发起人可按需催办" : center.view === "done" ? "展示本人已通过/驳回且无业务异常的审批；历史记录持续保留" : "节点内任一人通过即可流转 · 当前视图仅展示处理任务"}</div></aside><main class="ac-detail" aria-label="审批详情">${selected ? renderCenterDetail(selected) : `<div class="ac-empty ac-detail-empty"><span>▤</span><strong>${center.view === "exceptions" ? "选择一条异常查看原因与下一步" : "选择一条审批开始处理"}</strong><p>${center.view === "exceptions" ? "按处理责任跟进，审批与执行状态分别保留。" : "先核对业务影响，再提交审批结果。<br>已读状态不会改变审批进度。"}</p>${rows.length ? `<button class="btn primary" data-action="center-open" data-approval-id="${esc(rows[0].id)}">${center.view === "exceptions" ? "查看第一条异常" : "开始处理第一条"} →</button>` : ""}</div>`}</main></div></div><p class="ac-prototype-note">当前为本地交互演示；审批状态保存在本浏览器，不会向钉钉发送消息或执行线上固件操作。</p></section>`;
   }
 
   function renderCenterFlow(approval, includeSnapshot = true) {
@@ -3542,12 +3536,10 @@
     const center = state.center;
     if (action === "center-open") { state.modal = null; centerSelect(target.dataset.approvalId); }
     if (action === "center-view") { center.view = target.dataset.view; center.selectedId = null; }
-    if (action === "center-exception-scope") { center.exceptionScope = target.dataset.scope === "all" && centerIsAdmin() ? "all" : "todo"; center.selectedId = null; }
-    if (action === "center-view" && center.view === "exceptions") { center.exceptionScope = "todo"; center.filters.urgent = false; }
-    if (["center-view", "center-exception-scope"].includes(action)) centerEnsureDefaultSelection();
+    if (action === "center-view" && center.view === "exceptions") center.filters.urgent = false;
+    if (action === "center-view") centerEnsureDefaultSelection();
     if (action === "center-stat") {
       center.view = target.dataset.view;
-      if (center.view === "exceptions") center.exceptionScope = "todo";
       center.filters = centerDefaultFilters();
       center.draftQuery = "";
       center.draftTargetVersion = "";
@@ -3572,7 +3564,6 @@
       db = normalizeDatabase(db);
       persist();
       center.view = "todo";
-      center.exceptionScope = "todo";
       center.selectedId = null;
       center.detailTab = "business";
       center.filters = centerDefaultFilters();
@@ -6568,7 +6559,7 @@
     }
     if (event.target.dataset.centerControl) {
       state.center[event.target.dataset.centerControl] = event.target.value;
-      if (event.target.dataset.centerControl === "viewerId") { state.center.selectedId = null; state.center.exceptionScope = "todo"; centerEnsureDefaultSelection(); }
+      if (event.target.dataset.centerControl === "viewerId") { state.center.selectedId = null; centerEnsureDefaultSelection(); }
       renderShell(); return;
     }
     const target = event.target;

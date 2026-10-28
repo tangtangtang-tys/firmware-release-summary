@@ -1856,6 +1856,13 @@ button { color: inherit; }
 .replacement-candidate-empty { line-height: 1.5; }
 .approval-log-table { min-width: 1180px; }
 .approval-card-detail { margin: 12px 14px 14px; }
+.version-approval-status-tag { margin-left: 6px; vertical-align: middle; }
+.approval-card-materials { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; border-top: 1px solid var(--line); color: var(--text-2); font-size: 12px; }
+.approval-card-materials strong { color: var(--text); font-weight: 500; }
+.approval-card-materials .link-btn { margin-left: auto; }
+.approval-card-exception { display: grid; grid-template-columns: max-content max-content; gap: 5px 10px; margin-top: 12px; padding: 10px 12px; border-top: 1px solid #f0d4d4; background: #fff8f8; color: var(--text-2); font-size: 12px; }
+.approval-card-exception p { grid-column: 1 / -1; margin: 0; line-height: 1.5; }
+.approval-card-exception .link-btn { grid-column: 1 / -1; justify-self: start; }
 
 @media (max-width: 980px) {
   .policy-layout { grid-template-columns: minmax(0, 1fr); }

@@ -4524,7 +4524,7 @@ button { color: inherit; }
 .ac-flow-status-tag.muted { border-color: #d9e1eb; background: #f7f9fc; color: #8292a7; }
 .ac-flow-person-result time { color: #7188a8; font-size: 12px; white-space: nowrap; }
 .ac-flow-person-note, .ac-flow-person-time { display: grid; gap: 4px; min-width: 0; }
-.ac-flow-person-note span, .ac-flow-person-time span { color: #7287a6; font-size: 11px; }
+.ac-flow-person-note > span, .ac-flow-person-time > span { display: none; color: #7287a6; font-size: 11px; }
 .ac-flow-person-note strong, .ac-flow-person-time time { overflow: hidden; color: #304a74; font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .ac-flow-person-empty { padding: 18px 14px; color: #8ca0b8; font-size: 12px; text-align: center; }
 .ac-flow-node-result { padding: 9px 16px; border-top: 1px solid #deebf8; background: #e9f4ff; color: #2d5d91; font-size: 12px; font-weight: 600; }
@@ -4558,6 +4558,7 @@ button { color: inherit; }
   .ac-flow-person-row { grid-template-columns: minmax(0,1fr); gap: 6px; padding: 9px 12px; }
   .ac-flow-person-row > div:not(:first-child) { padding-left: 0; border-left: 0; }
   .ac-flow-person-result, .ac-flow-person-note, .ac-flow-person-time { grid-column: 1; }
+  .ac-flow-person-note > span, .ac-flow-person-time > span { display: block; }
   .ac-flow-node-names { max-width: 42%; }
   .ac-flow-node-card::before { left: -21px; }
   .ac-flow-completion-dot { margin-left: -22px; }

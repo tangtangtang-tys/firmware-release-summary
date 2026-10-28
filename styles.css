@@ -4493,12 +4493,16 @@ button { color: inherit; }
 .ac-flow-node-card.active::before { background: #1478f3; box-shadow: 0 0 0 1px #1478f3, 0 0 0 4px #e5f1ff; }
 .ac-flow-node-card.complete::before { background: #24c56c; box-shadow: 0 0 0 1px #24c56c; }
 .ac-flow-node-card.rejected::before { background: #d96b61; box-shadow: 0 0 0 1px #d96b61; }
-.ac-flow-node-card > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 46px; padding: 8px 16px; background: #f3f8fe; }
+.ac-flow-node-card > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 46px; padding: 0 16px; background: #f3f8fe; }
 .ac-flow-node-card.is-collapsed > header { min-height: 44px; background: #fff; }
-.ac-flow-node-card > header > .ac-flow-collapse { flex: 0 0 auto; margin-left: 0; }
+.ac-flow-node-toggle { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%; min-height: 46px; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.ac-flow-node-card.is-collapsed .ac-flow-node-toggle { min-height: 44px; }
+.ac-flow-node-toggle:hover { color: inherit; }
+.ac-flow-node-toggle:focus-visible { outline: 2px solid #1478f3; outline-offset: -2px; border-radius: 6px; }
+.ac-flow-node-toggle > .ac-flow-collapse { flex: 0 0 auto; margin-left: 0; }
 .ac-flow-node-card.rejected > header { background: #fff7f5; }
-.ac-flow-node-card > header > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
-.ac-flow-node-card > header strong { color: #162757; font-size: 14px; font-weight: 700; }
+.ac-flow-node-toggle > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.ac-flow-node-toggle strong { color: #162757; font-size: 14px; font-weight: 700; }
 .ac-flow-node-status { display: inline-flex; align-items: center; min-height: 23px; padding: 2px 10px; border: 1px solid #d9e1eb; border-radius: 999px; background: #f7f9fc; color: #8292a7; font-size: 11px; font-weight: 600; white-space: nowrap; }
 .ac-flow-node-status.active { border-color: #b9d8fb; background: #edf6ff; color: #2475d5; }
 .ac-flow-node-status.success { border-color: #bfe6d5; background: #effaf5; color: #3e9a6f; }

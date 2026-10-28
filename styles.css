@@ -4507,7 +4507,7 @@ button { color: inherit; }
 .ac-flow-collapse:hover { background: #edf5ff; color: #1478f3; }
 .ac-flow-timeline { position: relative; padding: 1px 0 3px 30px; }
 .ac-flow-timeline::before { content: ""; position: absolute; top: 18px; bottom: 19px; left: 10px; width: 2px; background: #b9d0f2; }
-.ac-flow-overview { display: grid; grid-template-columns: 1.25fr 1.5fr .8fr 1fr 1fr; gap: 0; margin: 0 0 18px; padding: 18px 22px; border-radius: 8px; background: linear-gradient(110deg, #f4f9ff 0%, #fff 62%, #f7fbff 100%); box-shadow: 0 6px 20px #8aa9c51f; }
+.ac-flow-overview { display: grid; grid-template-columns: 1.25fr 1.5fr .8fr 1fr; gap: 0; margin: 0 0 18px; padding: 18px 22px; border-radius: 8px; background: linear-gradient(110deg, #f4f9ff 0%, #fff 62%, #f7fbff 100%); box-shadow: 0 6px 20px #8aa9c51f; }
 .ac-flow-overview > div { min-width: 0; padding: 0 20px; border-left: 1px solid #dce6f2; }
 .ac-flow-overview > div:first-child { padding-left: 0; border-left: 0; }
 .ac-flow-overview > div:last-child { padding-right: 0; }

@@ -1483,6 +1483,26 @@
     return approval?.id ? `#/approvalCenter?approvalId=${encodeURIComponent(approval.id)}` : "#/approvalCenter";
   }
 
+  function openApprovalCenterFor(approval) {
+    if (!approval) return;
+    const user = centerIdentity();
+    const isException = centerHasException(approval) && (approval.executionStatus === "执行失败" || approval.approvalStatus === "已失效");
+    const isApprover = (approval.tasks || []).some(task => ["审批中", "未激活"].includes(task.status) && taskPeople(task).some(person => person.userId === user.userId));
+    const isCopy = (approval.copyUserIds || []).includes(user.userId);
+    state.center.view = isException ? "exceptions" : approval.submitter === user.name ? "mine" : isApprover ? "todo" : isCopy ? "copy" : "todo";
+    state.center.selectedId = null;
+    state.modal = null;
+    state.drawer = null;
+    const target = approvalCenterPath(approval);
+    if (location.hash === target) {
+      state.route = "approvalCenter";
+      openApprovalDeepLink();
+      renderShell();
+    } else {
+      location.hash = target;
+    }
+  }
+
   function findPrototypeRule(context, ruleId) {
     const group = prototypeRuleCatalog[context];
     if (!group) return null;
@@ -1652,7 +1672,7 @@
     }
     if (identifier.activeApproval) {
       if (identifier.activeApproval.type === "publish" && identifier.activeApproval.version === version.version) {
-        openApprovalDetail(identifier.activeApproval.approvalId);
+        openApprovalCenterFor(approvalById(identifier.activeApproval.approvalId));
         return true;
       }
       toast("当前固件标识已有发布、回滚或下架审批", "warning");
@@ -2719,7 +2739,7 @@
         <aside class="identifier-panel"><h2 class="panel-heading">固件管理</h2><div class="panel-action-with-rule"><button class="btn panel-action" data-action="add-identifier">⊕ 新增标识</button>${ruleAnnotation("identifier", "FID-R01")}</div><div class="identifier-list">${identifiers.map(item => `<button class="identifier-item ${item.id === selected.id ? "active" : ""}" data-action="select-identifier" data-id="${esc(item.id)}">${esc(item.id)}</button>`).join("") || `<div class="muted" style="padding:16px">无匹配标识</div>`}</div></aside>
         <div class="firmware-main ${selected.product === "4G模组" && state.firmwareTab !== "firmware" ? "differential-main" : ""}">
           <div class="summary-band ${selected.product === "4G模组" ? "four-g-summary" : ""}"><div class="summary-head"><div class="module-title-row"><h2>${esc(selected.id)}</h2></div><div class="summary-actions"><button class="btn small" data-action="refresh">↻ 刷新</button><div class="action-with-rules"><div class="popover-wrap"><button class="btn small" data-action="identifier-actions" aria-expanded="${state.popover === "identifier"}">••• 更多</button>${state.popover === "identifier" ? `<div class="action-popover compact-popover"><button data-action="edit-identifier">编辑</button><button class="danger-item" data-action="delete-identifier">删除</button></div>` : ""}</div>${ruleAnnotation("identifier", "FID-R02")}</div></div></div>${renderIdentifierMeta(selected)}</div>
-          ${pendingApproval ? `<div class="approval-banner ${pendingApproval.executionStatus === "执行失败" ? "execution-failed" : ""}"><div><strong>${pendingApproval.executionStatus === "执行失败" ? `${approvalOperationLabel(pendingApproval.type)}执行失败` : `等待${approvalTaskRoleLabel(pendingApproval, pendingTask)}处理`}</strong><span>${esc(pendingApproval.version)} · ${pendingApproval.executionStatus === "执行失败" ? "执行未完成，须重新发起审批" : `${esc(pendingTask?.approverNameSnapshot || pendingApproval.approver)} · 发起人可在审批中心按需催办`} · ${esc(pendingApproval.submitTime)}</span></div><button class="btn small primary" data-action="view-active-approval">${pendingApproval.executionStatus === "执行失败" ? "处理异常" : "查看审批"}</button></div>` : ""}
+          ${pendingApproval ? `<div class="approval-banner ${pendingApproval.executionStatus === "执行失败" ? "execution-failed" : ""}"><div><strong>${pendingApproval.executionStatus === "执行失败" ? `${approvalOperationLabel(pendingApproval.type)}执行失败` : `等待${approvalTaskRoleLabel(pendingApproval, pendingTask)}处理`}</strong><span>${esc(pendingApproval.version)} · ${pendingApproval.executionStatus === "执行失败" ? "执行未完成，须重新发起审批" : `${esc(pendingTask?.approverNameSnapshot || pendingApproval.approver)} · 发起人可在审批中心按需催办`} · ${esc(pendingApproval.submitTime)}</span></div><button class="btn small primary" data-action="view-active-approval">${pendingApproval.executionStatus === "执行失败" ? "进入异常中心" : "进入审批中心"}</button></div>` : ""}
           <div class="tab-strip firmware-tabs"><button class="tab ${state.firmwareTab === "firmware" ? "active" : ""}" data-action="firmware-subtab" data-tab="firmware">固件列表</button><button class="tab ${state.firmwareTab === "lifecycle" ? "active" : ""}" data-action="firmware-subtab" data-tab="lifecycle">发布日志</button>${selected.product === "4G模组" ? `<button class="tab ${state.firmwareTab === "onlineDifferential" ? "active" : ""}" data-action="firmware-subtab" data-tab="onlineDifferential">在线差分</button><button class="tab ${state.firmwareTab === "differentialPackages" ? "active" : ""}" data-action="firmware-subtab" data-tab="differentialPackages">差分包列表</button>` : ""}</div>
           ${renderFirmwareTabContent(selected, latest)}
         </div>
@@ -2943,7 +2963,7 @@
       : `<span class="action-with-rules"><button class="btn small" disabled title="当前没有可用的一次性回滚目标">不可回滚</button>${ruleAnnotation("rollback", "RBK-R01")}</span>`;
     const delistAction = `<span class="action-with-rules"><button class="btn small danger-outline" data-action="start-delist" ${identifier.activeApproval ? "disabled" : ""}>下架</button>${ruleAnnotation("delist", "DEL-R01")}</span>`;
     const pendingDelist = identifier.activeApproval?.type === "delist";
-    return `<div class="current-release-card"><div class="current-release-head"><div class="latest-version"><span class="file-mark">V</span><div><strong>${esc(version.version)}</strong><div class="muted">${pendingDelist ? "当前发布 · 下架审批中" : isRollback ? `由 ${esc(event.fromVersion)} 回滚恢复` : previous ? `上一个发布版本 ${esc(previous.version)}` : "首次发布"}</div></div></div><div class="current-release-actions">${detailAction}${pendingDelist ? `<span class="action-with-rules"><button class="btn small primary" data-action="view-active-approval">查看下架审批</button>${ruleAnnotation("delist", "DEL-R06")}</span>` : `${rollbackAction}${delistAction}`}</div></div><div class="current-release-grid"><div><span>生效时间</span><strong>${esc(event?.effectiveAt || version.published || version.updated)}</strong></div><div><span>APP 提醒方式</span><strong>${esc(reminderLabel(event?.reminderPolicy))}</strong></div><div><span>适用机型</span><strong>${esc(version.models)}</strong></div><div><span>文件大小</span><strong>${esc(version.size)} M</strong></div><div class="release-url"><span>下载地址</span><strong title="${esc(version.url)}">${esc(version.url)}</strong><div class="release-url-actions"><button class="link-btn" data-action="copy" data-copy="${esc(version.url)}" title="复制下载地址" aria-label="复制下载地址">▣</button><a class="link-btn" href="${esc(version.url)}" download title="下载固件" aria-label="下载固件">⇩</a></div></div></div></div>`;
+    return `<div class="current-release-card"><div class="current-release-head"><div class="latest-version"><span class="file-mark">V</span><div><strong>${esc(version.version)}</strong><div class="muted">${pendingDelist ? "当前发布 · 下架审批中" : isRollback ? `由 ${esc(event.fromVersion)} 回滚恢复` : previous ? `上一个发布版本 ${esc(previous.version)}` : "首次发布"}</div></div></div><div class="current-release-actions">${detailAction}${pendingDelist ? `<span class="action-with-rules"><button class="btn small primary" data-action="view-active-approval">进入审批中心</button>${ruleAnnotation("delist", "DEL-R06")}</span>` : `${rollbackAction}${delistAction}`}</div></div><div class="current-release-grid"><div><span>生效时间</span><strong>${esc(event?.effectiveAt || version.published || version.updated)}</strong></div><div><span>APP 提醒方式</span><strong>${esc(reminderLabel(event?.reminderPolicy))}</strong></div><div><span>适用机型</span><strong>${esc(version.models)}</strong></div><div><span>文件大小</span><strong>${esc(version.size)} M</strong></div><div class="release-url"><span>下载地址</span><strong title="${esc(version.url)}">${esc(version.url)}</strong><div class="release-url-actions"><button class="link-btn" data-action="copy" data-copy="${esc(version.url)}" title="复制下载地址" aria-label="复制下载地址">▣</button><a class="link-btn" href="${esc(version.url)}" download title="下载固件" aria-label="下载固件">⇩</a></div></div></div></div>`;
   }
 
   function renderFirmwareTable(identifier) {
@@ -5871,7 +5891,7 @@
       if (Object.keys(state.errors).length) { renderShell(); return; }
       const approval = submitReleaseApproval("publish", state.modal);
       if (!approval) return;
-      openApprovalDetail(approval.id);
+      openApprovalCenterFor(approval);
       renderShell();
       return;
     }
@@ -5896,7 +5916,7 @@
       state.modal.reason = reason;
       const approval = submitReleaseApproval("delist", state.modal);
       if (!approval) return;
-      openApprovalDetail(approval.id);
+      openApprovalCenterFor(approval);
       renderShell();
       return;
     }
@@ -5920,15 +5940,14 @@
       if (Object.keys(state.errors).length) { renderShell(); return; }
       const approval = submitReleaseApproval("rollback", state.modal);
       if (!approval) return;
-      openApprovalDetail(approval.id);
+      openApprovalCenterFor(approval);
       renderShell();
       return;
     }
     if (action === "view-active-approval") {
       const approvalId = activeIdentifier().activeApproval?.approvalId;
       if (!approvalId || !approvalById(approvalId)) { toast("当前没有进行中的审批", "warning"); return; }
-      openApprovalDetail(approvalId);
-      renderShell();
+      openApprovalCenterFor(approvalById(approvalId));
       return;
     }
     if (action === "preview-approval-material" || action === "download-approval-material") {

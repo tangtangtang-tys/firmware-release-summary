@@ -1402,6 +1402,7 @@
   let db = loadData();
   const runtimeMaterialPreviews = new Map();
   const defaultAuditRange = recentDateRange();
+  const flowHintStorageKey = "firmwareApprovalFlowHintDismissed";
   let state = {
     route: routeFromHash(),
     groups: { device: true, approval: true, logs: true, users: true },
@@ -1441,6 +1442,7 @@
     expandedLifecycleFlows: [lifecycleFlows(db.identifiers[0]?.lifecycleEvents || []).find(flow => flow.flowStatus === "active")?.flowId].filter(Boolean)
   };
   state.pendingVersionApproval = null;
+  try { state.flowHintDismissed = localStorage.getItem(flowHintStorageKey) === "1"; } catch (_error) { state.flowHintDismissed = false; }
 
   const app = document.getElementById("app");
   const toastLayer = document.getElementById("toast-layer");
@@ -2735,6 +2737,11 @@
     return `<div class="page-header"><div class="page-title-row"><h1 class="page-title">${title}</h1>${ruleContext ? rulePoint(ruleContext) : ""}</div>${tools ? `<div class="page-tools">${tools}</div>` : ""}</div>`;
   }
 
+  function renderApprovalFlowHint() {
+    if (state.flowHintDismissed) return "";
+    return `<div class="approval-flow-hint"><span><strong>使用流程：</strong>在固件列表发起发布、回滚或下架 → 进入审批中心完成审批处理 → 审批通过后自动执行并查看结果。</span><small>固件列表用于查看进度，审批操作请在审批中心完成。</small><button type="button" data-action="dismiss-flow-hint" aria-label="关闭流程提示">×</button></div>`;
+  }
+
   function renderIdentifierMeta(identifier) {
     if (identifier.product === "4G模组") {
       return `<div class="meta-grid four-g-meta"><span>所属产品线：<strong>${esc(identifier.product)}</strong></span><span>创建时间：<strong>${esc(identifier.created)}</strong></span><span>模组型号：<strong>${esc(identifier.models)}</strong></span><span title="固件标识下去重后的绑定设备总数">${annotatedLabel("绑定设备数", [["identifier", "FID-R03"]])}：<strong>${formatDeviceCount(identifier.boundDeviceCount)} 台</strong></span></div>`;
@@ -2754,6 +2761,7 @@
     const pendingTask = currentApprovalTask(pendingApproval);
     return `<section class="page tint-page">
       ${header}
+      ${renderApprovalFlowHint()}
       <div class="firmware-layout ${selected.product === "4G模组" && state.firmwareTab !== "firmware" ? "differential-layout" : ""}">
         <aside class="identifier-panel"><h2 class="panel-heading">固件管理</h2><div class="panel-action-with-rule"><button class="btn panel-action" data-action="add-identifier">⊕ 新增标识</button>${ruleAnnotation("identifier", "FID-R01")}</div><div class="identifier-list">${identifiers.map(item => `<button class="identifier-item ${item.id === selected.id ? "active" : ""}" data-action="select-identifier" data-id="${esc(item.id)}">${esc(item.id)}</button>`).join("") || `<div class="muted" style="padding:16px">无匹配标识</div>`}</div></aside>
         <div class="firmware-main ${selected.product === "4G模组" && state.firmwareTab !== "firmware" ? "differential-main" : ""}">
@@ -3455,7 +3463,7 @@
           : `<div class="ac-row-meta"><span>${esc(taskMeta)}</span><i aria-hidden="true">|</i><span>影响 ${formatDeviceCount(approval.associatedDeviceCount || 0)} 台</span><i aria-hidden="true">|</i><span>${esc(approval.submitter)}</span></div>`;
       return `<article class="ac-queue-row ${isMine ? "ac-mine-row" : ""} ${center.view === "exceptions" ? "ac-exception-row" : ""} ${selected?.id === approval.id ? "selected" : ""}"><div class="ac-queue-main"><button class="ac-queue-open" data-action="center-open" data-approval-id="${esc(approval.id)}" aria-pressed="${selected?.id === approval.id}"><div class="ac-row-top"><span class="ac-operation ${approval.type}">${esc(approvalOperationLabel(approval.type))}</span><span class="ac-product-line">${esc(approval.productLine)}</span>${unreadMark}<time>${esc(approval.submitTime.slice(5, 16))}</time></div><strong class="ac-row-version">${esc(approval.version)}</strong>${center.view === "exceptions" ? renderCenterExceptionSummary(approval, true) : ""}<span class="ac-row-arrow" aria-hidden="true">›</span></button>${rowMeta}</div></article>`;
     }).join("");
-    return `<section class="page approval-center-page"><header class="ac-page-head"><div><span class="ac-eyebrow">固件操作审批</span><h1>审批中心</h1></div><div class="ac-head-actions"><label>预览身份<select class="select" aria-label="审批中心预览身份" data-center-control="viewerId">${db.users.filter(item => item.status === "active").map(item => `<option value="${esc(item.userId)}" ${item.userId === user.userId ? "selected" : ""}>${esc(item.name)} · ${esc(item.role)}</option>`).join("")}<option value="submitter:汤彦珊" ${user.name === "汤彦珊" ? "selected" : ""}>汤彦珊 · 发起人</option></select></label><button class="btn" data-action="center-refresh">↻ 刷新</button>${centerIsAdmin(user) ? '<button class="btn" data-action="center-reset-demo">↺ 重置示例数据</button>' : ""}</div></header><div class="ac-workspace"><div class="ac-tabs" role="tablist">${[["todo", "待我处理"], ["mine", "我发起的"], ["copy", "抄送我的"], ["exceptions", "异常中心"], ["done", "已处理"]].map(([view, label]) => `<button role="tab" aria-selected="${center.view === view}" class="${center.view === view ? "active" : ""}" data-action="center-view" data-view="${view}">${label}<span>${view === "done" ? processed : counts[view]}</span></button>`).join("")}</div>${renderCenterFilters()}<div class="ac-workbench ${selected ? "has-selection" : ""}"><aside class="ac-queue"><div class="ac-queue-toolbar"><span>共 <b>${rows.length}</b> 条</span><select aria-label="审批排序" data-center-control="sort"><option value="priority" ${center.sort === "priority" ? "selected" : ""}>优先处理</option><option value="oldest" ${center.sort === "oldest" ? "selected" : ""}>最早提交</option></select></div><div class="ac-queue-scroll">${list || `<div class="ac-empty"><span>✓</span><strong>${center.view === "exceptions" ? "当前没有匹配的异常记录" : "当前没有匹配的审批"}</strong><p>${center.view === "exceptions" ? "调整筛选条件，或查看其他视图。" : "调整筛选条件，或切换其他视图。"}</p></div>`}</div><div class="ac-queue-foot">${center.view === "exceptions" ? "异常跟进与审批结果独立记录 · 已读不会清除异常" : center.view === "mine" ? "节点内任一人通过即可流转 · 发起人可按需催办" : center.view === "done" ? "展示本人已通过/驳回且无业务异常的审批；历史记录持续保留" : "节点内任一人通过即可流转 · 当前视图仅展示处理任务"}</div></aside><main class="ac-detail" aria-label="审批详情">${selected ? renderCenterDetail(selected) : `<div class="ac-empty ac-detail-empty"><span>▤</span><strong>${center.view === "exceptions" ? "选择一条异常查看原因与下一步" : "选择一条审批开始处理"}</strong><p>${center.view === "exceptions" ? "按处理责任跟进，审批与执行状态分别保留。" : "先核对业务影响，再提交审批结果。<br>已读状态不会改变审批进度。"}</p>${rows.length ? `<button class="btn primary" data-action="center-open" data-approval-id="${esc(rows[0].id)}">${center.view === "exceptions" ? "查看第一条异常" : "开始处理第一条"} →</button>` : ""}</div>`}</main></div></div><p class="ac-prototype-note">当前为本地交互演示；审批状态保存在本浏览器，不会向钉钉发送消息或执行线上固件操作。</p></section>`;
+    return `<section class="page approval-center-page"><header class="ac-page-head"><div><span class="ac-eyebrow">固件操作审批</span><h1>审批中心</h1></div><div class="ac-head-actions"><label>预览身份<select class="select" aria-label="审批中心预览身份" data-center-control="viewerId">${db.users.filter(item => item.status === "active").map(item => `<option value="${esc(item.userId)}" ${item.userId === user.userId ? "selected" : ""}>${esc(item.name)} · ${esc(item.role)}</option>`).join("")}<option value="submitter:汤彦珊" ${user.name === "汤彦珊" ? "selected" : ""}>汤彦珊 · 发起人</option></select></label><button class="btn" data-action="center-refresh">↻ 刷新</button>${centerIsAdmin(user) ? '<button class="btn" data-action="center-reset-demo">↺ 重置示例数据</button>' : ""}</div></header>${renderApprovalFlowHint()}<div class="ac-workspace"><div class="ac-tabs" role="tablist">${[["todo", "待我处理"], ["mine", "我发起的"], ["copy", "抄送我的"], ["exceptions", "异常中心"], ["done", "已处理"]].map(([view, label]) => `<button role="tab" aria-selected="${center.view === view}" class="${center.view === view ? "active" : ""}" data-action="center-view" data-view="${view}">${label}<span>${view === "done" ? processed : counts[view]}</span></button>`).join("")}</div>${renderCenterFilters()}<div class="ac-workbench ${selected ? "has-selection" : ""}"><aside class="ac-queue"><div class="ac-queue-toolbar"><span>共 <b>${rows.length}</b> 条</span><select aria-label="审批排序" data-center-control="sort"><option value="priority" ${center.sort === "priority" ? "selected" : ""}>优先处理</option><option value="oldest" ${center.sort === "oldest" ? "selected" : ""}>最早提交</option></select></div><div class="ac-queue-scroll">${list || `<div class="ac-empty"><span>✓</span><strong>${center.view === "exceptions" ? "当前没有匹配的异常记录" : "当前没有匹配的审批"}</strong><p>${center.view === "exceptions" ? "调整筛选条件，或查看其他视图。" : "调整筛选条件，或切换其他视图。"}</p></div>`}</div><div class="ac-queue-foot">${center.view === "exceptions" ? "异常跟进与审批结果独立记录 · 已读不会清除异常" : center.view === "mine" ? "节点内任一人通过即可流转 · 发起人可按需催办" : center.view === "done" ? "展示本人已通过/驳回且无业务异常的审批；历史记录持续保留" : "节点内任一人通过即可流转 · 当前视图仅展示处理任务"}</div></aside><main class="ac-detail" aria-label="审批详情">${selected ? renderCenterDetail(selected) : `<div class="ac-empty ac-detail-empty"><span>▤</span><strong>${center.view === "exceptions" ? "选择一条异常查看原因与下一步" : "选择一条审批开始处理"}</strong><p>${center.view === "exceptions" ? "按处理责任跟进，审批与执行状态分别保留。" : "先核对业务影响，再提交审批结果。<br>已读状态不会改变审批进度。"}</p>${rows.length ? `<button class="btn primary" data-action="center-open" data-approval-id="${esc(rows[0].id)}">${center.view === "exceptions" ? "查看第一条异常" : "开始处理第一条"} →</button>` : ""}</div>`}</main></div></div><p class="ac-prototype-note">当前为本地交互演示；审批状态保存在本浏览器，不会向钉钉发送消息或执行线上固件操作。</p></section>`;
   }
 
   function renderCenterFlow(approval, includeSnapshot = true, flowOptions = {}) {
@@ -5231,6 +5239,12 @@
     }
     const action = target.dataset.action;
     if (handleApprovalCenterAction(action, target)) return;
+    if (action === "dismiss-flow-hint") {
+      state.flowHintDismissed = true;
+      try { localStorage.setItem(flowHintStorageKey, "1"); } catch (_error) { /* in-memory dismissal is enough */ }
+      renderShell();
+      return;
+    }
     if (action === "version-approval-detail" || action === "version-open-center" || action === "open-approval-exception") {
       const approval = approvalById(target.dataset.approvalId);
       if (!approval) { toast("审批记录不存在", "warning"); return; }

@@ -902,6 +902,11 @@ button { color: inherit; }
 .profile-summary h3 { margin: 0 0 7px; }
 
 .approval-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 14px 18px 0; padding: 12px 14px; border: 1px solid #e8c47d; border-radius: 5px; background: #fff9eb; }
+.approval-flow-hint { position: relative; display: flex; align-items: center; gap: 8px 16px; margin: 12px 0 14px; padding: 10px 38px 10px 13px; border: 1px solid #d9e7f5; border-radius: 5px; background: #f6faff; color: #536f92; font-size: 12px; line-height: 1.5; }
+.approval-flow-hint strong { color: #24528a; font-weight: 600; }
+.approval-flow-hint small { color: #7c91ad; font-size: 11px; }
+.approval-flow-hint button { position: absolute; top: 7px; right: 8px; width: 22px; height: 22px; border: 0; background: transparent; color: #8aa0b9; font-size: 17px; line-height: 1; cursor: pointer; }
+.approval-flow-hint button:hover { color: #2475d5; }
 .approval-banner strong, .approval-banner span { display: block; }
 .approval-banner span { margin-top: 4px; color: var(--text-2); font-size: 12px; }
 .current-release-card { border: 1px solid #bad7c8; border-radius: 6px; background: #fff; box-shadow: 0 2px 10px rgba(28, 72, 51, .05); }
@@ -1895,6 +1900,7 @@ button { color: inherit; }
 .drawer[aria-label="固件版本详情"] .drawer-footer { min-height: 68px; padding: 10px 22px; background: #fff; box-shadow: 0 -5px 14px rgba(34, 52, 76, .06); }
 
 @media (max-width: 980px) {
+  .approval-flow-hint { align-items: flex-start; flex-direction: column; gap: 2px; }
   .policy-layout { grid-template-columns: minmax(0, 1fr); }
   .policy-line-panel { border-right: 0; border-bottom: 1px solid var(--line); }
   .policy-line-list { display: flex; overflow-x: auto; }

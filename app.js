@@ -2994,13 +2994,13 @@
       const editable = canEditVersion(identifier, version);
       const publishable = versionPublishEligibility(identifier, version).allowed;
       const deletable = version.status === "unpublished";
-      const detail = `<button class="link-btn" data-action="version-detail" data-version="${esc(version.version)}">详情</button>`;
+      const versionApproval = db.approvals.find(item => item.firmwareId === identifier.id && item.version === version.version && item.approvalStatus === "审批中");
+      const detail = versionApproval ? "" : `<button class="link-btn" data-action="version-detail" data-version="${esc(version.version)}">详情</button>`;
       const publish = publishable ? version.status === "delisted"
         ? `<span class="action-with-rules"><button class="link-btn" data-action="publish-version" data-version="${esc(version.version)}">发布</button>${ruleAnnotation("delist", "DEL-R10")}</span>`
         : `<button class="link-btn" data-action="publish-version" data-version="${esc(version.version)}">发布</button>` : "";
       const edit = editable ? `<button class="link-btn" data-action="edit-version" data-version="${esc(version.version)}">编辑</button>` : "";
       const remove = deletable ? `<button class="link-btn danger-link" data-action="delete-version" data-version="${esc(version.version)}">删除</button>` : "";
-      const versionApproval = db.approvals.find(item => item.firmwareId === identifier.id && item.version === version.version && item.approvalStatus === "审批中");
       const approvalTag = versionApproval ? `<span class="tag blue firmware-approval-row-tag">审批中</span>` : "";
       const approvalDetail = versionApproval ? `<button class="link-btn" data-action="version-approval-detail" data-approval-id="${esc(versionApproval.id)}">审批详情</button>` : "";
       return `<tr><td><div class="firmware-version-cell"><strong>${esc(version.version)}</strong>${approvalTag}</div></td>${columns.url ? `<td><div class="cell-actions"><span class="cell-truncate" title="${esc(version.url)}">${esc(version.url)}</span><button class="link-btn" title="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button></div></td>` : ""}${columns.size ? `<td>${esc(version.size)}</td>` : ""}${columns.models ? `<td>${esc(version.models)}</td>` : ""}${columns.devices ? `<td>${formatDeviceCount(version.associatedDeviceCount)}</td>` : ""}${columns.features ? `<td>${version.associatedFeatures?.length || 0}</td>` : ""}${columns.creator ? `<td>${esc(version.creator)}</td>` : ""}${columns.note ? `<td class="cell-truncate" title="${esc(version.platformReleaseNotes)}">${esc(version.platformReleaseNotes)}</td>` : ""}${columns.updated ? `<td>${esc(version.updated)}</td>` : ""}<td><div class="cell-actions firmware-row-actions">${approvalDetail}${detail}${publish}${edit}${remove}</div></td></tr>`;

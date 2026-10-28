@@ -1518,7 +1518,7 @@
       location.hash = "#/firmware";
       return;
     }
-    state.drawer = { type: "versionDetail", version: version.version, tab: "approvals", flowExpanded: {} };
+    state.drawer = { type: "versionDetail", version: version.version, tab: "approvals", flowExpanded: {}, historyExpanded: {} };
     renderShell();
   }
 
@@ -3503,7 +3503,7 @@
     const modeHint = currentPeople.length > 1 ? "任意 1 人处理后节点结束" : "按节点顺序处理";
     const statusLabel = approval.approvalStatus === "审批中" ? "待审批" : approval.approvalStatus || "-";
     const overview = `<div class="ac-flow-overview"><div><span>当前节点</span><strong>${esc(currentNode)}</strong></div><div><span>当前待处理人</span><div class="ac-flow-overview-people">${currentPeopleMarkup}</div></div><div><span>审批节点总数</span><strong>${tasks.length} 个</strong></div><div><span>审批方式</span><strong class="ac-flow-overview-pill">${modeLabel}</strong><small>${modeHint}</small></div><div><span>流程状态</span><strong class="ac-flow-overview-status">◷ ${esc(statusLabel)}</strong></div></div>`;
-    const snapshotMarkup = overview;
+    const snapshotMarkup = includeSnapshot ? overview : "";
     const controls = `<div class="ac-flow-controls"><span><button type="button" data-action="${actionPrefix}-expand-all" data-approval-id="${esc(approval.id)}">展开全部</button><i>|</i><button type="button" data-action="${actionPrefix}-collapse-all" data-approval-id="${esc(approval.id)}">收起全部</button></span></div>`;
     return `${snapshotMarkup}${controls}<div class="ac-flow-timeline">${taskCards || '<div class="ac-flow-person-empty">暂无审批节点</div>'}<div class="ac-flow-completion ${completed ? "complete" : "pending"}"><span class="ac-flow-completion-dot">${completed ? "✓" : ""}</span><strong>${esc(completionLabel)}</strong><time>${esc(completionTime)}</time></div></div>`;
   }
@@ -4677,6 +4677,41 @@
     return drawerFrame(title, formBody, `<button class="btn" data-action="close-overlay">取消</button><span class="action-with-rules"><button class="btn primary" type="submit" form="version-form" ${configurable ? "" : "disabled"}>${saveLabel}</button>${ruleAnnotation("version", editing ? "VER-R07" : "VER-R04")}</span>`);
   }
 
+  function versionApprovalFlowState(approval, expanded = false) {
+    const result = {};
+    (approval?.tasks || []).forEach(task => { result[`${approval.id}:${task.sequence}`] = expanded || task.status === "审批中"; });
+    return result;
+  }
+
+  function renderVersionApprovalMaterials(approval) {
+    const files = [
+      ...(approval.testReportFiles || []).map((file, index) => ({ file, kind: "testReport", label: "测试报告", index })),
+      ...(approval.meetingMinutesFiles || []).map((file, index) => ({ file, kind: "meetingMinutes", label: "会议纪要", index }))
+    ];
+    if (!files.length) return "";
+    return `<div class="approval-card-materials"><span>审批材料</span><div>${files.map(item => `<small>${esc(item.label)} · ${esc(item.file.name || "附件")} <button class="link-btn" data-action="preview-approval-material" data-approval-id="${esc(approval.id)}" data-material-kind="${item.kind}" data-material-index="${item.index}">预览</button><button class="link-btn" data-action="download-approval-material" data-approval-id="${esc(approval.id)}" data-material-kind="${item.kind}" data-material-index="${item.index}">下载</button></small>`).join("")}</div></div>`;
+  }
+
+  function renderVersionApprovalSummary(approval) {
+    const task = currentApprovalTask(approval);
+    const status = approvalTaskDisplayStatus(approval.approvalStatus);
+    return `<div class="version-approval-summary"><div><span>当前节点</span><strong>${esc(task ? `第 ${task.sequence} 级 · ${approvalTaskRoleLabel(approval, task)}` : status)}</strong></div><div><span>当前待处理人</span><strong>${esc(taskPeople(task).map(person => person.name).join("、") || "-")}</strong></div><div><span>审批节点</span><strong>${(approval.tasks || []).length} 级</strong></div><div><span>流程状态</span><b class="tag ${status === "已通过" ? "success" : ["已驳回", "已撤回", "已失效"].includes(status) ? "danger" : "blue"}">${esc(status)}</b></div></div>`;
+  }
+
+  function renderVersionApprovalCard(approval, expanded = false, current = false) {
+    const exception = centerExceptions(approval)[0];
+    const status = approvalTaskDisplayStatus(approval.approvalStatus);
+    const statusClass = status === "已通过" ? "success" : ["已驳回", "已撤回", "已失效"].includes(status) ? "danger" : "blue";
+    const canProcess = status === "审批中" || exception?.pending;
+    if (!current && !expanded) return `<article class="version-approval-history-row"><button type="button" data-action="version-history-toggle" data-approval-id="${esc(approval.id)}" aria-expanded="false"><span><strong>${esc(approvalOperationLabel(approval.type))}</strong><small>${esc(approval.submitTime)} · ${esc(approval.policyVersion || "LEGACY")}</small></span><span class="tag ${statusClass}">${esc(status)}</span><span aria-hidden="true">⌄</span></button></article>`;
+    const flow = renderCenterFlow(approval, false, { expanded: versionApprovalFlowState(approval, current ? false : true), actionPrefix: "version-flow" });
+    const process = canProcess && !current ? `<button class="link-btn approval-card-detail" data-action="version-open-center" data-approval-id="${esc(approval.id)}">进入审批中心处理</button>` : "";
+    const exceptionMarkup = exception ? `<div class="approval-card-exception"><span class="tag danger">${esc(exception.label)}</span><span>${esc(exception.owner)}</span><p>${esc(exception.next)}</p>${exception.pending ? `<button class="link-btn" data-action="open-approval-exception" data-approval-id="${esc(approval.id)}">前往异常中心处理</button>` : ""}</div>` : "";
+    const body = `${current ? renderVersionApprovalSummary(approval) : ""}${flow}${renderVersionApprovalMaterials(approval)}${exceptionMarkup}${process}`;
+    const historyToggle = current ? "" : `<button class="link-btn version-history-collapse" data-action="version-history-toggle" data-approval-id="${esc(approval.id)}">收起</button>`;
+    return `<article class="approval-card version-approval-card ${current ? "version-current-approval" : "version-history-expanded"}"><div class="approval-card-head"><div><strong>${esc(approvalOperationLabel(approval.type))}审批</strong><span>${esc(approval.submitTime)} · ${esc(approval.policyVersion || "LEGACY")}</span></div><span class="tag ${statusClass}">${esc(status)}</span>${historyToggle}</div>${body}</article>`;
+  }
+
   function renderVersionDetail(version) {
     const tab = state.drawer.tab || "related";
     const associatedFeatures = version.associatedFeatures || [];
@@ -4699,8 +4734,11 @@
       tabContent = `<div class="detail-section-toolbar"><div><strong>功能项配置</strong><span>发布时冻结 ${associatedFeatures.length} 项功能项配置</span></div></div>${associatedFeatures.length ? `<div class="table-wrap detail-table-wrap"><table class="data-table detail-content-table feature-point-detail-table"><thead><tr><th>功能名称</th><th>功能分类</th><th>配置版本</th><th>版本状态</th><th>版本说明</th></tr></thead><tbody>${featureRows}</tbody></table></div>` : `<div class="empty-state detail-empty-state"><div><div class="empty-illustration">▤</div><strong>未记录功能项配置</strong><span>该版本没有可展示的功能项快照</span></div></div>`}`;
     }
     if (tab === "approvals") {
-      const rows = versionApprovals;
-      tabContent = `<div class="detail-section-toolbar"><div><strong>审批日志</strong><span>共 ${rows.length} 条与当前版本关联的审批记录</span></div></div>${rows.length ? `<div class="approval-timeline">${rows.map(row => { const exception = centerExceptions(row)[0]; const materialFiles = [...(row.testReportFiles || []).map((file, index) => ({ ...file, kind: "测试报告", materialKind: "testReport", materialIndex: index })), ...(row.meetingMinutesFiles || []).map((file, index) => ({ ...file, kind: "会议纪要", materialKind: "meetingMinutes", materialIndex: index }))]; const materialCount = materialFiles.length; const canProcess = row.approvalStatus === "审批中" || exception?.pending; const materialMarkup = materialCount ? `<div class="approval-card-materials"><span>审批材料</span><div>${materialFiles.map(file => `<small>${esc(file.kind)} · ${esc(file.name || "附件")} <button class="link-btn" data-action="preview-approval-material" data-approval-id="${esc(row.id)}" data-material-kind="${file.materialKind}" data-material-index="${file.materialIndex}">预览</button><button class="link-btn" data-action="download-approval-material" data-approval-id="${esc(row.id)}" data-material-kind="${file.materialKind}" data-material-index="${file.materialIndex}">下载</button></small>`).join("")}</div></div>` : ""; return `<article class="approval-card ${exception ? "has-exception" : ""}"><div class="approval-card-head"><div><strong>${esc(approvalOperationLabel(row.type))}审批</strong><span>${esc(row.submitTime)} · ${esc(row.policyVersion || "LEGACY")}</span></div><span class="tag ${row.approvalStatus === "已通过" ? "success" : ["已驳回", "已撤回", "已失效"].includes(row.approvalStatus) ? "danger" : "blue"}">${esc(approvalTaskDisplayStatus(row.approvalStatus))}</span></div>${renderCenterFlow(row, true, { expanded: state.drawer.flowExpanded ||= {}, actionPrefix: "version-flow" })}${materialMarkup}${exception ? `<div class="approval-card-exception"><span class="tag danger">${esc(exception.label)}</span><span>${esc(exception.owner)}</span><p>${esc(exception.next)}</p><button class="link-btn" data-action="open-approval-exception" data-approval-id="${esc(row.id)}">前往异常中心处理</button></div>` : ""}${canProcess ? `<button class="link-btn approval-card-detail" data-action="version-open-center" data-approval-id="${esc(row.id)}">进入审批中心处理</button>` : ""}</article>`; }).join("")}</div>` : `<div class="empty-state detail-empty-state"><div><div class="empty-illustration">▤</div><strong>暂无审批记录</strong></div></div>`}`;
+      const currentApproval = versionApprovals.find(item => item.approvalStatus === "审批中") || null;
+      const historyApprovals = versionApprovals.filter(item => item.id !== currentApproval?.id);
+      const expandedHistory = state.drawer.historyExpanded ||= {};
+      const history = historyApprovals.map(row => expandedHistory[row.id] ? renderVersionApprovalCard(row, true) : renderVersionApprovalCard(row, false)).join("");
+      tabContent = `<div class="detail-section-toolbar"><div><strong>审批日志</strong><span>${currentApproval ? "当前审批与历史记录" : `共 ${versionApprovals.length} 条历史审批记录`}</span></div></div>${currentApproval ? `<section class="version-current-approval-section"><div class="version-approval-section-label">当前审批</div>${renderVersionApprovalCard(currentApproval, true, true)}</section>` : `<div class="empty-state compact-empty"><div>当前没有进行中的审批</div></div>`}${historyApprovals.length ? `<section class="version-approval-history"><div class="version-approval-section-label">历史审批记录</div>${history}</section>` : ""}`;
     }
     if (tab === "appNotes") {
       const maintainable = !activeIdentifier().activeApproval && version.status === "current";
@@ -4711,7 +4749,9 @@
     if (tab === "releases") {
       tabContent = `<div class="detail-section-toolbar"><div><strong>发布记录</strong><span>共 ${releaseRecords.length} 条版本生效或退出当前状态的记录</span></div></div>${releaseRecords.length ? `<div class="release-event-list">${releaseRecords.map(item => { const isRollback = item.action === "rollback"; const isDelist = item.action === "delist"; const actionLabel = isRollback ? "回滚恢复" : isDelist ? "版本下架" : "正常发布"; const direction = isDelist ? esc(item.fromVersion || version.version) : `${esc(item.fromVersion || "-")} → ${esc(item.toVersion || "-")}`; const eventStatus = item.status === "active" ? "当前生效" : item.status === "rolled_back" ? "已回滚" : item.status === "delisted" ? "已下架" : "历史事件"; return `<article><div class="release-event-mark ${item.action}">${isRollback ? "回" : isDelist ? "下" : "发"}</div><div><strong>${actionLabel} · ${direction}</strong><span>${esc(item.effectiveAt)} · ${esc(item.operator)}</span><small>${esc(eventStatus)}${isDelist ? "" : ` · ${esc(reminderLabel(item.reminderPolicy))}`}</small></div></article>`; }).join("")}</div>` : `<div class="empty-state detail-empty-state"><div><div class="empty-illustration">▤</div><strong>暂无发布记录</strong></div></div>`}`;
     }
-    return drawerFrame("固件版本详情", `${ruleContextBar(["detail", tab === "appNotes" ? "locale" : "detail"])}<section class="version-detail-overview"><div class="version-detail-heading"><div><span>固件版本</span><h3>${esc(version.version)} <span class="tag ${statusClass}">${esc(versionStatusLabel(version.status))}</span>${versionApprovalTag}</h3><p>固件标识 ${esc(activeIdentifier().id)} · 记录版本 R${Number(version.recordVersion || 1)}</p></div></div><div class="version-detail-summary"><div><span>适用机型</span><strong>${esc(version.models || "-")}</strong></div><div><span>关联设备</span><strong>${formatDeviceCount(version.associatedDeviceCount)} 台</strong></div><div><span>${effectiveEvent ? "最近生效时间" : "生效状态"}</span><strong>${esc(effectiveTime)}</strong></div><div><span>APP 提醒方式</span><strong>${esc(reminderText)}</strong></div></div><div class="version-detail-note"><span>平台发布说明</span><p>${esc(version.platformReleaseNotes || "-")}</p></div></section><section class="version-artifact-section"><div class="version-detail-section-head"><h3>固件包信息</h3><span>制品与修订信息</span></div><div class="version-artifact-grid"><div class="wide"><span>文件名</span><strong title="${esc(fileName)}">${esc(fileName)}</strong></div><div><span>文件大小</span><strong>${esc(version.size)} MB</strong></div><div class="wide"><span>MD5</span><strong class="mono-value">${esc(version.md5 || "-")}</strong></div><div><span>记录版本</span><strong>R${Number(version.recordVersion || 1)}</strong></div><div><span>创建人</span><strong>${esc(version.creator || "-")}</strong></div><div><span>创建时间</span><strong>${esc(version.created || version.updated || "-")}</strong></div><div><span>最后更新时间</span><strong>${esc(version.updated || "-")}</strong></div></div><div class="version-download-row"><div><span>下载地址</span><strong title="${esc(version.url)}">${esc(version.url)}</strong></div><div class="version-download-actions"><button class="btn icon-btn" title="复制下载地址" aria-label="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button><a class="btn icon-btn" href="${esc(version.url)}" download title="下载固件" aria-label="下载固件">⇩</a></div></div></section><div class="tab-strip detail-tabs"><button class="tab ${tab === "related" ? "active" : ""}" data-action="detail-tab" data-tab="related">功能项配置</button><button class="tab ${tab === "appNotes" ? "active" : ""}" data-action="detail-tab" data-tab="appNotes">APP 更新说明</button><button class="tab ${tab === "releases" ? "active" : ""}" data-action="detail-tab" data-tab="releases">发布记录</button><button class="tab ${tab === "approvals" ? "active" : ""}" data-action="detail-tab" data-tab="approvals">审批日志</button></div><div class="detail-tab-content">${tabContent}</div>`);
+    const versionActionApproval = versionApprovals.find(item => item.approvalStatus === "审批中") || versionApprovals.find(item => centerExceptions(item).some(exception => exception.pending));
+    const versionFooter = versionApprovals.length ? `<div class="version-detail-footer-context"><div><strong>${versionActionApproval ? "当前审批可继续处理" : "审批流程已结束"}</strong><small>固件列表仅用于查看审批进度，审批操作统一在审批中心完成</small></div><button class="btn primary" data-action="version-open-center" data-approval-id="${esc((versionActionApproval || versionApprovals[0]).id)}">${versionActionApproval ? "进入审批中心处理" : "进入审批中心查看"}</button></div>` : `<button class="btn" data-action="close-overlay">关闭</button>`;
+    return drawerFrame("固件版本详情", `${ruleContextBar(["detail", tab === "appNotes" ? "locale" : "detail"])}<section class="version-detail-overview"><div class="version-detail-heading"><div><span>固件版本</span><h3>${esc(version.version)} <span class="tag ${statusClass}">${esc(versionStatusLabel(version.status))}</span>${versionApprovalTag}</h3><p>固件标识 ${esc(activeIdentifier().id)} · 记录版本 R${Number(version.recordVersion || 1)}</p></div></div><div class="version-detail-summary"><div><span>适用机型</span><strong>${esc(version.models || "-")}</strong></div><div><span>关联设备</span><strong>${formatDeviceCount(version.associatedDeviceCount)} 台</strong></div><div><span>${effectiveEvent ? "最近生效时间" : "生效状态"}</span><strong>${esc(effectiveTime)}</strong></div><div><span>APP 提醒方式</span><strong>${esc(reminderText)}</strong></div></div><div class="version-detail-note"><span>平台发布说明</span><p>${esc(version.platformReleaseNotes || "-")}</p></div></section><section class="version-artifact-section"><div class="version-detail-section-head"><h3>固件包信息</h3><span>制品与修订信息</span></div><div class="version-artifact-grid"><div class="wide"><span>文件名</span><strong title="${esc(fileName)}">${esc(fileName)}</strong></div><div><span>文件大小</span><strong>${esc(version.size)} MB</strong></div><div class="wide"><span>MD5</span><strong class="mono-value">${esc(version.md5 || "-")}</strong></div><div><span>记录版本</span><strong>R${Number(version.recordVersion || 1)}</strong></div><div><span>创建人</span><strong>${esc(version.creator || "-")}</strong></div><div><span>创建时间</span><strong>${esc(version.created || version.updated || "-")}</strong></div><div><span>最后更新时间</span><strong>${esc(version.updated || "-")}</strong></div></div><div class="version-download-row"><div><span>下载地址</span><strong title="${esc(version.url)}">${esc(version.url)}</strong></div><div class="version-download-actions"><button class="btn icon-btn" title="复制下载地址" aria-label="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button><a class="btn icon-btn" href="${esc(version.url)}" download title="下载固件" aria-label="下载固件">⇩</a></div></div></section><div class="tab-strip detail-tabs"><button class="tab ${tab === "related" ? "active" : ""}" data-action="detail-tab" data-tab="related">功能项配置</button><button class="tab ${tab === "appNotes" ? "active" : ""}" data-action="detail-tab" data-tab="appNotes">APP 更新说明</button><button class="tab ${tab === "releases" ? "active" : ""}" data-action="detail-tab" data-tab="releases">发布记录</button><button class="tab ${tab === "approvals" ? "active" : ""}" data-action="detail-tab" data-tab="approvals">审批日志</button></div><div class="detail-tab-content">${tabContent}</div>`, versionFooter);
   }
 
   function renderUserDetail(user) {
@@ -5198,6 +5238,14 @@
       if (!approval) { toast("审批记录不存在", "warning"); return; }
       if (action === "version-approval-detail") openVersionApprovalDetail(approval);
       else openApprovalCenterFor(approval);
+      return;
+    }
+    if (action === "version-history-toggle") {
+      if (state.drawer?.type !== "versionDetail") return;
+      state.drawer.historyExpanded ||= {};
+      const id = target.dataset.approvalId;
+      state.drawer.historyExpanded[id] = !state.drawer.historyExpanded[id];
+      renderShell();
       return;
     }
     if (["version-flow-toggle", "version-flow-expand-all", "version-flow-collapse-all"].includes(action)) {
@@ -5842,7 +5890,7 @@
       return;
     }
     if (action === "version-detail") {
-      state.drawer = { type: "versionDetail", version: target.dataset.version, tab: "related", flowExpanded: {} };
+      state.drawer = { type: "versionDetail", version: target.dataset.version, tab: "related", flowExpanded: {}, historyExpanded: {} };
       renderShell();
       return;
     }
@@ -7298,7 +7346,7 @@
       const version = identifier?.versions.find(item => item.version === pending.version);
       if (identifier && version) {
         state.selectedIdentifier = identifier.id;
-        state.drawer = { type: "versionDetail", version: version.version, tab: "approvals", flowExpanded: {} };
+        state.drawer = { type: "versionDetail", version: version.version, tab: "approvals", flowExpanded: {}, historyExpanded: {} };
       }
     }
     openApprovalDeepLink();

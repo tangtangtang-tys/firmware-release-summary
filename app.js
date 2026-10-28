@@ -1440,6 +1440,7 @@
     expandedDifferentialPackages: [],
     expandedLifecycleFlows: [lifecycleFlows(db.identifiers[0]?.lifecycleEvents || []).find(flow => flow.flowStatus === "active")?.flowId].filter(Boolean)
   };
+  state.pendingVersionApproval = null;
 
   const app = document.getElementById("app");
   const toastLayer = document.getElementById("toast-layer");
@@ -1501,6 +1502,24 @@
     } else {
       location.hash = target;
     }
+  }
+
+  function openVersionApprovalDetail(approval) {
+    if (!approval) return;
+    const identifier = db.identifiers.find(item => item.id === approval.firmwareId)
+      || db.identifiers.find(item => String(approval.version || "").startsWith(`${item.id}.`));
+    const version = identifier?.versions.find(item => item.version === approval.version);
+    if (!identifier || !version) { openApprovalCenterFor(approval); return; }
+    state.selectedIdentifier = identifier.id;
+    state.firmwareTab = "firmware";
+    state.modal = null;
+    if (state.route !== "firmware") {
+      state.pendingVersionApproval = { firmwareId: identifier.id, version: version.version };
+      location.hash = "#/firmware";
+      return;
+    }
+    state.drawer = { type: "versionDetail", version: version.version, tab: "approvals", flowExpanded: {} };
+    renderShell();
   }
 
   function findPrototypeRule(context, ruleId) {
@@ -1672,7 +1691,7 @@
     }
     if (identifier.activeApproval) {
       if (identifier.activeApproval.type === "publish" && identifier.activeApproval.version === version.version) {
-        openApprovalCenterFor(approvalById(identifier.activeApproval.approvalId));
+        openVersionApprovalDetail(approvalById(identifier.activeApproval.approvalId));
         return true;
       }
       toast("当前固件标识已有发布、回滚或下架审批", "warning");
@@ -2981,7 +3000,10 @@
         : `<button class="link-btn" data-action="publish-version" data-version="${esc(version.version)}">发布</button>` : "";
       const edit = editable ? `<button class="link-btn" data-action="edit-version" data-version="${esc(version.version)}">编辑</button>` : "";
       const remove = deletable ? `<button class="link-btn danger-link" data-action="delete-version" data-version="${esc(version.version)}">删除</button>` : "";
-      return `<tr><td>${esc(version.version)}</td>${columns.url ? `<td><div class="cell-actions"><span class="cell-truncate" title="${esc(version.url)}">${esc(version.url)}</span><button class="link-btn" title="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button></div></td>` : ""}${columns.size ? `<td>${esc(version.size)}</td>` : ""}${columns.models ? `<td>${esc(version.models)}</td>` : ""}${columns.devices ? `<td>${formatDeviceCount(version.associatedDeviceCount)}</td>` : ""}${columns.features ? `<td>${version.associatedFeatures?.length || 0}</td>` : ""}${columns.creator ? `<td>${esc(version.creator)}</td>` : ""}${columns.note ? `<td class="cell-truncate" title="${esc(version.platformReleaseNotes)}">${esc(version.platformReleaseNotes)}</td>` : ""}${columns.updated ? `<td>${esc(version.updated)}</td>` : ""}<td><div class="cell-actions firmware-row-actions">${detail}${publish}${edit}${remove}</div></td></tr>`;
+      const versionApproval = db.approvals.find(item => item.firmwareId === identifier.id && item.version === version.version && item.approvalStatus === "审批中");
+      const approvalTag = versionApproval ? `<span class="tag blue firmware-approval-row-tag">审批中</span>` : "";
+      const approvalDetail = versionApproval ? `<button class="link-btn" data-action="version-approval-detail" data-approval-id="${esc(versionApproval.id)}">审批详情</button>` : "";
+      return `<tr><td><div class="firmware-version-cell"><strong>${esc(version.version)}</strong>${approvalTag}</div></td>${columns.url ? `<td><div class="cell-actions"><span class="cell-truncate" title="${esc(version.url)}">${esc(version.url)}</span><button class="link-btn" title="复制下载地址" data-action="copy" data-copy="${esc(version.url)}">▣</button></div></td>` : ""}${columns.size ? `<td>${esc(version.size)}</td>` : ""}${columns.models ? `<td>${esc(version.models)}</td>` : ""}${columns.devices ? `<td>${formatDeviceCount(version.associatedDeviceCount)}</td>` : ""}${columns.features ? `<td>${version.associatedFeatures?.length || 0}</td>` : ""}${columns.creator ? `<td>${esc(version.creator)}</td>` : ""}${columns.note ? `<td class="cell-truncate" title="${esc(version.platformReleaseNotes)}">${esc(version.platformReleaseNotes)}</td>` : ""}${columns.updated ? `<td>${esc(version.updated)}</td>` : ""}<td><div class="cell-actions firmware-row-actions">${approvalDetail}${detail}${publish}${edit}${remove}</div></td></tr>`;
     }).join("")}</tbody></table></div>`;
   }
 
@@ -4678,7 +4700,7 @@
     }
     if (tab === "approvals") {
       const rows = versionApprovals;
-      tabContent = `<div class="detail-section-toolbar"><div><strong>审批日志</strong><span>共 ${rows.length} 条与当前版本关联的审批记录</span></div></div>${rows.length ? `<div class="approval-timeline">${rows.map(row => { const exception = centerExceptions(row)[0]; const materialCount = (row.testReportFiles || []).length + (row.meetingMinutesFiles || []).length; return `<article class="approval-card ${exception ? "has-exception" : ""}"><div class="approval-card-head"><div><strong>${esc(approvalOperationLabel(row.type))}审批</strong><span>${esc(row.submitTime)} · ${esc(row.policyVersion || "LEGACY")}</span></div><span class="tag ${row.approvalStatus === "已通过" ? "success" : ["已驳回", "已撤回", "已失效"].includes(row.approvalStatus) ? "danger" : "blue"}">${esc(approvalTaskDisplayStatus(row.approvalStatus))}</span></div>${renderCenterFlow(row, true, { expanded: state.drawer.flowExpanded ||= {}, actionPrefix: "version-flow" })}${materialCount ? `<div class="approval-card-materials"><span>审批材料</span><strong>${materialCount} 个附件</strong><button class="link-btn" data-action="open-approval-log" data-approval-id="${esc(row.id)}">查看材料与操作</button></div>` : ""}${exception ? `<div class="approval-card-exception"><span class="tag danger">${esc(exception.label)}</span><span>${esc(exception.owner)}</span><p>${esc(exception.next)}</p><button class="link-btn" data-action="open-approval-exception" data-approval-id="${esc(row.id)}">前往异常中心处理</button></div>` : ""}${row.id ? `<button class="link-btn approval-card-detail" data-action="open-approval-log" data-approval-id="${esc(row.id)}">进入统一审批详情</button>` : ""}</article>`; }).join("")}</div>` : `<div class="empty-state detail-empty-state"><div><div class="empty-illustration">▤</div><strong>暂无审批记录</strong></div></div>`}`;
+      tabContent = `<div class="detail-section-toolbar"><div><strong>审批日志</strong><span>共 ${rows.length} 条与当前版本关联的审批记录</span></div></div>${rows.length ? `<div class="approval-timeline">${rows.map(row => { const exception = centerExceptions(row)[0]; const materialFiles = [...(row.testReportFiles || []).map((file, index) => ({ ...file, kind: "测试报告", materialKind: "testReport", materialIndex: index })), ...(row.meetingMinutesFiles || []).map((file, index) => ({ ...file, kind: "会议纪要", materialKind: "meetingMinutes", materialIndex: index }))]; const materialCount = materialFiles.length; const canProcess = row.approvalStatus === "审批中" || exception?.pending; const materialMarkup = materialCount ? `<div class="approval-card-materials"><span>审批材料</span><div>${materialFiles.map(file => `<small>${esc(file.kind)} · ${esc(file.name || "附件")} <button class="link-btn" data-action="preview-approval-material" data-approval-id="${esc(row.id)}" data-material-kind="${file.materialKind}" data-material-index="${file.materialIndex}">预览</button><button class="link-btn" data-action="download-approval-material" data-approval-id="${esc(row.id)}" data-material-kind="${file.materialKind}" data-material-index="${file.materialIndex}">下载</button></small>`).join("")}</div></div>` : ""; return `<article class="approval-card ${exception ? "has-exception" : ""}"><div class="approval-card-head"><div><strong>${esc(approvalOperationLabel(row.type))}审批</strong><span>${esc(row.submitTime)} · ${esc(row.policyVersion || "LEGACY")}</span></div><span class="tag ${row.approvalStatus === "已通过" ? "success" : ["已驳回", "已撤回", "已失效"].includes(row.approvalStatus) ? "danger" : "blue"}">${esc(approvalTaskDisplayStatus(row.approvalStatus))}</span></div>${renderCenterFlow(row, true, { expanded: state.drawer.flowExpanded ||= {}, actionPrefix: "version-flow" })}${materialMarkup}${exception ? `<div class="approval-card-exception"><span class="tag danger">${esc(exception.label)}</span><span>${esc(exception.owner)}</span><p>${esc(exception.next)}</p><button class="link-btn" data-action="open-approval-exception" data-approval-id="${esc(row.id)}">前往异常中心处理</button></div>` : ""}${canProcess ? `<button class="link-btn approval-card-detail" data-action="version-open-center" data-approval-id="${esc(row.id)}">进入审批中心处理</button>` : ""}</article>`; }).join("")}</div>` : `<div class="empty-state detail-empty-state"><div><div class="empty-illustration">▤</div><strong>暂无审批记录</strong></div></div>`}`;
     }
     if (tab === "appNotes") {
       const maintainable = !activeIdentifier().activeApproval && version.status === "current";
@@ -5171,6 +5193,13 @@
     }
     const action = target.dataset.action;
     if (handleApprovalCenterAction(action, target)) return;
+    if (action === "version-approval-detail" || action === "version-open-center" || action === "open-approval-exception") {
+      const approval = approvalById(target.dataset.approvalId);
+      if (!approval) { toast("审批记录不存在", "warning"); return; }
+      if (action === "version-approval-detail") openVersionApprovalDetail(approval);
+      else openApprovalCenterFor(approval);
+      return;
+    }
     if (["version-flow-toggle", "version-flow-expand-all", "version-flow-collapse-all"].includes(action)) {
       const approval = approvalById(target.dataset.approvalId);
       if (state.drawer?.type === "versionDetail" && approval) {
@@ -5891,7 +5920,7 @@
       if (Object.keys(state.errors).length) { renderShell(); return; }
       const approval = submitReleaseApproval("publish", state.modal);
       if (!approval) return;
-      openApprovalCenterFor(approval);
+      openVersionApprovalDetail(approval);
       renderShell();
       return;
     }
@@ -5916,7 +5945,7 @@
       state.modal.reason = reason;
       const approval = submitReleaseApproval("delist", state.modal);
       if (!approval) return;
-      openApprovalCenterFor(approval);
+      openVersionApprovalDetail(approval);
       renderShell();
       return;
     }
@@ -5940,14 +5969,14 @@
       if (Object.keys(state.errors).length) { renderShell(); return; }
       const approval = submitReleaseApproval("rollback", state.modal);
       if (!approval) return;
-      openApprovalCenterFor(approval);
+      openVersionApprovalDetail(approval);
       renderShell();
       return;
     }
     if (action === "view-active-approval") {
       const approvalId = activeIdentifier().activeApproval?.approvalId;
       if (!approvalId || !approvalById(approvalId)) { toast("当前没有进行中的审批", "warning"); return; }
-      openApprovalCenterFor(approvalById(approvalId));
+      openVersionApprovalDetail(approvalById(approvalId));
       return;
     }
     if (action === "preview-approval-material" || action === "download-approval-material") {
@@ -7262,6 +7291,16 @@
     state.route = nextRoute;
     state.modal = null;
     state.drawer = null;
+    if (state.pendingVersionApproval && nextRoute === "firmware") {
+      const pending = state.pendingVersionApproval;
+      state.pendingVersionApproval = null;
+      const identifier = db.identifiers.find(item => item.id === pending.firmwareId);
+      const version = identifier?.versions.find(item => item.version === pending.version);
+      if (identifier && version) {
+        state.selectedIdentifier = identifier.id;
+        state.drawer = { type: "versionDetail", version: version.version, tab: "approvals", flowExpanded: {} };
+      }
+    }
     openApprovalDeepLink();
     renderShell();
   });

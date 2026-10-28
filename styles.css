@@ -1860,9 +1860,14 @@ button { color: inherit; }
 .approval-card-materials { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; border-top: 1px solid var(--line); color: var(--text-2); font-size: 12px; }
 .approval-card-materials strong { color: var(--text); font-weight: 500; }
 .approval-card-materials .link-btn { margin-left: auto; }
+.approval-card-materials > div { display: grid; gap: 4px; min-width: 0; }
+.approval-card-materials small { color: var(--text-2); }
+.approval-card-materials small .link-btn { margin-left: 8px; }
 .approval-card-exception { display: grid; grid-template-columns: max-content max-content; gap: 5px 10px; margin-top: 12px; padding: 10px 12px; border-top: 1px solid #f0d4d4; background: #fff8f8; color: var(--text-2); font-size: 12px; }
 .approval-card-exception p { grid-column: 1 / -1; margin: 0; line-height: 1.5; }
 .approval-card-exception .link-btn { grid-column: 1 / -1; justify-self: start; }
+.firmware-version-cell { display: inline-flex; align-items: center; gap: 8px; }
+.firmware-approval-row-tag { font-size: 11px; }
 
 @media (max-width: 980px) {
   .policy-layout { grid-template-columns: minmax(0, 1fr); }

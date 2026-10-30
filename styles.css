@@ -1464,10 +1464,7 @@ button { color: inherit; }
 .rule-context-bar strong { font-size: 12px; }
 .rule-context-bar > div:first-child span { margin-top: 3px; color: var(--text-3); font-size: 10px; }
 
-/* 审批中心的需求批注紧贴对应标签，避免挤压任务数量和操作按钮。 */
-.ac-tabs .ac-tab-label { display: inline-flex; align-items: center; gap: 4px; }
-.ac-tabs .ac-tab-label > .rule-annotation-group { width: 22px; height: 22px; flex: 0 0 22px; }
-.ac-tabs .ac-tab-label > .rule-annotation-group .rule-annotation { top: -10px; left: 0; }
+/* 审批中心批注与 tab 控件分离，避免嵌套交互元素造成错位。 */
 .approval-flow-hint-title > .rule-annotation-group { width: 22px; height: 22px; flex: 0 0 22px; margin-left: 1px; }
 .approval-flow-hint-title > .rule-annotation-group .rule-annotation { top: -10px; left: 0; }
 .ac-detail-kicker > .rule-annotation-group,
@@ -4074,11 +4071,6 @@ button { color: inherit; }
 .ac-head-actions .select { min-width: 180px; font-size: 12px; }
 .ac-workspace { min-width: 0; max-width: 100%; border: 1px solid #e1e7ef; border-radius: 8px; background: #fff; overflow: hidden; }
 .ac-tabs { min-width: 0; max-width: 100%; display: flex; align-items: stretch; min-height: 55px; gap: 24px; padding: 0 24px; border-bottom: 1px solid #e9edf3; overflow-x: auto; overflow-y: hidden; }
-.ac-tabs > button { display: flex; align-items: center; gap: 7px; padding: 0 2px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #79869a; font-size: 13px; cursor: pointer; white-space: nowrap; }
-.ac-tabs > button.active { color: #2875d1; border-bottom-color: #2875d1; font-weight: 600; }
-.ac-tabs > button > span { min-width: 21px; padding: 1px 5px; border-radius: 8px; background: #f0f3f7; color: #8a99ac; font-size: 10px; text-align: center; }
-.ac-tabs > button.active > span { color: #2875d1; background: #eaf3ff; }
-.ac-tabs > .ac-notify-rules { margin-left: auto; font-size: 11px; }
 .ac-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 17px 22px; border-bottom: 1px solid #e5ebf3; }
 .ac-filters .field { width: 234px; }
 .ac-filters .select { min-width: 118px; max-width: 160px; }
@@ -4278,7 +4270,6 @@ button { color: inherit; }
   .ac-workbench.has-selection .ac-queue { display: none; }
   .ac-mobile-back { display: inline-flex; margin-bottom: 15px; font-size: 12px; }
   .ac-tabs { padding: 0 16px; gap: 18px; overflow-x: auto; }
-  .ac-tabs > .ac-notify-rules { display: none; }
   .ac-filters { padding: 14px 16px; }
   .ac-filters .field { width: 100%; }
 }
@@ -4287,8 +4278,6 @@ button { color: inherit; }
   .ac-page-head h1 { font-size: 21px; }
   .ac-page-head h1 > span { margin-left: 5px; font-size: 9px; }
   .ac-tabs { gap: 17px; padding: 0 12px; }
-  .ac-tabs > button { font-size: 12px; gap: 4px; }
-  .ac-tabs > button > span { min-width: 16px; padding: 0 3px; }
   .ac-filters { gap: 8px; }
   .ac-filters .select { width: calc(50% - 4px); max-width: none; min-width: 0; }
   .ac-workbench { height: 680px; }
@@ -4327,10 +4316,6 @@ button { color: inherit; }
 .ac-page-head p { color: #7890b0; font-size: 11px; }
 .ac-workspace { border-color: #d7e5f4; border-radius: 5px; box-shadow: 0 2px 9px rgba(55, 105, 164, .06); }
 .ac-tabs { min-height: 48px; gap: 28px; padding: 0 18px; border-bottom-color: #e1edf8; }
-.ac-tabs > button { color: #6d84a7; font-size: 12px; }
-.ac-tabs > button.active { color: #1673ed; border-bottom-width: 3px; }
-.ac-tabs > button > span { min-width: 20px; background: #edf4fc; color: #7890b0; }
-.ac-tabs > button.active > span { color: #1673ed; background: #e2efff; }
 .ac-filters { gap: 8px; padding: 10px 16px; border-bottom-color: #e2edf7; background: #fff; }
 .ac-filter-primary { gap: 8px; }
 .ac-filters .field, .ac-filters .select, .ac-filters .btn { height: 30px; min-height: 30px; font-size: 11px; }
@@ -4417,8 +4402,6 @@ button { color: inherit; }
 .ac-page-head h1 { margin: 0; color: #102b5c; font-size: 28px; line-height: 1.25; letter-spacing: -.7px; }
 .ac-eyebrow { display: none; }
 .ac-tabs { min-height: 52px; gap: 30px; padding: 0 22px; }
-.ac-tabs > button { font-size: 14px; }
-.ac-tabs > button > span { min-width: 24px; padding: 2px 6px; font-size: 12px; }
 .ac-filters { padding: 13px 18px; }
 .ac-filters .field, .ac-filters .select, .ac-filters .btn { height: 38px; min-height: 38px; font-size: 13px; }
 .ac-filters .field { width: 320px; }
@@ -4665,4 +4648,26 @@ button { color: inherit; }
 @media (max-width: 1023px) {
   .ac-stepper { margin-right: 20px; margin-left: 20px; overflow-x: auto; }
   .ac-step { min-width: 170px; }
+}
+
+/* Keep tab controls valid and align labels/counts independently from requirement pins. */
+.ac-tabs > .ac-tab-item { display: flex; align-items: stretch; min-width: 0; }
+.ac-tabs > .ac-tab-item > button { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 0 2px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #6d84a7; font-size: 14px; cursor: pointer; white-space: nowrap; }
+.ac-tabs > .ac-tab-item > button.active { color: #1673ed; border-bottom-width: 3px; border-bottom-color: #1673ed; font-weight: 600; }
+.ac-tabs > .ac-tab-item > button > span { min-width: 24px; padding: 2px 6px; border-radius: 8px; background: #edf4fc; color: #7890b0; font-size: 12px; line-height: 1.2; text-align: center; }
+.ac-tabs > .ac-tab-item > button.active > span { color: #1673ed; background: #e2efff; }
+.ac-tabs { min-height: 62px; padding-top: 10px; }
+.ac-tabs > .ac-tab-item > .rule-annotation-group { position: absolute; top: 10px; left: 100%; width: 70px; height: 0; }
+.ac-tabs > .ac-tab-item > .rule-annotation-group .rule-annotation { top: -10px; left: 10px; }
+.ac-tabs > .ac-tab-item > .rule-annotation-group .rule-annotation:nth-child(2) { left: 34px; }
+.ac-tabs > .ac-tab-item > .rule-annotation-group .rule-annotation:nth-child(3) { left: 58px; }
+@media (max-width: 767px) {
+  .ac-tabs > .ac-tab-item > button { gap: 4px; font-size: 12px; }
+  .ac-tabs > .ac-tab-item > button > span { min-width: 16px; padding: 0 3px; }
+}
+@media (max-width: 420px) {
+  .ac-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 4px; overflow: visible; min-height: 0; padding: 10px 12px 0; }
+  .ac-tabs > .ac-tab-item { min-width: 0; }
+  .ac-tabs > .ac-tab-item > button { width: 100%; min-height: 42px; justify-content: flex-start; }
+  .ac-tabs > .ac-tab-item > .rule-annotation-group { top: 0; }
 }

@@ -653,7 +653,7 @@
         ["POL-R09", "保存方案版本", "审计", "新建保存生成 V1，编辑保存生成递增版本，并保留完整快照、变更说明和变更人时间", "历史审批继续使用提交时冻结的原方案版本"],
         ["POL-R10", "保存后立即生效", "状态", "审批方案首次保存成功后默认处于已启用状态，作为对应操作的当前生效版本", "后续新申请读取已启用的最新版本，在途审批不被改写"],
         ["POL-R11", "查看版本记录", "交互", "版本记录以只读抽屉展示版本列表、完整快照、审批节点、抄送人员和版本变化", "历史版本可追溯但不能直接编辑"],
-        ["POL-R12", "预览审批模板", "交互", "根据当前固定审批操作展示对应平台审批任务，动态字段由固件申请带入", "保存前可核对业务字段与审批链路表现"]
+        ["POL-R12", "预览钉钉通知模板", "交互", "根据当前审批操作展示钉钉通知模板，动态字段由固件申请带入；审批处理在平台审批中心完成", "保存前可核对通知字段、审批节点摘要与平台处理入口"]
       ]
     },
     approvalCenter: {
@@ -4559,21 +4559,18 @@
     const definitions = {
       publish: {
         title: "固件版本发布",
-        fields: [["所属产品线", productLine, false], ["发布固件版本", "提交时带入", true], ["测试报告", "发起人必须上传", true], ["会议纪要", "第 1 级审批人可选填", true], ["适用机型", "提交时带入", true]],
-        reasonLabel: "发布原因",
-        boundary: "按方案配置顺序逐级审批，全部通过后系统自动正式发布"
+        fields: [["所属产品线", productLine, false], ["发布固件版本", "提交时带入", true], ["测试报告", "发起人必须上传", true], ["会议纪要", "第 1 级审批人可选填", true], ["适用机型", "提交时带入", true], ["关联设备数", "提交时带入（台）", true], ["APP 提醒方式", "提交时带入", true]],
+        reasonLabel: "发布原因"
       },
       rollback: {
         title: "固件版本回滚",
-        fields: [["所属产品线", productLine, false], ["当前固件版本", "提交时带入", true], ["回滚目标版本", "系统自动锁定", true], ["APP 升级提醒", "提交时带入", true]],
-        reasonLabel: "回滚原因",
-        boundary: "在途审批人冻结，不支持替换或代理"
+        fields: [["所属产品线", productLine, false], ["当前固件版本", "提交时带入", true], ["回滚目标版本", "系统自动锁定", true], ["关联设备数", "提交时带入（台）", true], ["APP 提醒方式", "提交时带入", true]],
+        reasonLabel: "回滚原因"
       },
       delist: {
         title: "固件版本下架",
-        fields: [["所属产品线", productLine, false], ["下架固件版本", "当前发布版本", true], ["适用机型", "提交时带入", true], ["影响设备数", "提交时计算", true]],
-        reasonLabel: "下架原因",
-        boundary: "在途审批人冻结，不支持替换或代理"
+        fields: [["所属产品线", productLine, false], ["下架固件版本", "当前发布版本", true], ["适用机型", "提交时带入", true], ["关联设备数", "提交时带入（台）", true], ["APP 提醒方式", "下架不触发 APP 升级提醒", false]],
+        reasonLabel: "下架原因"
       }
     };
     return definitions[operation] || null;
@@ -4586,11 +4583,11 @@
     const definition = approvalPolicyPreviewDefinition(previewOperation, draft.productLine);
     const previewNodes = nodes.map((node, index) => {
       const names = nodeApproverIds(node).map(id => db.users.find(item => item.userId === id)?.name || id);
-      return `<div class="dingtalk-node"><span>${index + 1}</span><div><strong>${esc(names.join("、") || "待选择审批人")}</strong><small>${names.length} 人或签 · 任一人通过流转</small><small>发起人可按需催办</small></div><em>${index ? "等待上一级" : "发起后待审批"}</em></div>`;
+      return `<div class="dingtalk-node"><span>${index + 1}</span><div><strong>${esc(names.join("、") || "待选择审批人")}</strong><small>平台审批节点 · ${names.length} 人</small></div><em>第 ${index + 1} 级</em></div>`;
     }).join("");
-    const firstApprover = nodeApproverIds(nodes[0]).map(id => db.users.find(user => user.userId === id)?.name || id).join("、") || "待选择第 1 级审批人";
-    const card = definition ? `<article class="dingtalk-card"><header class="dingtalk-card-brand"><span class="dingtalk-approval-icon">审</span><strong>审批</strong><em>模板预览</em></header><h3><span>申请人</span>提交的${esc(definition.title)}</h3><div class="dingtalk-form-fields">${definition.fields.map(([label, value, dynamic]) => `<div><span>${esc(label)}</span><strong class="${dynamic ? "dynamic-value" : ""}">${esc(value)}</strong></div>`).join("")}</div><div class="dingtalk-request-meta"><div><span>当前审批人</span><strong class="${nodes[0]?.approverUserId ? "" : "dynamic-value"}">${esc(firstApprover)}</strong></div><div><span>${esc(definition.reasonLabel)}</span><strong class="dynamic-value">提交时带入</strong></div><div><span>申请时间</span><strong class="dynamic-value">提交时生成</strong></div></div><section class="dingtalk-flow"><div class="dingtalk-flow-head"><h4>审批流程</h4><span>${nodes.length} 级串行</span></div>${previewNodes}</section><div class="dingtalk-runtime-rule">${esc(definition.boundary)}；终态结果抄送 <strong data-policy-preview-copy-count>${(draft.copyUserIds || []).length}</strong> 人。</div><div class="dingtalk-platform-entry"><a href="#/approvalCenter" target="_blank" rel="noopener">审批中心</a></div></article>` : `<div class="dingtalk-preview-empty"><span class="dingtalk-approval-icon">审</span><strong>选择审批操作后显示模板</strong><p>发布、回滚和下架将使用不同的业务字段。</p></div>`;
-    return `<aside class="dingtalk-preview" aria-label="平台审批任务预览"><div class="dingtalk-preview-head"><div class="dingtalk-preview-heading"><span class="dingtalk-preview-heading-icon" aria-hidden="true">${approvalPolicyIcon(previewOperation)}</span><div><strong>${annotatedLabel("平台审批任务预览", [["policy", "POL-R12"]])}</strong><span data-policy-preview-name>${esc(draft.name || "未命名审批方案")}</span></div></div><em class="policy-preview-operation">${esc(approvalOperationLabel(previewOperation))}</em></div><div class="dingtalk-preview-canvas">${card}</div></aside>`;
+    const firstRecipients = nodeApproverIds(nodes[0]).map(id => db.users.find(user => user.userId === id)?.name || id).join("、") || "待选择第 1 级审批人";
+    const card = definition ? `<article class="dingtalk-card"><header class="dingtalk-card-brand"><span class="dingtalk-notification-icon" aria-hidden="true">通</span><strong>钉钉通知</strong><em>通知模板预览</em></header><h3><span>申请人</span>提交的${esc(definition.title)}</h3><div class="dingtalk-form-fields">${definition.fields.map(([label, value, dynamic]) => `<div><span>${esc(label)}</span><strong class="${dynamic ? "dynamic-value" : ""}">${esc(value)}</strong></div>`).join("")}</div><div class="dingtalk-request-meta"><div><span>当前节点通知对象</span><strong class="${nodes[0]?.approverUserId ? "" : "dynamic-value"}">${esc(firstRecipients)}</strong></div><div><span>${esc(definition.reasonLabel)}</span><strong class="dynamic-value">提交时带入</strong></div><div><span>申请时间</span><strong class="dynamic-value">提交时生成</strong></div></div><section class="dingtalk-flow"><div class="dingtalk-flow-head"><h4>审批节点摘要</h4><span>${nodes.length} 级串行</span></div>${previewNodes}</section><div class="dingtalk-runtime-rule">钉钉用于发送审批通知，审批处理请在平台审批中心完成。<br>终态结果抄送 <strong data-policy-preview-copy-count>${(draft.copyUserIds || []).length}</strong> 人。</div><div class="dingtalk-platform-entry"><a href="#/approvalCenter" target="_blank" rel="noopener">审批中心</a></div></article>` : `<div class="dingtalk-preview-empty"><span class="dingtalk-notification-icon" aria-hidden="true">通</span><strong>选择审批操作后显示通知模板</strong><p>发布、回滚和下架将使用不同的业务字段。</p></div>`;
+    return `<aside class="dingtalk-preview" aria-label="钉钉通知模板预览"><div class="dingtalk-preview-head"><div class="dingtalk-preview-heading"><span class="dingtalk-preview-heading-icon" aria-hidden="true">${approvalPolicyIcon(previewOperation)}</span><div><strong>${annotatedLabel("钉钉通知模板预览", [["policy", "POL-R12"]])}</strong><span data-policy-preview-name>${esc(draft.name || "未命名审批方案")}</span></div></div><em class="policy-preview-operation">${esc(approvalOperationLabel(previewOperation))}</em></div><div class="dingtalk-preview-canvas">${card}</div></aside>`;
   }
 
   function renderApprovalPolicyDrawer(drawer) {

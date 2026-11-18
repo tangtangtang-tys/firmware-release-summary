@@ -470,6 +470,16 @@ button { color: inherit; }
 .date-range { display: flex; align-items: center; gap: 7px; }
 .plain-page .data-table { min-width: 860px; }
 .user-table-area { position: relative; }
+.plain-page .user-list-table { min-width: 1200px; }
+.user-list-table th:last-child,
+.user-list-table td:last-child { position: sticky; right: 0; box-shadow: -1px 0 0 var(--line); }
+.user-list-table th:last-child { z-index: 2; }
+.user-list-table td:last-child { background: var(--surface); }
+.user-list-table tbody tr:nth-child(even) td:last-child { background: #f7fbff; }
+.user-list-table tbody tr:hover td:last-child { background: #edf5ff; }
+.user-list-table .action-with-rules { flex-wrap: nowrap; }
+.user-list-table .action-with-rules > .rule-annotation-group { width: 23px; height: 23px; flex: 0 0 23px; }
+.user-list-table .action-with-rules .rule-annotation { top: 0; left: 0; }
 .role-user-table-area { position: relative; }
 .table-filter-btn { width: 24px; height: 24px; margin-left: 4px; border: 0; background: transparent; color: var(--text-3); cursor: pointer; }
 .table-filter-btn:hover, .table-filter-btn.active { color: var(--brand); }

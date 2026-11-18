@@ -3945,6 +3945,14 @@
     return `<section class="page plain-page">${pageHeader("审批日志")}<div class="filter-bar"><input class="field search-field" data-draft="approval" value="${esc(state.draftFilters.approval ?? state.filters.approval)}" placeholder="固件版本号" aria-label="固件版本号"><div class="date-range"><input class="date-field" type="date" data-draft="approvalStart" value="${esc(state.draftFilters.approvalStart ?? state.filters.approvalStart)}" aria-label="开始日期"><span>至</span><input class="date-field" type="date" data-draft="approvalEnd" value="${esc(state.draftFilters.approvalEnd ?? state.filters.approvalEnd)}" aria-label="结束日期"></div><span class="action-with-rules"><button class="btn primary" data-action="query-approvals">查询</button>${ruleAnnotation("audit", "AUD-R06")}</span><button class="btn" data-action="reset-approvals">重置</button></div><div class="table-wrap"><table class="data-table approval-log-table"><thead><tr><th>固件版本号</th><th>审批类型</th><th>产品线</th><th>策略版本</th><th>提交人 / 时间</th><th>当前审批人 / 节点</th><th><span class="table-rule-header">审批状态${ruleAnnotation("audit", "AUD-R05")}</span></th><th>执行状态</th><th>操作</th></tr></thead><tbody>${rows.map(item => { const approvalStatus = item.approvalStatus || item.status; const statusClass = approvalStatus === "已通过" ? "success" : /驳回|撤回|失效|过期|超时/.test(approvalStatus) ? "danger" : "warning"; const executionClass = item.executionStatus === "执行成功" ? "success" : /失败|终止/.test(item.executionStatus) ? "danger" : "warning"; return `<tr><td><strong>${esc(item.version)}</strong></td><td>${esc(item.event)}</td><td>${esc(item.productLine || item.firmwareId?.split(".").slice(0, 3).join(".") || "-")}</td><td>${esc(item.policyVersion || "LEGACY")}</td><td>${esc(item.submitter)}<small class="table-subline">${esc(item.submitTime)}</small></td><td>${esc(approvalDisplayApprover(item))}<small class="table-subline">${(item.tasks || []).length} 级串行</small></td><td><span class="tag ${statusClass}">${esc(approvalStatus)}</span></td><td><span class="tag ${executionClass}">${esc(item.executionStatus || "-")}</span></td><td>${item.id ? `<button class="link-btn" data-action="open-approval-log" data-approval-id="${esc(item.id)}">详情</button>` : "-"}</td></tr>`; }).join("")}</tbody></table></div>${pagination(filtered.length, state.approvalPage, "approval-page", "approvals")}</section>`;
   }
 
+  function userUpdateBlockReason(user, { status = user.status, lines = user.lines } = {}) {
+    const blockedApproval = db.approvals.find(approval => approval.approvalStatus === "审批中" && approval.tasks?.some(task => taskPeople(task).some(person => person.userId === user.userId) && ["审批中", "未激活"].includes(task.status)) && (status !== "active" || !lines.includes(approval.productLine)));
+    if (blockedApproval) return `该用户仍承担在途审批 ${blockedApproval.version}，在途审批人不可替换，请先完成或结束审批`;
+    const affectedPolicy = db.approvalPolicies.find(policy => policy.nodes.some(node => nodeApproverIds(node).includes(user.userId)) && (!lines.includes(policy.productLine) || status !== "active"));
+    if (affectedPolicy) return `该用户仍被审批方案“${affectedPolicy.name}”使用，请先调整审批方案`;
+    return "";
+  }
+
   function renderUsers() {
     const query = state.filters.user.toLowerCase();
     const lineFilters = state.filters.userLines || [];
@@ -3953,7 +3961,7 @@
     const rows = filtered.slice((state.userPage - 1) * pageSize, state.userPage * pageSize);
     const draftLines = state.userLineDraft || lineFilters;
     const linePopover = state.popover === "userLine" ? `<div class="action-popover user-line-popover"><div class="user-line-options">${productLines.map(line => `<label class="check"><input type="checkbox" data-user-line-filter="${esc(line)}" ${draftLines.includes(line) ? "checked" : ""}>${esc(line)}</label>`).join("")}</div><div class="filter-popover-actions"><button class="btn small primary" data-action="apply-user-line-filter">筛选</button><button class="btn small" data-action="reset-user-line-filter">重置</button></div></div>` : "";
-    return `<section class="page plain-page">${pageHeader("用户列表")}<div class="filter-bar"><input class="field search-field" data-draft="user" value="${esc(state.draftFilters.user ?? state.filters.user)}" placeholder="请输入用户账号名称，按enter搜索" aria-label="用户账号名称"><button class="btn primary" data-action="query-users">查询</button><button class="btn" data-action="reset-users">重置</button></div><div class="user-table-area"><div class="table-wrap"><table class="data-table"><thead><tr><th style="width:190px">账号名称</th><th style="width:150px">用户 ID</th><th style="width:170px">关联角色</th><th>所属产线 <button class="table-filter-btn ${lineFilters.length ? "active" : ""}" data-action="user-line-filter" aria-label="按所属产线过滤">▽</button></th><th style="width:100px">账号状态</th><th style="width:190px">创建时间</th><th style="width:245px">操作</th></tr></thead><tbody>${rows.map(item => `<tr><td>${esc(item.name)}</td><td>${esc(item.userId)}</td><td>${esc(item.role)}</td><td class="cell-truncate" title="${esc(item.lines.join(" / "))}">${esc(item.lines.join(" / "))}</td><td><span class="tag ${item.status === "active" ? "success" : ""}">${item.status === "active" ? "启用" : "停用"}</span></td><td>${esc(item.created)}</td><td><div class="cell-actions"><button class="link-btn" data-action="user-detail" data-user-index="${db.users.indexOf(item)}">详情</button><span class="action-with-rules"><button class="link-btn" data-action="user-permissions" data-user-index="${db.users.indexOf(item)}">权限配置</button>${ruleAnnotation("audit", "AUD-R04")}</span></div></td></tr>`).join("")}</tbody></table></div>${linePopover}</div>${pagination(filtered.length, state.userPage, "user-page", "users")}</section>`;
+    return `<section class="page plain-page">${pageHeader("用户列表")}<div class="filter-bar"><input class="field search-field" data-draft="user" value="${esc(state.draftFilters.user ?? state.filters.user)}" placeholder="请输入用户账号名称，按enter搜索" aria-label="用户账号名称"><button class="btn primary" data-action="query-users">查询</button><button class="btn" data-action="reset-users">重置</button></div><div class="user-table-area"><div class="table-wrap"><table class="data-table user-list-table"><thead><tr><th style="width:190px">账号名称</th><th style="width:150px">用户 ID</th><th style="width:170px">关联角色</th><th>所属产线 <button class="table-filter-btn ${lineFilters.length ? "active" : ""}" data-action="user-line-filter" aria-label="按所属产线过滤">▽</button></th><th style="width:100px">账号状态</th><th style="width:190px">创建时间</th><th style="width:245px">操作</th></tr></thead><tbody>${rows.map(item => `<tr><td>${esc(item.name)}</td><td>${esc(item.userId)}</td><td>${esc(item.role)}</td><td class="cell-truncate" title="${esc(item.lines.join(" / "))}">${esc(item.lines.join(" / "))}</td><td><span class="tag ${item.status === "active" ? "success" : ""}">${item.status === "active" ? "启用" : "停用"}</span></td><td>${esc(item.created)}</td><td><div class="cell-actions"><button class="link-btn" data-action="user-detail" data-user-index="${db.users.indexOf(item)}">详情</button><span class="action-with-rules"><button class="link-btn" data-action="user-permissions" data-user-index="${db.users.indexOf(item)}">权限配置</button>${ruleAnnotation("audit", "AUD-R04")}</span><button class="link-btn ${item.status === "active" ? "danger-link" : ""}" data-action="user-toggle-status" data-user-id="${esc(item.userId)}" aria-label="${item.status === "active" ? "停用" : "启用"}账号 ${esc(item.name)}（${esc(item.userId)}）">${item.status === "active" ? "停用" : "启用"}</button></div></td></tr>`).join("")}</tbody></table></div>${linePopover}</div>${pagination(filtered.length, state.userPage, "user-page", "users")}</section>`;
   }
 
   function newApprovalPolicyDraft(productLine, operation = "publish") {
@@ -4253,6 +4261,13 @@
 
   function renderModal() {
     const modal = state.modal;
+    if (modal.type === "userStatusConfirm") {
+      const user = db.users.find(item => item.userId === modal.userId);
+      if (!user) return modalFrame("账号状态变更", `<p class="confirm-copy">账号已不存在，请刷新后重试。</p>`, `<button class="btn" data-action="close-overlay">关闭</button>`);
+      const enabling = modal.nextStatus === "active";
+      const label = enabling ? "启用" : "停用";
+      return modalFrame(`${label}账号`, `<p class="confirm-copy">确认${label}账号【${esc(user.name)} · ${esc(user.userId)}】吗？</p>${enabling ? "" : '<p class="helper">停用后，该用户不能被新的审批方案选择。</p>'}`, `<button class="btn" data-action="close-overlay">取消</button><button class="btn ${enabling ? "primary" : "danger"}" data-action="confirm-user-status">确认${label}</button>`);
+    }
     if (modal.type === "materialPreview" || modal.materialPreview) return renderMaterialPreviewModal(modal);
     if (["centerDecision", "centerRules", "centerReapplyDraft", "centerResetDemo"].includes(modal.type)) return renderCenterModal(modal);
     if (modal.type === "approvalPolicyToggle") {
@@ -4847,9 +4862,9 @@
   }
 
   function renderUserPermissions(user) {
-    const draft = state.drawer.userDraft || { lines: [...user.lines], note: user.note, role: user.role, status: user.status };
+    const draft = state.drawer.userDraft || { lines: [...user.lines], note: user.note, role: user.role };
     const selectedRole = db.roles.find(role => role.name === draft.role) || db.roles[0];
-    return drawerFrame("权限配置", `${ruleContextBar(["audit"])}<form id="user-permissions-form"><div class="drawer-section" style="margin-top:0"><h3>基本信息</h3><div class="form-grid single"><div class="form-field required"><label>账号名称</label><input class="field" value="${esc(user.name)} · ${esc(user.userId)}" disabled></div><div class="form-field required"><label>账号状态</label><select class="select" data-change="user-status"><option value="active" ${draft.status === "active" ? "selected" : ""}>启用</option><option value="disabled" ${draft.status === "disabled" ? "selected" : ""}>停用</option></select><div class="helper">停用用户不能被新方案选择。承担在途审批节点时，不可停用或移出对应产线；本期不支持替换或代理。</div></div><div class="form-field required"><label>所属产线</label><div class="check-grid line-tags">${productLines.map(line => `<label class="check"><input type="checkbox" data-user-line="${esc(line)}" ${draft.lines.includes(line) ? "checked" : ""}>${esc(line)}</label>`).join("")}</div></div><div class="form-field"><label>备注</label><textarea class="textarea" data-user-note maxlength="200" placeholder="请输入备注说明信息，例如成员职责">${esc(draft.note)}</textarea><div class="helper align-right">${draft.note.length} / 200</div></div><div class="form-field required"><label>关联角色</label><select class="select" name="role" data-change="permission-role">${db.roles.map(role => `<option ${role.name === selectedRole.name ? "selected" : ""}>${esc(role.name)}</option>`).join("")}</select></div></div></div><div class="drawer-section"><h3>角色权限预览</h3>${renderPermissionTable(selectedRole, false, "user")}</div></form>`, `<button class="btn" data-action="close-overlay">取 消</button><button class="btn primary" type="submit" form="user-permissions-form">完 成</button>`);
+    return drawerFrame("权限配置", `${ruleContextBar(["audit"])}<form id="user-permissions-form"><div class="drawer-section" style="margin-top:0"><h3>基本信息</h3><div class="form-grid single"><div class="form-field required"><label>账号名称</label><input class="field" value="${esc(user.name)} · ${esc(user.userId)}" disabled></div><div class="form-field"><label>账号状态</label><div><span class="tag ${user.status === "active" ? "success" : ""}">${user.status === "active" ? "启用" : "停用"}</span></div></div><div class="form-field required"><label>所属产线</label><div class="check-grid line-tags">${productLines.map(line => `<label class="check"><input type="checkbox" data-user-line="${esc(line)}" ${draft.lines.includes(line) ? "checked" : ""}>${esc(line)}</label>`).join("")}</div><div class="helper">承担在途审批节点时，不可移出对应产线；本期不支持替换或代理。</div></div><div class="form-field"><label>备注</label><textarea class="textarea" data-user-note maxlength="200" placeholder="请输入备注说明信息，例如成员职责">${esc(draft.note)}</textarea><div class="helper align-right">${draft.note.length} / 200</div></div><div class="form-field required"><label>关联角色</label><select class="select" name="role" data-change="permission-role">${db.roles.map(role => `<option ${role.name === selectedRole.name ? "selected" : ""}>${esc(role.name)}</option>`).join("")}</select></div></div></div><div class="drawer-section"><h3>角色权限预览</h3>${renderPermissionTable(selectedRole, false, "user")}</div></form>`, `<button class="btn" data-action="close-overlay">取 消</button><button class="btn primary" type="submit" form="user-permissions-form">完 成</button>`);
   }
 
   function closeOverlay() {
@@ -6600,10 +6615,41 @@
       renderShell();
       return;
     }
+    if (action === "user-toggle-status") {
+      const user = db.users.find(item => item.userId === target.dataset.userId);
+      if (!user) return;
+      const nextStatus = user.status === "active" ? "disabled" : "active";
+      const blockedReason = userUpdateBlockReason(user, { status: nextStatus });
+      if (blockedReason) { toast(blockedReason, "warning"); return; }
+      state.modal = { type: "userStatusConfirm", userId: user.userId, nextStatus };
+      renderShell();
+      return;
+    }
+    if (action === "confirm-user-status" && state.modal?.type === "userStatusConfirm") {
+      const { userId, nextStatus } = state.modal;
+      const user = db.users.find(item => item.userId === userId);
+      if (!user || user.status === nextStatus) {
+        closeOverlay();
+        toast("账号状态已变更，请确认列表中的最新状态", "warning");
+        return;
+      }
+      const blockedReason = userUpdateBlockReason(user, { status: nextStatus });
+      if (blockedReason) { closeOverlay(); toast(blockedReason, "warning"); return; }
+      const enabling = nextStatus === "active";
+      const label = enabling ? "启用" : "停用";
+      const content = `账号状态：${enabling ? "停用 → 启用" : "启用 → 停用"}`;
+      user.status = nextStatus;
+      user.changeLogs.unshift({ time: now(), operator: "汤彦珊", action: `${label}账号`, content });
+      addOperation("用户权限", label, user.name, "汤彦珊", "成功", content);
+      persist();
+      closeOverlay();
+      toast(`${user.name} 的账号已${label}`);
+      return;
+    }
     if (action === "user-permissions") {
       const userIndex = Number(target.dataset.userIndex);
       const user = db.users[userIndex];
-      state.drawer = { type: "userPermissions", userIndex, userDraft: { lines: [...user.lines], note: user.note, role: user.role, status: user.status } };
+      state.drawer = { type: "userPermissions", userIndex, userDraft: { lines: [...user.lines], note: user.note, role: user.role } };
       renderShell();
       return;
     }
@@ -7027,10 +7073,6 @@
       state.roleUserLineDraft = target.checked ? [...new Set([...(state.roleUserLineDraft || []), line])] : (state.roleUserLineDraft || []).filter(item => item !== line);
       return;
     }
-    if (target.dataset.change === "user-status" && state.drawer?.userDraft) {
-      state.drawer.userDraft.status = target.value;
-      return;
-    }
     if (target.dataset.change === "permission-role" && state.drawer?.userDraft) {
       state.drawer.userDraft.role = target.value;
       renderShell();
@@ -7353,18 +7395,14 @@
       const draft = state.drawer.userDraft;
       const lines = draft.lines;
       if (!lines.length) { toast("请至少选择一条所属产线", "warning"); return; }
-      const blockedApprovals = db.approvals.filter(approval => approval.approvalStatus === "审批中" && approval.tasks?.some(task => taskPeople(task).some(person => person.userId === user.userId) && ["审批中", "未激活"].includes(task.status)) && (draft.status !== "active" || !draft.lines.includes(approval.productLine)));
-      if (blockedApprovals.length) { toast(`该用户仍承担在途审批 ${blockedApprovals[0].version}，在途审批人不可替换，请先完成或结束审批`, "warning"); return; }
-      const affectedPolicies = db.approvalPolicies.filter(policy => policy.nodes.some(node => nodeApproverIds(node).includes(user.userId)) && (!draft.lines.includes(policy.productLine) || draft.status !== "active"));
-      if (affectedPolicies.length) { toast(`该用户仍被审批方案“${affectedPolicies[0].name}”使用，请先调整审批方案`, "warning"); return; }
+      const blockedReason = userUpdateBlockReason(user, { lines });
+      if (blockedReason) { toast(blockedReason, "warning"); return; }
       const note = String(draft.note || "").trim();
       const changes = [];
       if (!sameValues(user.lines, lines)) changes.push(`所属产线：${user.lines.join(" / ") || "无"} → ${lines.join(" / ")}`);
-      if (user.status !== draft.status) changes.push(`账号状态：${user.status === "active" ? "启用" : "停用"} → ${draft.status === "active" ? "启用" : "停用"}`);
       if (user.role !== draft.role) changes.push(`关联角色：${user.role} → ${draft.role}`);
       if ((user.note || "") !== note) changes.push(`备注：${user.note || "无"} → ${note || "无"}`);
       user.lines = [...lines];
-      user.status = draft.status;
       user.note = note;
       user.role = draft.role;
       if (changes.length) {

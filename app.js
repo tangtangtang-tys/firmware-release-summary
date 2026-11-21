@@ -4057,9 +4057,10 @@
   function modalFrame(title, body, footer = "", wide = false, nested = false) {
     const featureModal = body.includes("feature-picker-modal");
     const approvalDetailModal = /审批详情$/.test(title);
+    const userStatusModal = body.includes("user-status-impact") || ["停用账号", "启用账号", "无法停用账号"].includes(title);
     // Any modal opened above a drawer must sit above the drawer's secondary mask.
     const nestedModal = nested || Boolean(state.drawer);
-    return `<section class="modal ${wide ? "wide" : ""} ${approvalDetailModal ? "approval-detail-modal" : ""} ${body.includes('class="app-reminder-layout"') ? "release-modal" : ""} ${featureModal ? "feature-modal" : ""} ${nestedModal ? "nested-modal" : ""} ${animateCurrentModal ? "is-entering" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header class="dialog-header"><div class="frame-title-with-rules"><h2>${esc(title)}</h2>${featureModal ? "" : ruleAnnotations(frameRuleItems(title, "modal"))}</div><button class="close-btn" data-action="${nestedModal ? "close-modal" : "close-overlay"}" aria-label="关闭">×</button></header><div class="dialog-body">${body}</div>${footer ? `<footer class="dialog-footer">${footer}</footer>` : ""}</section>`;
+    return `<section class="modal ${wide ? "wide" : ""} ${approvalDetailModal ? "approval-detail-modal" : ""} ${body.includes('class="app-reminder-layout"') ? "release-modal" : ""} ${featureModal ? "feature-modal" : ""} ${userStatusModal ? "user-status-modal" : ""} ${nestedModal ? "nested-modal" : ""} ${animateCurrentModal ? "is-entering" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header class="dialog-header"><div class="frame-title-with-rules"><h2>${esc(title)}</h2>${featureModal ? "" : ruleAnnotations(frameRuleItems(title, "modal"))}</div><button class="close-btn" data-action="${nestedModal ? "close-modal" : "close-overlay"}" aria-label="关闭">×</button></header><div class="dialog-body">${body}</div>${footer ? `<footer class="dialog-footer">${footer}</footer>` : ""}</section>`;
   }
 
   function drawerFrame(title, body, footer = "", narrow = false, options = {}) {
@@ -4213,9 +4214,13 @@
       const label = enabling ? "启用" : "停用";
       const impact = modal.impact || userApprovalImpact(user);
       const enabledPolicySummary = [...new Map(impact.enabledPolicies.map(policy => [`${policy.productLine} · ${policy.operation}`, policy])).values()];
-      const policyRows = enabledPolicySummary.map(policy => `<li><strong>${esc(policy.productLine)} · ${esc(policy.operation)}</strong></li>`).join("");
+      const impactExpanded = modal.impactExpanded || {};
       const approvalRows = impact.inFlight.map(item => `<li><strong>${esc(item.productLine)} · ${esc(item.operation)} · ${esc(item.version)}</strong><span>审批单 ${esc(item.approvalId)} · 第 ${esc(item.task)} 级</span></li>`).join("");
-      const impactMarkup = !enabling && (impact.inFlight.length || enabledPolicySummary.length) ? `<section class="user-status-impact">${impact.inFlight.length ? `<div class="user-status-impact-group blocking"><h4>在途审批（阻断停用）</h4><ul>${approvalRows}</ul></div>` : ""}${enabledPolicySummary.length ? `<div class="user-status-impact-group blocking"><h4>启用审批方案引用</h4><ul>${policyRows}</ul></div>` : ""}</section>` : "";
+      const approvalSummary = [...new Set(impact.inFlight.map(item => item.productLine))].join("、");
+      const policyRows = enabledPolicySummary.map(policy => `<li><strong>${esc(policy.productLine)} · ${esc(policy.operation)}</strong></li>`).join("");
+      const policySummary = [...new Set(enabledPolicySummary.map(policy => policy.operation))].join("、");
+      const impactGroup = (key, title, count, summary, rows) => `<div class="user-status-impact-group ${impactExpanded[key] ? "is-expanded" : ""}"><button type="button" class="user-status-impact-toggle" data-action="toggle-user-impact-group" data-impact-group="${key}" aria-expanded="${Boolean(impactExpanded[key])}"><span><strong>${title}</strong><small>${count} 条${summary ? ` · ${esc(summary)}` : ""}</small></span><b>${impactExpanded[key] ? "收起" : "查看"} <i aria-hidden="true">${impactExpanded[key] ? "⌃" : "⌄"}</i></b></button>${impactExpanded[key] ? `<div class="user-status-impact-scroll"><ul>${rows}</ul></div>` : ""}</div>`;
+      const impactMarkup = !enabling && (impact.inFlight.length || enabledPolicySummary.length) ? `<section class="user-status-impact"><div class="user-status-impact-head"><strong>停用影响范围</strong><span>明细默认折叠，展开后可滚动查看</span></div>${impact.inFlight.length ? impactGroup("inFlight", "在途审批（阻断停用）", impact.inFlight.length, `涉及 ${approvalSummary}`, approvalRows) : ""}${enabledPolicySummary.length ? impactGroup("policies", "启用审批方案引用", enabledPolicySummary.length, policySummary, policyRows) : ""}</section>` : "";
       const canConfirm = enabling || (!impact.inFlight.length && !impact.enabledPolicies.length);
       const blocked = !canConfirm && !enabling;
       const footer = `<button class="btn" data-action="close-overlay">${canConfirm ? "取消" : "关闭"}</button>${canConfirm ? `<button class="btn ${enabling ? "primary" : "danger"}" data-action="confirm-user-status">确认${label}</button>` : ""}`;
@@ -6565,6 +6570,11 @@
       if (!user) return;
       const nextStatus = user.status === "active" ? "disabled" : "active";
       state.modal = { type: "userStatusConfirm", userId: user.userId, nextStatus, impact: nextStatus === "disabled" ? userApprovalImpact(user) : null };
+      renderShell();
+      return;
+    }
+    if (action === "toggle-user-impact-group" && state.modal?.type === "userStatusConfirm") {
+      state.modal.impactExpanded = { ...(state.modal.impactExpanded || {}), [target.dataset.impactGroup]: !state.modal.impactExpanded?.[target.dataset.impactGroup] };
       renderShell();
       return;
     }

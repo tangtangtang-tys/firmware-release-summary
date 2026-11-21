@@ -481,9 +481,8 @@ button { color: inherit; }
 .user-list-table .action-with-rules > .rule-annotation-group { width: 23px; height: 23px; flex: 0 0 23px; }
 .user-list-table .action-with-rules .rule-annotation { top: 0; left: 0; }
 .user-status-impact { margin: 14px 0; border: 1px solid #e4c9c9; border-radius: 6px; background: #fffafa; color: var(--text-2); }
-.user-status-impact-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 13px 8px; border-bottom: 1px solid #f0dddd; }
+.user-status-impact-head { padding: 10px 13px 8px; border-bottom: 1px solid #f0dddd; }
 .user-status-impact-head strong { color: #8f3f3f; font-size: 12px; }
-.user-status-impact-head span { color: var(--text-3); font-size: 11px; }
 .user-status-impact-group + .user-status-impact-group { border-top: 1px solid #f0dddd; }
 .user-status-impact-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 13px; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .user-status-impact-toggle:hover { background: #fff5f5; }
@@ -503,7 +502,6 @@ button { color: inherit; }
 .user-status-impact-empty { margin: 0; padding: 12px 13px; color: var(--success); font-size: 12px; }
 @media (max-width: 640px) {
   .modal.user-status-modal { top: calc(var(--topbar-h) + 16px); max-height: calc(100vh - var(--topbar-h) - 28px); }
-  .user-status-impact-head { display: grid; gap: 3px; }
   .user-status-impact-scroll { max-height: 38vh; }
 }
 .role-user-table-area { position: relative; }

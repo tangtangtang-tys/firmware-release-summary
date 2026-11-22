@@ -1463,8 +1463,6 @@
     expandedDifferentialPackages: [],
     expandedLifecycleFlows: [lifecycleFlows(db.identifiers[0]?.lifecycleEvents || []).find(flow => flow.flowStatus === "active")?.flowId].filter(Boolean)
   };
-  state.firmwareNotificationExpanded = false;
-  state.firmwareNotificationHidden = false;
   state.pendingVersionApproval = null;
   try { state.flowHintCollapsed = localStorage.getItem(flowHintStorageKey) === "1"; } catch (_error) { state.flowHintCollapsed = false; }
 
@@ -2687,7 +2685,7 @@
         <div class="topbar-spacer"></div>
         ${topbarPolicyLine}
         <label class="topbar-search"><span aria-hidden="true">⌕</span><input type="search" placeholder="搜索功能、产品、版本号..." aria-label="搜索功能、产品、版本号"></label>
-        <button class="topbar-icon" type="button" aria-label="查看审批待办" data-route="approvalCenter"><span>♧</span><i>${centerRows("todo", false).length}</i></button>
+        <button class="topbar-icon" type="button" aria-label="查看审批待办" data-route="approvalCenter"><span class="topbar-notification-icon" aria-hidden="true">${notificationBellIcon()}</span><i>${centerRows("todo", false).length}</i></button>
         <button class="topbar-icon" type="button" aria-label="帮助">?</button>
         <span class="topbar-divider" aria-hidden="true"></span>
         <button class="profile-trigger" data-action="toggle-profile"><img src="assets/avatar.jpg" alt="当前账号头像"><span>${state.route === "approvalCenter" ? esc(centerIdentity().name) : "张三"}</span><b aria-hidden="true">⌄</b></button>
@@ -2803,17 +2801,15 @@
     </section>`;
   }
 
+  function notificationBellIcon() {
+    return '<svg viewBox="0 0 24 24" focusable="false"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4"/></svg>';
+  }
+
   function renderFirmwareNotificationNotice() {
     const todos = centerRows("todo", false);
-    if (!todos.length || state.firmwareNotificationHidden) return "";
-    const expanded = Boolean(state.firmwareNotificationExpanded);
+    if (!todos.length) return "";
     const productSummary = [...new Set(todos.map(item => item.productLine).filter(Boolean))].join("、");
-    const previewRows = todos.slice(0, 4).map(approval => {
-      const task = currentApprovalTask(approval);
-      const taskLabel = task ? `第 ${task.sequence}/${(approval.tasks || []).length} 级 · ${taskNames(task).join("、") || "待处理"}` : "待处理";
-      return `<li><button type="button" data-action="open-firmware-notification" data-approval-id="${esc(approval.id)}"><span class="firmware-notification-operation">${esc(approvalOperationLabel(approval.type))}</span><span class="firmware-notification-product">${esc(approval.productLine || "-")}</span><strong>${esc(approval.version)}</strong><small>${esc(taskLabel)} · ${esc(approval.submitTime || "-")}</small><i aria-hidden="true">›</i></button></li>`;
-    }).join("");
-    return `<section class="firmware-notification ${expanded ? "is-expanded" : ""}" aria-label="审批提醒"><div class="firmware-notification-main"><span class="firmware-notification-icon" aria-hidden="true">♧</span><div class="firmware-notification-copy"><strong>审批提醒</strong><span>你有 <b>${todos.length}</b> 条待处理审批${productSummary ? ` · 涉及 ${esc(productSummary)}` : ""}</span></div><div class="firmware-notification-actions"><button type="button" class="link-btn" data-route="approvalCenter">查看审批中心</button><button type="button" class="firmware-notification-toggle" data-action="toggle-firmware-notifications" aria-expanded="${expanded}" aria-controls="firmware-notification-list">${expanded ? "收起" : "查看近期"} <i aria-hidden="true">${expanded ? "⌃" : "⌄"}</i></button><button type="button" class="firmware-notification-close" data-action="hide-firmware-notifications" aria-label="关闭审批提醒">×</button></div></div>${expanded ? `<div id="firmware-notification-list" class="firmware-notification-list"><ul>${previewRows}</ul>${todos.length > 4 ? `<button type="button" class="link-btn firmware-notification-more" data-route="approvalCenter">还有 ${todos.length - 4} 条待处理审批，查看全部 →</button>` : ""}</div>` : ""}</section>`;
+    return `<section class="firmware-notification" aria-label="审批提醒"><div class="firmware-notification-main"><span class="firmware-notification-icon" aria-hidden="true">${notificationBellIcon()}</span><div class="firmware-notification-copy"><strong>审批提醒</strong><span>你有 <b>${todos.length}</b> 条待处理审批${productSummary ? ` · 涉及 ${esc(productSummary)}` : ""}</span></div><button type="button" class="btn small primary firmware-notification-action" data-route="approvalCenter">查看审批中心 <i aria-hidden="true">→</i></button></div></section>`;
   }
 
   function renderIdentifierMeta(identifier) {
@@ -5302,23 +5298,6 @@
       renderShell();
       return;
     }
-    if (action === "toggle-firmware-notifications") {
-      state.firmwareNotificationExpanded = !state.firmwareNotificationExpanded;
-      renderShell();
-      return;
-    }
-    if (action === "hide-firmware-notifications") {
-      state.firmwareNotificationHidden = true;
-      state.firmwareNotificationExpanded = false;
-      renderShell();
-      return;
-    }
-    if (action === "open-firmware-notification") {
-      const approval = approvalById(target.dataset.approvalId);
-      if (!approval) { toast("审批记录不存在", "warning"); return; }
-      openApprovalCenterFor(approval);
-      return;
-    }
     if (action === "version-approval-detail" || action === "version-open-center" || action === "open-approval-exception") {
       const approval = approvalById(target.dataset.approvalId);
       if (!approval) { toast("审批记录不存在", "warning"); return; }
@@ -7452,10 +7431,6 @@
     state.route = nextRoute;
     state.modal = null;
     state.drawer = null;
-    if (nextRoute === "firmware") {
-      state.firmwareNotificationHidden = false;
-      state.firmwareNotificationExpanded = false;
-    }
     if (state.pendingVersionApproval && nextRoute === "firmware") {
       const pending = state.pendingVersionApproval;
       state.pendingVersionApproval = null;

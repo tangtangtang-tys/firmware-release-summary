@@ -1424,7 +1424,6 @@
   let db = loadData();
   const runtimeMaterialPreviews = new Map();
   const defaultAuditRange = recentDateRange();
-  const flowHintStorageKey = "firmwareApprovalFlowHintDismissed";
   let state = {
     route: routeFromHash(),
     groups: { device: true, approval: true, logs: true, users: true },
@@ -1464,7 +1463,6 @@
     expandedLifecycleFlows: [lifecycleFlows(db.identifiers[0]?.lifecycleEvents || []).find(flow => flow.flowStatus === "active")?.flowId].filter(Boolean)
   };
   state.pendingVersionApproval = null;
-  try { state.flowHintCollapsed = localStorage.getItem(flowHintStorageKey) === "1"; } catch (_error) { state.flowHintCollapsed = false; }
 
   const app = document.getElementById("app");
   const toastLayer = document.getElementById("toast-layer");
@@ -2774,10 +2772,8 @@
   }
 
   function renderApprovalFlowHint() {
-    const collapsed = Boolean(state.flowHintCollapsed);
-    const toggleLabel = collapsed ? "展开使用流程" : "收起使用流程";
-    return `<section class="approval-flow-hint ${collapsed ? "is-collapsed" : "is-expanded"}" aria-label="使用流程">
-      <div id="approval-flow-guide" class="approval-flow-guide" ${collapsed ? "hidden" : ""}>
+    return `<section class="approval-flow-hint" aria-label="使用流程">
+      <div id="approval-flow-guide" class="approval-flow-guide">
         <div class="approval-flow-steps">
           <article class="approval-flow-step">
             <span class="approval-flow-step-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M8 5h11l5 5v17H8z"/><path d="M19 5v6h5M12 16h8M12 21h8"/></svg></span>
@@ -2794,10 +2790,7 @@
             <div class="approval-flow-step-copy"><strong>查看执行结果</strong><span>根据现有规则执行，并在固件列表查看进度与结果。</span></div>
           </article>
         </div>
-        <p class="approval-flow-note">审批操作请在审批中心完成，实际执行规则以系统现有逻辑为准。</p>
       </div>
-      <p class="approval-flow-summary" ${collapsed ? "" : "hidden"}>发起操作 → 审批处理 → 查看执行结果</p>
-      <button type="button" class="approval-flow-hint-toggle" data-action="toggle-flow-hint" aria-expanded="${!collapsed}" aria-controls="approval-flow-guide" aria-label="${toggleLabel}"><i aria-hidden="true">${collapsed ? "⌄" : "⌃"}</i></button>
     </section>`;
   }
 
@@ -5292,12 +5285,6 @@
     }
     const action = target.dataset.action;
     if (handleApprovalCenterAction(action, target)) return;
-    if (action === "toggle-flow-hint") {
-      state.flowHintCollapsed = !state.flowHintCollapsed;
-      try { localStorage.setItem(flowHintStorageKey, state.flowHintCollapsed ? "1" : "0"); } catch (_error) { /* in-memory preference is enough */ }
-      renderShell();
-      return;
-    }
     if (action === "version-approval-detail" || action === "version-open-center" || action === "open-approval-exception") {
       const approval = approvalById(target.dataset.approvalId);
       if (!approval) { toast("审批记录不存在", "warning"); return; }

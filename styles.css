@@ -952,10 +952,6 @@ button { color: inherit; }
 .approval-flow-hint-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 24px; }
 .approval-flow-hint-title { min-width: 0; display: inline-flex; align-items: center; gap: 6px; color: #24528a; }
 .approval-flow-hint-title strong { color: inherit; font-weight: 600; }
-.approval-flow-hint-toggle { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; min-height: 25px; padding: 2px 6px 2px 8px; border: 1px solid #c9dced; border-radius: 4px; background: #fff; color: #5b789c; font-size: 11px; line-height: 1; cursor: pointer; }
-.approval-flow-hint-toggle:hover { border-color: #8db7e8; color: #2475d5; background: #f4f9ff; }
-.approval-flow-hint-toggle:focus-visible { outline: 2px solid rgba(40, 117, 237, .35); outline-offset: 2px; }
-.approval-flow-hint-toggle i { color: #2475d5; font-size: 15px; font-style: normal; line-height: 1; }
 .approval-flow-guide { min-width: 0; }
 .approval-flow-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 9px; }
 .approval-flow-step { min-width: 0; display: flex; align-items: flex-start; gap: 9px; padding: 10px 11px; border: 1px solid #e1e8f1; border-radius: 6px; background: #fff; }
@@ -966,8 +962,6 @@ button { color: inherit; }
 .approval-flow-step-copy strong { color: #395a84; font-size: 12px; font-weight: 600; }
 .approval-flow-step.is-current .approval-flow-step-copy strong { color: #1f64bb; }
 .approval-flow-step-copy span { color: #7c91ad; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
-.approval-flow-note { margin: 8px 0 0; color: #8799ae; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
-.approval-flow-summary { margin: 7px 0 0; color: #6b85a5; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .approval-banner strong, .approval-banner span { display: block; }
 .approval-banner span { margin-top: 4px; color: var(--text-2); font-size: 12px; }
 .current-release-card { border: 1px solid #bad7c8; border-radius: 6px; background: #fff; box-shadow: 0 2px 10px rgba(28, 72, 51, .05); }
@@ -4738,17 +4732,12 @@ button { color: inherit; }
 .approval-center-page > .approval-flow-hint .approval-flow-step-copy strong { color: #243b61; font-size: 13px; }
 .approval-center-page > .approval-flow-hint .approval-flow-step-copy span { color: #7f91a8; font-size: 11px; line-height: 1.35; }
 .approval-flow-arrow { display: grid; place-items: center; color: #c7def8; font-size: 42px; font-weight: 200; line-height: 1; }
-.approval-center-page > .approval-flow-hint .approval-flow-note { margin: 10px 0 0 50px; color: #99a8ba; font-size: 10px; }
-.approval-center-page > .approval-flow-hint .approval-flow-summary { margin: 0; color: #54769f; font-size: 12px; }
-.approval-center-page > .approval-flow-hint .approval-flow-hint-toggle { position: absolute; top: 8px; right: 8px; width: 22px; min-height: 22px; padding: 0; border: 1px solid #e1eaf4; border-radius: 4px; background: #fff; color: #8498b1; }
-.approval-center-page > .approval-flow-hint .approval-flow-hint-toggle i { font-size: 15px; }
 @media (max-width: 720px) {
   .approval-center-page > .approval-flow-hint { padding: 13px 30px 12px 15px; }
   .approval-center-page > .approval-flow-hint .approval-flow-steps { grid-template-columns: minmax(0,1fr); gap: 8px; }
   .approval-center-page > .approval-flow-hint .approval-flow-step { min-height: 39px; }
   .approval-center-page > .approval-flow-hint .approval-flow-step-copy span { font-size: 10px; }
   .approval-flow-arrow { display: none; }
-  .approval-center-page > .approval-flow-hint .approval-flow-note { margin-left: 0; }
 }
 
 /* Reference approval timeline: compact horizontal nodes on desktop, readable stacked nodes on narrow screens. */
@@ -4888,8 +4877,6 @@ button { color: inherit; }
   background: linear-gradient(90deg, #d9eaff, #83baf1);
   clip-path: polygon(0 38%, 72% 38%, 72% 0, 100% 50%, 72% 100%, 72% 62%, 0 62%);
 }
-.approval-center-page > .approval-flow-hint .approval-flow-note { margin-top: 7px; font-size: 9px; }
-.approval-center-page > .approval-flow-hint .approval-flow-hint-toggle { top: 7px; right: 7px; }
 
 .approval-center-page .ac-workspace {
   border-color: #e3edf7;

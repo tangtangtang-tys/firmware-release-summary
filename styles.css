@@ -191,6 +191,30 @@ button { color: inherit; }
 .page-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 12px; }
 .page-title { margin: 0; font-size: 18px; line-height: 1.4; font-weight: 700; }
 .page-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.firmware-notification { margin: 0 0 10px; border: 1px solid #c9dcf4; border-radius: 6px; background: #f7fbff; color: #4e6f98; box-shadow: 0 1px 4px rgba(49, 102, 166, .04); }
+.firmware-notification-main { min-height: 48px; display: flex; align-items: center; gap: 10px; padding: 8px 12px; }
+.firmware-notification-icon { width: 27px; height: 27px; display: grid; place-items: center; flex: 0 0 27px; border-radius: 50%; background: #e2efff; color: #2877d2; font-size: 16px; }
+.firmware-notification-copy { min-width: 0; display: grid; gap: 2px; }
+.firmware-notification-copy strong { color: #2c5d98; font-size: 13px; }
+.firmware-notification-copy span { color: #6d87a8; font-size: 12px; overflow-wrap: anywhere; }
+.firmware-notification-copy b { color: #2877d2; font-weight: 700; }
+.firmware-notification-actions { display: flex; align-items: center; gap: 12px; margin-left: auto; flex: 0 0 auto; }
+.firmware-notification-actions .link-btn { font-size: 12px; }
+.firmware-notification-toggle, .firmware-notification-close { border: 0; background: transparent; cursor: pointer; }
+.firmware-notification-toggle { padding: 4px 0; color: #3977bd; font-size: 12px; }
+.firmware-notification-toggle:hover, .firmware-notification-close:hover { color: #1f64bb; }
+.firmware-notification-toggle i { font-style: normal; font-size: 14px; }
+.firmware-notification-close { width: 22px; height: 22px; padding: 0; color: #8ca2bd; font-size: 18px; line-height: 1; }
+.firmware-notification-list { max-height: 248px; overflow-y: auto; padding: 0 12px 10px 49px; border-top: 1px solid #e0ebf8; }
+.firmware-notification-list ul { display: grid; gap: 6px; margin: 9px 0 0; padding: 0; list-style: none; }
+.firmware-notification-list li button { width: 100%; min-width: 0; display: grid; grid-template-columns: auto auto minmax(100px, 1fr) minmax(160px, 1.5fr) auto; align-items: center; gap: 6px 9px; padding: 8px 9px; border: 1px solid #dfebf8; border-radius: 4px; background: #fff; color: inherit; text-align: left; cursor: pointer; }
+.firmware-notification-list li button:hover { border-color: #a9c9f5; background: #fafdff; }
+.firmware-notification-operation { color: #317bc9; font-size: 11px; }
+.firmware-notification-product { padding: 2px 5px; border-radius: 3px; background: #f0f5fb; color: #7890ac; font-size: 10px; }
+.firmware-notification-list li strong { min-width: 0; overflow: hidden; color: #324f73; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.firmware-notification-list li small { min-width: 0; overflow: hidden; color: #8a9db5; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.firmware-notification-list li i { color: #76a7dc; font-size: 16px; font-style: normal; }
+.firmware-notification-more { display: block; margin: 8px 0 0; font-size: 11px; }
 
 .field, .select, .date-field, .textarea {
   border: 1px solid var(--line-strong);
@@ -3181,6 +3205,14 @@ button { color: inherit; }
   .page-tools { width: 100%; }
   .search-field { width: 100%; min-width: 0; }
   .page-header { flex-direction: column; }
+  .firmware-notification-main { align-items: flex-start; }
+  .firmware-notification-actions { flex-wrap: wrap; justify-content: flex-end; gap: 6px 10px; }
+  .firmware-notification-list { padding-left: 12px; }
+  .firmware-notification-list li button { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .firmware-notification-product { grid-column: 2; grid-row: 1; justify-self: start; }
+  .firmware-notification-list li strong { grid-column: 1 / span 2; grid-row: 2; }
+  .firmware-notification-list li small { grid-column: 1 / span 2; grid-row: 3; }
+  .firmware-notification-list li i { grid-column: 3; grid-row: 1 / span 3; }
   .user-line-popover { right: 8px; }
   .role-user-line-popover { right: 8px; }
   .firmware-layout, .role-layout { display: block; min-height: auto; }

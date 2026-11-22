@@ -1463,6 +1463,8 @@
     expandedDifferentialPackages: [],
     expandedLifecycleFlows: [lifecycleFlows(db.identifiers[0]?.lifecycleEvents || []).find(flow => flow.flowStatus === "active")?.flowId].filter(Boolean)
   };
+  state.firmwareNotificationExpanded = false;
+  state.firmwareNotificationHidden = false;
   state.pendingVersionApproval = null;
   try { state.flowHintCollapsed = localStorage.getItem(flowHintStorageKey) === "1"; } catch (_error) { state.flowHintCollapsed = false; }
 
@@ -2801,6 +2803,19 @@
     </section>`;
   }
 
+  function renderFirmwareNotificationNotice() {
+    const todos = centerRows("todo", false);
+    if (!todos.length || state.firmwareNotificationHidden) return "";
+    const expanded = Boolean(state.firmwareNotificationExpanded);
+    const productSummary = [...new Set(todos.map(item => item.productLine).filter(Boolean))].join("、");
+    const previewRows = todos.slice(0, 4).map(approval => {
+      const task = currentApprovalTask(approval);
+      const taskLabel = task ? `第 ${task.sequence}/${(approval.tasks || []).length} 级 · ${taskNames(task).join("、") || "待处理"}` : "待处理";
+      return `<li><button type="button" data-action="open-firmware-notification" data-approval-id="${esc(approval.id)}"><span class="firmware-notification-operation">${esc(approvalOperationLabel(approval.type))}</span><span class="firmware-notification-product">${esc(approval.productLine || "-")}</span><strong>${esc(approval.version)}</strong><small>${esc(taskLabel)} · ${esc(approval.submitTime || "-")}</small><i aria-hidden="true">›</i></button></li>`;
+    }).join("");
+    return `<section class="firmware-notification ${expanded ? "is-expanded" : ""}" aria-label="审批提醒"><div class="firmware-notification-main"><span class="firmware-notification-icon" aria-hidden="true">♧</span><div class="firmware-notification-copy"><strong>审批提醒</strong><span>你有 <b>${todos.length}</b> 条待处理审批${productSummary ? ` · 涉及 ${esc(productSummary)}` : ""}</span></div><div class="firmware-notification-actions"><button type="button" class="link-btn" data-route="approvalCenter">查看审批中心</button><button type="button" class="firmware-notification-toggle" data-action="toggle-firmware-notifications" aria-expanded="${expanded}" aria-controls="firmware-notification-list">${expanded ? "收起" : "查看近期"} <i aria-hidden="true">${expanded ? "⌃" : "⌄"}</i></button><button type="button" class="firmware-notification-close" data-action="hide-firmware-notifications" aria-label="关闭审批提醒">×</button></div></div>${expanded ? `<div id="firmware-notification-list" class="firmware-notification-list"><ul>${previewRows}</ul>${todos.length > 4 ? `<button type="button" class="link-btn firmware-notification-more" data-route="approvalCenter">还有 ${todos.length - 4} 条待处理审批，查看全部 →</button>` : ""}</div>` : ""}</section>`;
+  }
+
   function renderIdentifierMeta(identifier) {
     if (identifier.product === "4G模组") {
       return `<div class="meta-grid four-g-meta"><span>所属产品线：<strong>${esc(identifier.product)}</strong></span><span>创建时间：<strong>${esc(identifier.created)}</strong></span><span>模组型号：<strong>${esc(identifier.models)}</strong></span><span title="固件标识下去重后的绑定设备总数">${annotatedLabel("绑定设备数", [["identifier", "FID-R03"]])}：<strong>${formatDeviceCount(identifier.boundDeviceCount)} 台</strong></span></div>`;
@@ -2820,6 +2835,7 @@
     const pendingTask = currentApprovalTask(pendingApproval);
     return `<section class="page tint-page">
       ${header}
+      ${renderFirmwareNotificationNotice()}
       ${renderApprovalFlowHint()}
       <div class="firmware-layout ${selected.product === "4G模组" && state.firmwareTab !== "firmware" ? "differential-layout" : ""}">
         <aside class="identifier-panel"><h2 class="panel-heading">固件管理</h2><div class="panel-action-with-rule"><button class="btn panel-action" data-action="add-identifier">⊕ 新增标识</button>${ruleAnnotation("identifier", "FID-R01")}</div><div class="identifier-list">${identifiers.map(item => `<button class="identifier-item ${item.id === selected.id ? "active" : ""}" data-action="select-identifier" data-id="${esc(item.id)}">${esc(item.id)}</button>`).join("") || `<div class="muted" style="padding:16px">无匹配标识</div>`}</div></aside>
@@ -5286,6 +5302,23 @@
       renderShell();
       return;
     }
+    if (action === "toggle-firmware-notifications") {
+      state.firmwareNotificationExpanded = !state.firmwareNotificationExpanded;
+      renderShell();
+      return;
+    }
+    if (action === "hide-firmware-notifications") {
+      state.firmwareNotificationHidden = true;
+      state.firmwareNotificationExpanded = false;
+      renderShell();
+      return;
+    }
+    if (action === "open-firmware-notification") {
+      const approval = approvalById(target.dataset.approvalId);
+      if (!approval) { toast("审批记录不存在", "warning"); return; }
+      openApprovalCenterFor(approval);
+      return;
+    }
     if (action === "version-approval-detail" || action === "version-open-center" || action === "open-approval-exception") {
       const approval = approvalById(target.dataset.approvalId);
       if (!approval) { toast("审批记录不存在", "warning"); return; }
@@ -7419,6 +7452,10 @@
     state.route = nextRoute;
     state.modal = null;
     state.drawer = null;
+    if (nextRoute === "firmware") {
+      state.firmwareNotificationHidden = false;
+      state.firmwareNotificationExpanded = false;
+    }
     if (state.pendingVersionApproval && nextRoute === "firmware") {
       const pending = state.pendingVersionApproval;
       state.pendingVersionApproval = null;

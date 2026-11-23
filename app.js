@@ -3885,13 +3885,6 @@
   }
 
   function userApprovalImpact(user) {
-    const inFlight = db.approvals.filter(approval => approval.approvalStatus === "审批中" && approval.tasks?.some(task => taskPeople(task).some(person => person.userId === user.userId) && ["审批中", "未激活"].includes(task.status))).map(approval => ({
-      approvalId: approval.instanceNo || approval.id,
-      version: approval.version,
-      productLine: approval.productLine,
-      operation: approvalOperationLabel(approval.type),
-      task: approval.tasks.find(task => taskPeople(task).some(person => person.userId === user.userId) && ["审批中", "未激活"].includes(task.status))?.sequence || "-"
-    }));
     const policies = db.approvalPolicies.filter(policy => policy.nodes?.some(node => nodeApproverIds(node).includes(user.userId))).map(policy => ({
       productLine: policy.productLine,
       operation: approvalOperationLabel(policyOperation(policy)),
@@ -3900,7 +3893,19 @@
       status: policy.status === "disabled" ? "已停用" : "已启用",
       nodes: policy.nodes.filter(node => nodeApproverIds(node).includes(user.userId)).map(node => node.sequence)
     }));
-    return { inFlight, policies, enabledPolicies: policies.filter(policy => policy.status === "已启用") };
+    return { policies, enabledPolicies: policies.filter(policy => policy.status === "已启用") };
+  }
+
+  function commitUserStatusChange(user, nextStatus) {
+    const enabling = nextStatus === "active";
+    const label = enabling ? "启用" : "停用";
+    const content = `账号状态：${enabling ? "停用 → 启用" : "启用 → 停用"}`;
+    user.status = nextStatus;
+    user.changeLogs.unshift({ time: now(), operator: "汤彦珊", action: `${label}账号`, content });
+    addOperation("用户权限", label, user.name, "汤彦珊", "成功", content);
+    persist();
+    closeOverlay();
+    toast(`${user.name} 的账号已${label}`);
   }
 
   function renderUsers() {
@@ -3949,13 +3954,27 @@
 
   function policyFlowNodes(policy) {
     const nodes = Array.isArray(policy?.nodes) ? policy.nodes : [];
+    const disabledIds = new Set(policyDisabledApprovers(policy).map(item => item.userId));
     if (!nodes.length) return '<span class="policy-flow-empty">暂未配置审批人</span>';
     return nodes.map((node, index) => {
       const name = node.approverName || `第${index + 1}级`;
       const initials = name.slice(0, 1);
       const nodeClass = ["amber", "blue", "purple", "pink", "indigo"][index % 5];
-      return `${index ? '<span class="policy-flow-arrow" aria-hidden="true">→</span>' : ""}<span class="policy-flow-node"><span class="policy-flow-avatar ${nodeClass}">${esc(initials)}</span><span>${esc(name)}</span></span>`;
+      const disabled = nodeApproverIds(node).some(id => disabledIds.has(id));
+      return `${index ? '<span class="policy-flow-arrow" aria-hidden="true">→</span>' : ""}<span class="policy-flow-node ${disabled ? "disabled" : ""}" title="${disabled ? "包含已停用审批人" : ""}"><span class="policy-flow-avatar ${nodeClass}">${esc(initials)}</span><span>${esc(name)}</span>${disabled ? '<em>已停用</em>' : ""}</span>`;
     }).join("");
+  }
+
+  function policyDisabledApprovers(policy) {
+    const result = new Map();
+    (policy?.nodes || []).forEach((node, index) => nodeApproverIds(node).forEach(userId => {
+      const user = db.users.find(item => item.userId === userId);
+      if (!user || user.status !== "disabled") return;
+      const current = result.get(userId) || { userId, name: user.name, nodes: [] };
+      current.nodes.push(index + 1);
+      result.set(userId, current);
+    }));
+    return [...result.values()];
   }
 
   function renderApprovalPolicies() {
@@ -3970,13 +3989,15 @@
       const cardStatus = configured ? "已启用" : disabled ? "已停用" : "未配置";
       const versionCode = policy ? policy.policyVersion.replace(`${policy.id}-`, "") : "--";
       const operationDescription = item.operation === "publish" ? "发布固件版本到线上设备" : item.operation === "rollback" ? "将设备版本回退到历史版本" : "下架已发布的固件版本";
+      const disabledApprovers = configured ? policyDisabledApprovers(policy) : [];
+      const policyWarning = disabledApprovers.length ? `<div class="policy-disabled-warning"><strong>审批人状态异常</strong><span>当前方案包含已停用审批人，暂不可承接新的审批申请。请更新审批节点配置后再提交。</span><small>${disabledApprovers.map(item => `${esc(item.name)} · 第 ${item.nodes.join("、")} 级`).join("；")}</small></div>` : "";
       const actions = configured || disabled
         ? `<div class="policy-card-actions"><span class="action-with-rules"><button type="button" class="btn small" data-action="policy-version-history" data-policy-id="${esc(policy.id)}">版本记录</button>${ruleAnnotation("policy", "POL-R11")}</span><span class="action-with-rules"><button type="button" class="btn small ${disabled ? "primary" : ""}" data-action="toggle-approval-policy" data-policy-id="${esc(policy.id)}">${disabled ? "启用" : "停用"}</button>${ruleAnnotation("policy", "POL-R10")}</span><span class="action-with-rules"><button type="button" class="btn small primary" data-action="edit-approval-policy" data-policy-id="${esc(policy.id)}">编辑配置</button>${ruleAnnotation("policy", "POL-R03")}</span></div>`
         : "";
       const statusClass = configured ? "configured" : disabled ? "disabled" : "unconfigured";
       const operationColumn = `<div class="policy-row-operation"><span class="policy-operation-icon" aria-hidden="true">${approvalPolicyIcon(item.operation)}</span><div class="policy-row-operation-copy"><h3>${annotatedLabel(item.operationLabel, [["policy", "POL-R04"]])}</h3><p>${operationDescription}</p></div></div><span class="policy-card-status ${statusClass}"><i aria-hidden="true"></i>${cardStatus}</span>`;
       const configuredColumns = configured || disabled
-        ? `<div class="policy-row-scheme"><div class="policy-row-column-head"><strong>${annotatedLabel("当前审批方案", [["policy", "POL-R04"]])}</strong></div><div class="policy-scheme-box"><strong>${esc(policy.name || "未命名方案")}</strong><dl><div><dt>方案说明</dt><dd title="${esc(policy.description || `用于${productLine}${item.operationLabel}的审批流程`)}">${esc(policy.description || `用于${productLine}${item.operationLabel}的审批流程`)}</dd></div></dl></div></div><div class="policy-row-flow"><div class="policy-row-column-head"><strong>${annotatedLabel(`审批流程（${policy.levelCount || policy.nodes?.length || 0}级）`, [["policy", "POL-R05"]])}</strong></div><div class="policy-flow">${policyFlowNodes(policy)}</div></div><div class="policy-row-version"><div class="policy-row-column-head"><strong>${annotatedLabel("版本信息", [["policy", "POL-R09"], ["policy", "POL-R11"]])}</strong></div><div class="policy-version-meta"><div><span>当前版本</span><strong>${esc(versionCode)}</strong></div><div><span>更新时间</span><strong>${esc(policy.updatedAt || "--")}</strong></div><div><span>更新人</span><strong>${esc(policy.updatedBy || "--")}</strong></div></div></div>`
+        ? `<div class="policy-row-scheme"><div class="policy-row-column-head"><strong>${annotatedLabel("当前审批方案", [["policy", "POL-R04"]])}</strong></div><div class="policy-scheme-box"><strong>${esc(policy.name || "未命名方案")}</strong><dl><div><dt>方案说明</dt><dd title="${esc(policy.description || `用于${productLine}${item.operationLabel}的审批流程`)}">${esc(policy.description || `用于${productLine}${item.operationLabel}的审批流程`)}</dd></div></dl></div>${policyWarning}</div><div class="policy-row-flow"><div class="policy-row-column-head"><strong>${annotatedLabel(`审批流程（${policy.levelCount || policy.nodes?.length || 0}级）`, [["policy", "POL-R05"]])}</strong></div><div class="policy-flow">${policyFlowNodes(policy)}</div></div><div class="policy-row-version"><div class="policy-row-column-head"><strong>${annotatedLabel("版本信息", [["policy", "POL-R09"], ["policy", "POL-R11"]])}</strong></div><div class="policy-version-meta"><div><span>当前版本</span><strong>${esc(versionCode)}</strong></div><div><span>更新时间</span><strong>${esc(policy.updatedAt || "--")}</strong></div><div><span>更新人</span><strong>${esc(policy.updatedBy || "--")}</strong></div></div></div>`
         : `<div class="policy-row-unconfigured"><div class="policy-empty-icon">${approvalEmptyIcon()}</div><div class="policy-empty-copy"><strong>尚未配置审批方案</strong><p>配置后，${item.operationLabel}需审批通过才能执行</p><p>未配置时禁止提交，请先配置有效审批方案。</p></div><span class="action-with-rules"><button type="button" class="btn primary policy-config-btn" data-action="new-approval-policy" data-operation="${esc(item.operation)}">去配置</button>${ruleAnnotation("policy", "POL-R02")}</span></div>`;
       return `<article class="policy-operation-card policy-operation-row ${item.operation} ${coverage.status}" data-policy-operation-card="${esc(item.operation)}"><div class="policy-card-hero">${operationColumn}</div><div class="policy-card-body">${configuredColumns}</div>${actions}</article>`;
     }).join("");
@@ -4217,21 +4238,18 @@
       if (!user) return modalFrame("账号状态变更", `<p class="confirm-copy">账号已不存在，请刷新后重试。</p>`, `<button class="btn" data-action="close-overlay">关闭</button>`);
       const enabling = modal.nextStatus === "active";
       const label = enabling ? "启用" : "停用";
-      const impact = modal.impact || userApprovalImpact(user);
-      const enabledPolicySummary = [...new Map(impact.enabledPolicies.map(policy => [`${policy.productLine} · ${policy.operation}`, policy])).values()];
-      const impactExpanded = modal.impactExpanded || {};
-      const approvalRows = impact.inFlight.map(item => `<li><strong>${esc(item.productLine)} · ${esc(item.operation)} · ${esc(item.version)}</strong><span>审批单 ${esc(item.approvalId)} · 第 ${esc(item.task)} 级</span></li>`).join("");
-      const approvalSummary = [...new Set(impact.inFlight.map(item => item.productLine))].join("、");
-      const policyRows = enabledPolicySummary.map(policy => `<li><strong>${esc(policy.productLine)} · ${esc(policy.operation)}</strong></li>`).join("");
-      const policySummary = [...new Set(enabledPolicySummary.map(policy => policy.operation))].join("、");
-      const impactGroup = (key, title, count, summary, rows) => `<div class="user-status-impact-group ${impactExpanded[key] ? "is-expanded" : ""}"><button type="button" class="user-status-impact-toggle" data-action="toggle-user-impact-group" data-impact-group="${key}" aria-expanded="${Boolean(impactExpanded[key])}"><span><strong>${title}</strong><small>${count} 条${summary ? ` · ${esc(summary)}` : ""}</small></span><b>${impactExpanded[key] ? "收起" : "查看"} <i aria-hidden="true">${impactExpanded[key] ? "⌃" : "⌄"}</i></b></button>${impactExpanded[key] ? `<div class="user-status-impact-scroll"><ul>${rows}</ul></div>` : ""}</div>`;
-      const impactMarkup = !enabling && (impact.inFlight.length || enabledPolicySummary.length) ? `<section class="user-status-impact"><div class="user-status-impact-head"><strong>停用影响范围</strong></div>${impact.inFlight.length ? impactGroup("inFlight", "在途审批", impact.inFlight.length, `涉及 ${approvalSummary}`, approvalRows) : ""}${enabledPolicySummary.length ? impactGroup("policies", "启用审批方案引用", enabledPolicySummary.length, policySummary, policyRows) : ""}</section>` : "";
-      const canConfirm = enabling || (!impact.inFlight.length && !impact.enabledPolicies.length);
-      const blocked = !canConfirm && !enabling;
-      const footer = `<button class="btn" data-action="close-overlay">${canConfirm ? "取消" : "关闭"}</button>${canConfirm ? `<button class="btn ${enabling ? "primary" : "danger"}" data-action="confirm-user-status">确认${label}</button>` : ""}`;
-      const copy = blocked ? `账号【${esc(user.name)} · ${esc(user.userId)}】当前无法停用，请先处理以下影响。` : `确认${label}账号【${esc(user.name)} · ${esc(user.userId)}】吗？`;
-      const helper = blocked ? '<p class="helper">请先完成在途审批，并调整上述启用审批方案后再停用账号。</p>' : (enabling ? "" : '<p class="helper">停用后，该用户不能被新的审批方案选择；已受理审批仍按提交时快照处理。</p>');
-      return modalFrame(blocked ? "无法停用账号" : `${label}账号`, `<p class="confirm-copy">${copy}</p>${impactMarkup}${helper}`, footer);
+      const copy = `确认${label}账号【${esc(user.name)} · ${esc(user.userId)}】吗？`;
+      const helper = enabling ? "" : '<p class="helper">停用后，该用户不能被新的审批方案选择。</p>';
+      const footer = `<button class="btn" data-action="close-overlay">取消</button><button class="btn ${enabling ? "primary" : "danger"}" data-action="confirm-user-status">确认${label}</button>`;
+      return modalFrame(`${label}账号`, `<p class="confirm-copy">${copy}</p>${helper}`, footer);
+    }
+    if (modal.type === "userStatusImpactConfirm") {
+      const user = db.users.find(item => item.userId === modal.userId);
+      if (!user) return modalFrame("停用账号提醒", `<p class="confirm-copy">账号已不存在，请刷新后重试。</p>`, `<button class="btn" data-action="close-overlay">关闭</button>`);
+      const policies = modal.impact?.enabledPolicies || [];
+      const policyRows = policies.map(policy => `<li><strong>${esc(policy.productLine)} · ${esc(policy.operation)} · ${esc(policy.name)}</strong><span>当前方案 ${esc(policy.version)}</span></li>`).join("");
+      const body = `<p class="confirm-copy">该账号当前被以下启用审批方案引用。停用后，这些方案暂不可承接新的审批申请。</p><section class="user-status-impact"><div class="user-status-impact-head"><strong>受影响审批方案</strong><span>${policies.length} 条</span></div><div class="user-status-impact-scroll"><ul>${policyRows}</ul></div></section><p class="helper">确认后账号将立即停用，审批方案及历史审批记录保留。</p>`;
+      return modalFrame("停用账号提醒", body, '<button class="btn" data-action="close-overlay">取消</button><button class="btn danger" data-action="confirm-user-impact-status">仍要停用</button>');
     }
     if (modal.type === "materialPreview" || modal.materialPreview) return renderMaterialPreviewModal(modal);
     if (["centerDecision", "centerRules", "centerResetDemo"].includes(modal.type)) return renderCenterModal(modal);
@@ -4613,9 +4631,9 @@
     const editingPolicy = drawer.policyId ? db.approvalPolicies.find(policy => policy.id === drawer.policyId) : null;
     const nodes = normalizeApprovalPolicyDraftNodes(draft);
     const nodeRows = nodes.map((node, index) => {
-      const selectedUsers = candidates.filter(user => nodeApproverIds(node).includes(user.userId));
-      const selectedUser = selectedUsers[0];
-      const selectedSummary = selectedUsers.map(user => user.name).join("、");
+      const configuredUsers = nodeApproverIds(node).map(userId => db.users.find(user => user.userId === userId)).filter(Boolean);
+      const selectedUser = configuredUsers[0];
+      const selectedSummary = configuredUsers.map(user => `${user.name}${user.status === "disabled" ? "（已停用）" : ""}`).join("、");
       const pickerOpen = drawer.nodeUserPickerOpen === index;
       const options = candidates.map(user => {
         const selected = nodeApproverIds(node).includes(user.userId);
@@ -4623,7 +4641,7 @@
         const searchValue = `${user.name} ${user.role} ${user.userId}`.toLowerCase();
         return `<button type="button" class="policy-user-option ${selected ? "selected" : ""}" data-action="select-policy-node-user" data-node-index="${index}" data-user-id="${esc(user.userId)}" data-policy-user-search-value="${esc(searchValue)}" role="option" aria-selected="${selected}" ${usedByAnotherNode ? "disabled" : ""}><span class="policy-user-avatar">${esc(String(user.name || "用").slice(0, 1))}</span><span><strong>${esc(user.name)}</strong><small>${esc(user.role)} · ${esc(user.userId)}</small></span><em>${selected ? "已选择" : usedByAnotherNode ? "已配置" : ""}</em></button>`;
       }).join("");
-      const picker = `<div class="policy-user-picker ${pickerOpen ? "open" : ""}"><button type="button" class="policy-user-picker-trigger ${selectedUser ? "has-value" : ""}" data-action="toggle-policy-node-user-picker" data-node-index="${index}" aria-haspopup="listbox" aria-expanded="${pickerOpen}" ${candidates.length ? "" : "disabled"}><span><strong class="${selectedUser ? "" : "placeholder"}">${esc(selectedSummary || "请选择一位或多位平台用户")}</strong><small>${selectedUser ? `${selectedUsers.length} 人或签 · 任一通过即可流转` : "仅展示启用账号 · 支持搜索、多选；跨节点不可重复"}</small></span><i aria-hidden="true">⌄</i></button>${pickerOpen ? `<div class="policy-user-picker-popover"><label class="policy-user-search"><span aria-hidden="true">⌕</span><input type="search" data-policy-node-user-search="${index}" placeholder="搜索姓名、角色或用户 ID" aria-label="搜索${esc(approvalNodeTypeLabel(node.type, index + 1))}" autocomplete="off"></label><div class="policy-user-options" role="listbox" aria-multiselectable="true">${options}<div class="policy-user-empty hidden" data-policy-user-empty>未找到匹配用户</div></div></div>` : ""}</div>`;
+      const picker = `<div class="policy-user-picker ${pickerOpen ? "open" : ""}"><button type="button" class="policy-user-picker-trigger ${selectedUser ? "has-value" : ""}" data-action="toggle-policy-node-user-picker" data-node-index="${index}" aria-haspopup="listbox" aria-expanded="${pickerOpen}" ${candidates.length ? "" : "disabled"}><span><strong class="${selectedUser ? "" : "placeholder"}">${esc(selectedSummary || "请选择一位或多位平台用户")}</strong><small>${selectedUser ? `${configuredUsers.length} 人或签 · 任一通过即可流转` : "仅展示启用账号 · 支持搜索、多选；跨节点不可重复"}</small></span><i aria-hidden="true">⌄</i></button>${pickerOpen ? `<div class="policy-user-picker-popover"><label class="policy-user-search"><span aria-hidden="true">⌕</span><input type="search" data-policy-node-user-search="${index}" placeholder="搜索姓名、角色或用户 ID" aria-label="搜索${esc(approvalNodeTypeLabel(node.type, index + 1))}" autocomplete="off"></label><div class="policy-user-options" role="listbox" aria-multiselectable="true">${options}<div class="policy-user-empty hidden" data-policy-user-empty>未找到匹配用户</div></div></div>` : ""}</div>`;
       const stageLabel = index === 0 ? annotatedLabel(`第 ${index + 1} 级审批人`, [["policy", "POL-R06"]]) : `第 ${index + 1} 级审批人`;
       return `<div class="policy-node-row"><span class="policy-node-sequence">${index + 1}</span><div class="policy-node-approver"><span class="policy-node-stage-label">${stageLabel}</span>${picker}${state.errors[`policyNode${index}`] ? `<div class="error-text">${esc(state.errors[`policyNode${index}`])}</div>` : ""}</div><div class="policy-node-rule"><span>处理规则</span><strong>发起人可按需催办</strong><small>不设审批截止时间</small></div><button type="button" class="btn icon-btn policy-node-remove" data-action="remove-policy-node" data-node-index="${index}" aria-label="删除第 ${index + 1} 级审批节点" title="删除此审批节点" ${nodes.length === 1 ? "disabled" : ""}>×</button></div>`;
     }).join("");
@@ -5610,7 +5628,8 @@
         return;
       }
       const ids = nodeApproverIds(nodes[nodeIndex]);
-      setNodeApprovers(nodes[nodeIndex], ids.includes(user.userId) ? ids.filter(id => id !== user.userId) : [...ids, user.userId]);
+      const activeIds = ids.filter(id => db.users.find(item => item.userId === id)?.status === "active");
+      setNodeApprovers(nodes[nodeIndex], ids.includes(user.userId) ? ids.filter(id => id !== user.userId) : [...activeIds, user.userId]);
       const pickerQuery = app.querySelector(`[data-policy-node-user-search="${nodeIndex}"]`)?.value || "";
       markApprovalPolicyDirty();
       clearApprovalPolicyNodeErrors();
@@ -6568,12 +6587,7 @@
       const user = db.users.find(item => item.userId === target.dataset.userId);
       if (!user) return;
       const nextStatus = user.status === "active" ? "disabled" : "active";
-      state.modal = { type: "userStatusConfirm", userId: user.userId, nextStatus, impact: nextStatus === "disabled" ? userApprovalImpact(user) : null };
-      renderShell();
-      return;
-    }
-    if (action === "toggle-user-impact-group" && state.modal?.type === "userStatusConfirm") {
-      state.modal.impactExpanded = { ...(state.modal.impactExpanded || {}), [target.dataset.impactGroup]: !state.modal.impactExpanded?.[target.dataset.impactGroup] };
+      state.modal = { type: "userStatusConfirm", userId: user.userId, nextStatus };
       renderShell();
       return;
     }
@@ -6585,21 +6599,26 @@
         toast("账号状态已变更，请确认列表中的最新状态", "warning");
         return;
       }
-      const impact = nextStatus === "disabled" ? userApprovalImpact(user) : { inFlight: [], enabledPolicies: [] };
-      if (impact.inFlight.length || impact.enabledPolicies.length) {
-        state.modal.impact = impact;
-        renderShell();
+      if (nextStatus === "disabled") {
+        const impact = userApprovalImpact(user);
+        if (impact.enabledPolicies.length) {
+          state.modal = { type: "userStatusImpactConfirm", userId, nextStatus, impact };
+          renderShell();
+          return;
+        }
+      }
+      commitUserStatusChange(user, nextStatus);
+      return;
+    }
+    if (action === "confirm-user-impact-status" && state.modal?.type === "userStatusImpactConfirm") {
+      const { userId, nextStatus } = state.modal;
+      const user = db.users.find(item => item.userId === userId);
+      if (!user || user.status === nextStatus) {
+        closeOverlay();
+        toast("账号状态已变更，请确认列表中的最新状态", "warning");
         return;
       }
-      const enabling = nextStatus === "active";
-      const label = enabling ? "启用" : "停用";
-      const content = `账号状态：${enabling ? "停用 → 启用" : "启用 → 停用"}`;
-      user.status = nextStatus;
-      user.changeLogs.unshift({ time: now(), operator: "汤彦珊", action: `${label}账号`, content });
-      addOperation("用户权限", label, user.name, "汤彦珊", "成功", content);
-      persist();
-      closeOverlay();
-      toast(`${user.name} 的账号已${label}`);
+      commitUserStatusChange(user, nextStatus);
       return;
     }
     if (action === "user-permissions") {

@@ -3957,11 +3957,16 @@
     const disabledIds = new Set(policyDisabledApprovers(policy).map(item => item.userId));
     if (!nodes.length) return '<span class="policy-flow-empty">暂未配置审批人</span>';
     return nodes.map((node, index) => {
-      const name = node.approverName || `第${index + 1}级`;
-      const initials = name.slice(0, 1);
+      const ids = nodeApproverIds(node);
+      const users = ids.map(id => db.users.find(user => user.userId === id) || { userId: id, name: id });
+      const names = users.map(user => user.name || user.userId);
+      const displayNames = names.length > 2 ? `${names.slice(0, 2).join("、")} +${names.length - 2}人` : names.join("、") || `第${index + 1}级`;
       const nodeClass = ["amber", "blue", "purple", "pink", "indigo"][index % 5];
-      const disabled = nodeApproverIds(node).some(id => disabledIds.has(id));
-      return `${index ? '<span class="policy-flow-arrow" aria-hidden="true">→</span>' : ""}<span class="policy-flow-node ${disabled ? "disabled" : ""}" title="${disabled ? "包含已停用审批人" : ""}"><span class="policy-flow-avatar ${nodeClass}">${esc(initials)}</span><span>${esc(name)}</span>${disabled ? '<em>已停用</em>' : ""}</span>`;
+      const disabled = ids.some(id => disabledIds.has(id));
+      const mode = String(node.decisionMode || "OR").toUpperCase() === "AND" ? "会签" : "或签";
+      const avatarItems = users.slice(0, 3).map(user => `<span class="policy-flow-avatar ${nodeClass} ${user.status === "disabled" ? "disabled" : ""}">${esc(String(user.name || user.userId || "用").slice(0, 1))}</span>`).join("");
+      const extraAvatar = users.length > 3 ? `<span class="policy-flow-avatar policy-flow-avatar-more">+${users.length - 3}</span>` : "";
+      return `${index ? '<span class="policy-flow-arrow" aria-hidden="true">→</span>' : ""}<span class="policy-flow-node ${disabled ? "disabled" : ""}" title="${esc(names.join("、"))}"><span class="policy-flow-avatars">${avatarItems}${extraAvatar}</span><span class="policy-flow-node-name">${esc(displayNames)}</span><small class="policy-flow-node-rule">${users.length || 0} 人${users.length > 1 ? mode : ""}</small>${disabled ? '<em>含停用</em>' : ""}</span>`;
     }).join("");
   }
 
@@ -3990,7 +3995,7 @@
       const versionCode = policy ? policy.policyVersion.replace(`${policy.id}-`, "") : "--";
       const operationDescription = item.operation === "publish" ? "发布固件版本到线上设备" : item.operation === "rollback" ? "将设备版本回退到历史版本" : "下架已发布的固件版本";
       const disabledApprovers = configured ? policyDisabledApprovers(policy) : [];
-      const policyWarning = disabledApprovers.length ? `<div class="policy-disabled-warning"><strong>审批人状态异常</strong><span>当前方案包含已停用审批人，暂不可承接新的审批申请。请更新审批节点配置后再提交。</span><small>${disabledApprovers.map(item => `${esc(item.name)} · 第 ${item.nodes.join("、")} 级`).join("；")}</small></div>` : "";
+      const policyWarning = disabledApprovers.length ? `<div class="policy-disabled-warning"><span class="policy-disabled-warning-icon" aria-hidden="true">!</span><div><strong>审批人状态异常</strong><span>当前方案包含已停用审批人，暂不可承接新的审批申请。请更新审批节点配置后再提交。</span><small>${disabledApprovers.map(item => `${esc(item.name)} · 第 ${item.nodes.join("、")} 级`).join("；")}</small></div><button type="button" class="link-btn policy-disabled-warning-action" data-action="edit-approval-policy" data-policy-id="${esc(policy.id)}">编辑配置 →</button></div>` : "";
       const actions = configured || disabled
         ? `<div class="policy-card-actions"><span class="action-with-rules"><button type="button" class="btn small" data-action="policy-version-history" data-policy-id="${esc(policy.id)}">版本记录</button>${ruleAnnotation("policy", "POL-R11")}</span><span class="action-with-rules"><button type="button" class="btn small ${disabled ? "primary" : ""}" data-action="toggle-approval-policy" data-policy-id="${esc(policy.id)}">${disabled ? "启用" : "停用"}</button>${ruleAnnotation("policy", "POL-R10")}</span><span class="action-with-rules"><button type="button" class="btn small primary" data-action="edit-approval-policy" data-policy-id="${esc(policy.id)}">编辑配置</button>${ruleAnnotation("policy", "POL-R03")}</span></div>`
         : "";

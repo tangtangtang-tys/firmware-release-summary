@@ -2253,8 +2253,6 @@ button { color: inherit; }
 .policy-flow-node { min-width: 52px; max-width: 72px; display: inline-flex; flex: 0 1 auto; flex-direction: column; align-items: center; gap: 4px; color: #304563; font-size: 9px; line-height: 1.2; text-align: center; }
 .policy-flow-avatars { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; padding-left: 3px; }
 .policy-flow-avatars .policy-flow-avatar + .policy-flow-avatar { margin-left: -8px; }
-.policy-flow-node-name { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.policy-flow-node-rule { color: #7890ad; font-size: 8px; white-space: nowrap; }
 .policy-flow-node.disabled { color: #b4232b; }
 .policy-flow-node.disabled .policy-flow-avatar { outline: 2px solid #d9363e; outline-offset: 1px; }
 .policy-flow-node em { color: #c52e38; font-size: 8px; font-style: normal; white-space: nowrap; }
@@ -2436,29 +2434,31 @@ button { color: inherit; }
 .policy-row-scheme .policy-scheme-box dl { gap: 8px; margin-top: 11px; }
 .policy-row-version { padding-right: 16px; }
 
-/* Expandable approval-stage list: each stage owns its own vertical space. */
-.policy-row-flow .policy-flow { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; justify-content: stretch; gap: 0; min-height: 0; margin-top: 14px; padding: 0; overflow: visible; }
-.policy-row-flow .policy-flow-node { width: 100%; max-width: none; min-width: 0; display: grid; gap: 6px; padding: 9px 10px; border: 1px solid #e2eaf4; border-radius: 6px; background: #fbfdff; text-align: left; }
-.policy-row-flow .policy-flow-node-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.policy-row-flow .policy-flow-node-copy { min-width: 0; display: grid; gap: 2px; }
-.policy-row-flow .policy-flow-node-copy strong { color: #304563; font-size: 11px; }
-.policy-row-flow .policy-flow-node-copy span { color: #7188a5; font-size: 10px; }
-.policy-row-flow .policy-flow-node-summary { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.policy-row-flow .policy-flow-node-summary > span { min-width: 0; width: auto; color: #526b8c; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.policy-row-flow .policy-flow-people-toggle { flex: 0 0 auto; padding: 0; border: 0; background: transparent; color: #2770c8; cursor: pointer; font-size: 10px; white-space: nowrap; }
-.policy-row-flow .policy-flow-people-toggle i { font-style: normal; font-size: 12px; }
-.policy-row-flow .policy-flow-people-detail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; padding-top: 6px; border-top: 1px solid #e7eef7; }
-.policy-row-flow .policy-flow-person { min-width: 0; display: flex; align-items: center; gap: 5px; color: #506783; font-size: 10px; }
-.policy-row-flow .policy-flow-person i { width: 20px; height: 20px; display: grid; place-items: center; flex: 0 0 20px; border-radius: 50%; background: #e5effc; color: #3179cc; font-size: 9px; font-style: normal; }
-.policy-row-flow .policy-flow-person b { min-width: 0; overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.policy-row-flow .policy-flow-person.disabled { color: #b4232b; }
-.policy-row-flow .policy-flow-person.disabled i { background: #ffe0e1; color: #c52e38; }
-.policy-row-flow .policy-flow-person em { color: #c52e38; font-size: 9px; font-style: normal; white-space: nowrap; }
-.policy-row-flow .policy-flow-people-detail > small { grid-column: 1 / -1; color: #879ab4; font-size: 9px; }
-.policy-row-flow .policy-flow-node > em { justify-self: start; }
-.policy-row-flow .policy-flow-arrow { width: 2px; height: 13px; position: relative; align-self: center; justify-self: center; margin: 0; padding: 0; background: #b7cbe3; font-size: 0; }
-.policy-row-flow .policy-flow-arrow::after { content: ""; position: absolute; left: -3px; bottom: -1px; border-top: 5px solid #8eafd1; border-right: 4px solid transparent; border-left: 4px solid transparent; }
-.policy-row-flow .policy-flow-node.disabled { border-color: #e79a9f; background: #fff7f7; }
+/* Compact horizontal approval flow: show one person plus count, reveal the full list on hover/focus. */
+.policy-row-flow .policy-flow { min-height: 91px; justify-content: flex-start; gap: 2px; margin-top: 18px; padding-bottom: 0; border-bottom: 0; overflow: visible; }
+.policy-row-flow .policy-flow-node { position: relative; width: auto; max-width: 72px; min-width: 52px; display: inline-flex; gap: 4px; padding: 0; border: 0; border-radius: 0; background: transparent; text-align: center; }
+.policy-row-flow .policy-flow-node-main { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.policy-row-flow .policy-flow-node-copy { display: contents; }
+.policy-row-flow .policy-flow-node-copy strong { order: 1; color: #304563; font-size: 9px; font-weight: 600; }
+.policy-row-flow .policy-flow-node-copy span { order: 3; color: #7890ad; font-size: 8px; white-space: nowrap; }
+.policy-row-flow .policy-flow-node-summary { order: 2; display: block; min-width: 0; width: 100%; }
+.policy-row-flow .policy-flow-node-summary > span { display: block; min-width: 0; width: 100%; overflow: hidden; color: #526b8c; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.policy-row-flow .policy-flow-node > em { order: 4; color: #c52e38; font-size: 8px; font-style: normal; white-space: nowrap; }
+.policy-row-flow .policy-flow-node.disabled { color: #b4232b; }
+.policy-row-flow .policy-flow-node.disabled .policy-flow-avatar { outline: 2px solid #d9363e; outline-offset: 1px; }
+.policy-row-flow .policy-flow-arrow { flex: 0 0 auto; align-self: flex-start; margin-top: 9px; color: #a8bad3; font-size: 13px; line-height: 1; }
+.policy-flow-people-popover { position: absolute; z-index: 20; left: 50%; bottom: calc(100% + 9px); display: none; width: 218px; max-width: min(218px, calc(100vw - 32px)); padding: 9px 10px; border: 1px solid #c8d9ee; border-radius: 7px; background: #fff; box-shadow: 0 8px 20px rgba(39, 75, 122, .16); color: #405a7b; text-align: left; transform: translateX(-50%); }
+.policy-flow-people-popover::after { content: ""; position: absolute; left: 50%; bottom: -5px; width: 8px; height: 8px; border-right: 1px solid #c8d9ee; border-bottom: 1px solid #c8d9ee; background: #fff; transform: translateX(-50%) rotate(45deg); }
+.policy-flow-node:hover .policy-flow-people-popover, .policy-flow-node:focus .policy-flow-people-popover, .policy-flow-node:focus-within .policy-flow-people-popover { display: block; }
+.policy-flow-people-popover > strong { display: block; margin-bottom: 7px; color: #2d4668; font-size: 11px; font-weight: 600; }
+.policy-flow-people-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 9px; max-height: 132px; overflow-y: auto; padding-right: 2px; }
+.policy-flow-person { min-width: 0; display: flex; align-items: center; gap: 5px; color: #506783; font-size: 10px; }
+.policy-flow-person i { width: 20px; height: 20px; display: grid; place-items: center; flex: 0 0 20px; border-radius: 50%; background: #e5effc; color: #3179cc; font-size: 9px; font-style: normal; }
+.policy-flow-person b { min-width: 0; overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.policy-flow-person.disabled { color: #b4232b; }
+.policy-flow-person.disabled i { background: #ffe0e1; color: #c52e38; }
+.policy-flow-person em { color: #c52e38; font-size: 9px; font-style: normal; white-space: nowrap; }
+.policy-flow-people-popover > small { display: block; margin-top: 7px; color: #879ab4; font-size: 9px; line-height: 1.35; }
 .policy-version-meta { display: grid; gap: 0; margin-top: 12px; }
 .policy-version-meta > div { display: grid; grid-template-columns: 66px minmax(0, 1fr); gap: 8px; padding: 9px 0; border-bottom: 1px solid #e5edf7; }
 .policy-version-meta > div:last-child { border-bottom: 0; }

@@ -1463,6 +1463,7 @@
     expandedLifecycleFlows: [lifecycleFlows(db.identifiers[0]?.lifecycleEvents || []).find(flow => flow.flowStatus === "active")?.flowId].filter(Boolean)
   };
   state.pendingVersionApproval = null;
+  state.policyFlowExpanded = {};
 
   const app = document.getElementById("app");
   const toastLayer = document.getElementById("toast-layer");
@@ -3966,7 +3967,12 @@
       const mode = String(node.decisionMode || "OR").toUpperCase() === "AND" ? "会签" : "或签";
       const avatarItems = users.slice(0, 3).map(user => `<span class="policy-flow-avatar ${nodeClass} ${user.status === "disabled" ? "disabled" : ""}">${esc(String(user.name || user.userId || "用").slice(0, 1))}</span>`).join("");
       const extraAvatar = users.length > 3 ? `<span class="policy-flow-avatar policy-flow-avatar-more">+${users.length - 3}</span>` : "";
-      return `${index ? '<span class="policy-flow-arrow" aria-hidden="true">→</span>' : ""}<span class="policy-flow-node ${disabled ? "disabled" : ""}" title="${esc(names.join("、"))}"><span class="policy-flow-avatars">${avatarItems}${extraAvatar}</span><span class="policy-flow-node-name">${esc(displayNames)}</span><small class="policy-flow-node-rule">${users.length || 0} 人${users.length > 1 ? mode : ""}</small>${disabled ? '<em>含停用</em>' : ""}</span>`;
+      const flowKey = `${policy.id || policy.policyVersion || policy.productLine}-${index}`;
+      const expanded = Boolean(state.policyFlowExpanded[flowKey]);
+      const decisionSummary = mode === "会签" ? "全部审批人通过后流转" : "任一审批人通过即可流转";
+      const peopleDetail = expanded ? `<div class="policy-flow-people-detail">${users.map(user => `<span class="policy-flow-person ${user.status === "disabled" ? "disabled" : ""}"><i>${esc(String(user.name || user.userId || "用").slice(0, 1))}</i><b>${esc(user.name || user.userId)}</b>${user.status === "disabled" ? "<em>已停用</em>" : ""}</span>`).join("")}<small>${users.length > 1 ? `${decisionSummary}（${mode}）` : "按节点顺序流转"}</small></div>` : "";
+      const peopleAction = users.length > 1 ? `<button type="button" class="policy-flow-people-toggle" data-action="toggle-policy-flow-people" data-policy-flow-key="${esc(flowKey)}" aria-expanded="${expanded}" aria-label="${expanded ? "收起" : "查看"}第 ${index + 1} 级审批人员">${expanded ? "收起人员" : "查看人员"} <i aria-hidden="true">${expanded ? "⌃" : "⌄"}</i></button>` : "";
+      return `${index ? '<span class="policy-flow-arrow" aria-hidden="true">→</span>' : ""}<article class="policy-flow-node ${disabled ? "disabled" : ""}" title="${esc(names.join("、"))}" aria-label="第 ${index + 1} 级，${users.length || 0} 人${users.length > 1 ? mode : ""}"><div class="policy-flow-node-main"><span class="policy-flow-avatars">${avatarItems}${extraAvatar}</span><div class="policy-flow-node-copy"><strong>第 ${index + 1} 级</strong><span>${users.length || 0} 人${users.length > 1 ? mode : ""}</span></div></div><div class="policy-flow-node-summary"><span>${esc(displayNames)}</span>${peopleAction}</div>${peopleDetail}${disabled ? '<em>含停用审批人</em>' : ""}</article>`;
     }).join("");
   }
 
@@ -5308,6 +5314,13 @@
     }
     const action = target.dataset.action;
     if (handleApprovalCenterAction(action, target)) return;
+    if (action === "toggle-policy-flow-people") {
+      const key = target.dataset.policyFlowKey;
+      if (!key) return;
+      state.policyFlowExpanded[key] = !state.policyFlowExpanded[key];
+      renderShell();
+      return;
+    }
     if (action === "version-approval-detail" || action === "version-open-center" || action === "open-approval-exception") {
       const approval = approvalById(target.dataset.approvalId);
       if (!approval) { toast("审批记录不存在", "warning"); return; }

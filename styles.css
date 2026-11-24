@@ -2434,9 +2434,31 @@ button { color: inherit; }
 .policy-row-column-head .link-btn { padding: 0; color: #1671e6; font-size: 12px; white-space: nowrap; }
 .policy-row-scheme .policy-scheme-box { margin-top: 12px; padding: 13px 14px 12px; }
 .policy-row-scheme .policy-scheme-box dl { gap: 8px; margin-top: 11px; }
-.policy-row-flow .policy-flow { min-height: 91px; justify-content: flex-start; margin-top: 18px; padding-bottom: 0; border-bottom: 0; }
-.policy-row-flow .policy-flow-node { min-width: 42px; }
 .policy-row-version { padding-right: 16px; }
+
+/* Expandable approval-stage list: each stage owns its own vertical space. */
+.policy-row-flow .policy-flow { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; justify-content: stretch; gap: 0; min-height: 0; margin-top: 14px; padding: 0; overflow: visible; }
+.policy-row-flow .policy-flow-node { width: 100%; max-width: none; min-width: 0; display: grid; gap: 6px; padding: 9px 10px; border: 1px solid #e2eaf4; border-radius: 6px; background: #fbfdff; text-align: left; }
+.policy-row-flow .policy-flow-node-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.policy-row-flow .policy-flow-node-copy { min-width: 0; display: grid; gap: 2px; }
+.policy-row-flow .policy-flow-node-copy strong { color: #304563; font-size: 11px; }
+.policy-row-flow .policy-flow-node-copy span { color: #7188a5; font-size: 10px; }
+.policy-row-flow .policy-flow-node-summary { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.policy-row-flow .policy-flow-node-summary > span { min-width: 0; width: auto; color: #526b8c; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.policy-row-flow .policy-flow-people-toggle { flex: 0 0 auto; padding: 0; border: 0; background: transparent; color: #2770c8; cursor: pointer; font-size: 10px; white-space: nowrap; }
+.policy-row-flow .policy-flow-people-toggle i { font-style: normal; font-size: 12px; }
+.policy-row-flow .policy-flow-people-detail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; padding-top: 6px; border-top: 1px solid #e7eef7; }
+.policy-row-flow .policy-flow-person { min-width: 0; display: flex; align-items: center; gap: 5px; color: #506783; font-size: 10px; }
+.policy-row-flow .policy-flow-person i { width: 20px; height: 20px; display: grid; place-items: center; flex: 0 0 20px; border-radius: 50%; background: #e5effc; color: #3179cc; font-size: 9px; font-style: normal; }
+.policy-row-flow .policy-flow-person b { min-width: 0; overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.policy-row-flow .policy-flow-person.disabled { color: #b4232b; }
+.policy-row-flow .policy-flow-person.disabled i { background: #ffe0e1; color: #c52e38; }
+.policy-row-flow .policy-flow-person em { color: #c52e38; font-size: 9px; font-style: normal; white-space: nowrap; }
+.policy-row-flow .policy-flow-people-detail > small { grid-column: 1 / -1; color: #879ab4; font-size: 9px; }
+.policy-row-flow .policy-flow-node > em { justify-self: start; }
+.policy-row-flow .policy-flow-arrow { width: 2px; height: 13px; position: relative; align-self: center; justify-self: center; margin: 0; padding: 0; background: #b7cbe3; font-size: 0; }
+.policy-row-flow .policy-flow-arrow::after { content: ""; position: absolute; left: -3px; bottom: -1px; border-top: 5px solid #8eafd1; border-right: 4px solid transparent; border-left: 4px solid transparent; }
+.policy-row-flow .policy-flow-node.disabled { border-color: #e79a9f; background: #fff7f7; }
 .policy-version-meta { display: grid; gap: 0; margin-top: 12px; }
 .policy-version-meta > div { display: grid; grid-template-columns: 66px minmax(0, 1fr); gap: 8px; padding: 9px 0; border-bottom: 1px solid #e5edf7; }
 .policy-version-meta > div:last-child { border-bottom: 0; }

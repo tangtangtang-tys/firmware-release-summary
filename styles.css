@@ -1588,6 +1588,19 @@ button { color: inherit; }
 .rule-popover dd { margin: 0; padding-right: 2px; color: var(--text-2); font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }
 .rule-popover dl > div:first-child dd { padding-right: 50px; color: #202a38; font-weight: 600; }
 
+/* Keep requirement pins and their panels above page content. Some reference
+   layouts use clipped work areas, so the annotation layer must explicitly
+   escape those stacking contexts. */
+.rule-annotation-group { z-index: 1000; }
+.rule-annotation { z-index: 1001; }
+.rule-popover { z-index: 10000; }
+.approval-center-page .ac-workspace,
+.approval-center-page .ac-tabs,
+.approval-center-page > .approval-flow-hint,
+.approval-center-page > .approval-flow-hint .approval-flow-steps { overflow: visible; }
+.approval-center-page .ac-tabs { position: relative; z-index: 100; }
+.approval-center-page .ac-tabs > .ac-tab-item { z-index: 1001; }
+
 .toast-layer { position: fixed; z-index: 200; top: 62px; right: 18px; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
 .toast { min-width: 260px; max-width: min(380px, calc(100vw - 36px)); display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-left: 4px solid var(--brand); border-radius: 5px; background: #fff; box-shadow: var(--shadow); animation: toast-in 180ms ease-out; }
 .toast.success { border-left-color: var(--success); }
